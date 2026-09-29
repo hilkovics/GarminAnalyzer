@@ -344,7 +344,8 @@ Method:
   than 10 % are NaN, the CI is null.
 - **Quartile contrast:** `Q1`/`Q3` of the predictor (numpy linear quantiles), `bottom = x ≤ Q1`,
   `top = x ≥ Q3`. Contrast = `mean(outcome | top) − mean(outcome | bottom)`, not partialled, with a
-  bootstrap CI (same resamples). It needs ≥ 5 rows in each group, else null.
+  bootstrap CI (same resamples). It needs ≥ 5 rows in each group, and is null whenever ρ is null (e.g. a
+  constant predictor, where both groups would be every row).
 - **Findings:** every (sport, predictor variant, outcome) with `n ≥ 30`, sorted by |partial ρ| (raw ρ if the
   partial is null). A finding whose CI contains 0 is labelled uncertain. No multiple-comparison correction
   is applied; the caveat text says so.

@@ -335,7 +335,7 @@ def _correlate(
         ci = percentile_ci(pearson_of_ranks(x_ranks, y_ranks))
 
     contrast, n_bottom, n_top = quartile_contrast_rows(xs[None, :], ys[None, :])
-    q_contrast = finite_or_none(contrast[0])
+    q_contrast = finite_or_none(contrast[0]) if rho is not None else None  # §9: no contrast without ρ
     q_ci: tuple[float | None, float | None] = (None, None)
     if q_contrast is not None:
         groups = memo.get("x_quartiles", (pair.predictor, rows), lambda: quartile_groups(xs[idx]))

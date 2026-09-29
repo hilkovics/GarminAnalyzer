@@ -512,6 +512,7 @@ def test_constant_predictor_gives_null_rho() -> None:
     assert result.partial_rho is None
     assert result.partial_ci_low is None
     assert result.headline_rho is None
+    assert result.q_contrast is None and result.q_ci_low is None  # §9: no contrast without ρ
     assert result.uncertain is True
 
 
