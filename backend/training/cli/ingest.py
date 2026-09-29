@@ -1,6 +1,7 @@
 """`training sync` / `training backfill` / `training db-stats` (+ metric update after ingest)."""
 
 import datetime as dt
+import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -10,7 +11,7 @@ from rich.markup import escape
 from rich.table import Table
 from sqlmodel import Session
 
-from training import pipeline
+from training import pipeline, planning
 from training.cli._app import app, console, err
 from training.config import get_settings
 from training.db import repo
@@ -27,6 +28,8 @@ from training.garmin.sync import (
     raw_sink_for,
     sync as run_sync,
 )
+
+log = logging.getLogger(__name__)
 
 
 @contextmanager
@@ -110,6 +113,18 @@ def sync(
         result = run_sync(session, client, dt.date.today())
         _report(result)
         _after_ingest(session, result)
+        _plan_today(session)
+
+
+def _plan_today(session: Session) -> None:
+    """Nightly coach step (PLAN phase 6): match done workouts, plan today if nothing is planned yet."""
+    try:
+        row = planning.nightly(session, dt.date.today())
+    except Exception:  # the coach must never fail a sync – the data is already stored
+        log.exception("planning today's workout failed")
+        console.print("[yellow]Planning today's workout failed[/] (details in the log).")
+        return
+    console.print(f"Today: {escape(row.name)}")
 
 
 @app.command()

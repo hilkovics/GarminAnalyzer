@@ -6,7 +6,7 @@ Phase 3: `api`, `export-openapi` (api.py). Phase 4: `propose-thresholds` (progre
 Unit conversions (pace ↔ m/s) happen here, never in the core.
 """
 
-from training.cli import api, auth, ingest, metrics, progress  # noqa: F401  (register commands)
+from training.cli import api, auth, ingest, metrics, plan, progress  # noqa: F401  (register commands)
 from training.cli._app import app
 
 __all__ = ["app"]

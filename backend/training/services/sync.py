@@ -12,7 +12,7 @@ import logging
 import requests
 from sqlmodel import Session
 
-from training import pipeline
+from training import pipeline, planning
 from training.config import Settings
 from training.garmin import sync as garmin_sync
 from training.garmin.client import (
@@ -44,6 +44,10 @@ def run_sync(session: Session, *, settings: Settings, today: dt.date) -> SyncRes
         log.warning("sync failed: %s", type(exc).__name__)
         raise ServiceError(NETWORK_MESSAGE) from None
     computed = pipeline.update_after_sync(session, synced.affected, today=today)
+    try:  # nightly coach step (PLAN phase 6); never fails the sync
+        planning.nightly(session, today)
+    except Exception:
+        log.exception("planning today's workout failed")
     return SyncResultDTO(
         activities_new=synced.activities_new,
         activities_updated=synced.activities_updated,
