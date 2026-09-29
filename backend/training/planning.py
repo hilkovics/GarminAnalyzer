@@ -245,10 +245,14 @@ def _decide_and_store(
         raise PlanError(f"{day} already has a done or skipped workout – it is not replaced")
     decision = rules.decide(build_context(session, day, sport_override))
     provisional = not _inputs_complete(session, day)  # before the delete: a flush would free the old id
+    # a pushed workout's Garmin ids move to the new plan, so the next push updates it (METRICS §10.8)
+    pushed = next((r for r in existing if r.garmin_workout_id is not None), None)
     for row in existing:
         session.delete(row)
     workout = decision.workout
     structure = {**to_structure(workout), "origin": origin, "provisional": provisional}
+    if pushed is not None and (pushed.structure or {}).get("garmin"):
+        structure["garmin"] = dict(pushed.structure["garmin"])
     row = PlannedWorkout(
         date=day,
         sport=workout.sport,
@@ -257,6 +261,7 @@ def _decide_and_store(
         estimated_load=round(estimated_load(workout), 1),
         reason=decision.reason,
         status="planned",
+        garmin_workout_id=pushed.garmin_workout_id if pushed is not None else None,
     )
     session.add(row)
     session.commit()

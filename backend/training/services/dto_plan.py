@@ -142,3 +142,14 @@ class PreferredDayDTO(BaseModel):
 
     role: str = Field(description='"rest" | "easy" | "long" | "q1" | "q2"')
     sport: str | None = Field(default=None, description='"run" | "bike" | null = decided by the coach')
+
+
+class PushResultDTO(BaseModel):
+    """POST /plan/{id}/push and `training push-today` (METRICS §10.8)."""
+
+    planned_id: int
+    action: str = Field(description='"uploaded" | "updated" | "deleted" | "skipped" | "dry_run"')
+    garmin_workout_id: int | None = None
+    scheduled_date: dt.date | None = None
+    payload: dict[str, Any] | None = Field(default=None, description="the Garmin workout JSON (dry run only)")
+    notes: list[str] = Field(default_factory=list)

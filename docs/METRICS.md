@@ -482,3 +482,16 @@ step):
 Map §10.5 to the `garminconnect` workout builder (running/cycling workouts with HR-zone targets), upload,
 then schedule on the planned date. Store `garmin_workout_id`. Re-pushing an already pushed plan updates
 rather than duplicates. Zone numbers refer to the user's Garmin Connect HR zones, which must equal §1.
+*Clarified 2026-09-29 (phase 7, proposed):*
+- Mapping (garminconnect workout JSON): sport run → `running` (1), bike → `cycling` (2); step type warmup →
+  warmup (1), cooldown → cooldown (2), work / steady → interval (3), recovery → recovery (4); repeat →
+  `RepeatGroupDTO` with `numberOfIterations`; every step ends on time (`endConditionValue = duration_s`).
+  Targets: `hr_zone` → `heart.rate.zone` with `zoneNumber`; `open` → `no.target` (the effort zone goes into
+  the step description); `pace_range` → `pace.zone` with `targetValueOne/Two` in m/s (slower bound first)
+  when both bounds are known, else `no.target`. `stepOrder` is unique across the workout.
+- Name `"<planned name> (<date>)"`, description = the §10.4 reason. Rest days are never pushed.
+- Re-push: a planned workout that already has a `garmin_workout_id` is updated in place (PUT keeps the id and
+  its calendar entry); it is scheduled again only when its date changed (the old schedule is removed first).
+  A regenerated plan inherits the Garmin ids of the row it replaces, so it updates rather than duplicates; a
+  regeneration to rest deletes the Garmin workout. Uploads are never retried automatically (a retried POST
+  could create a duplicate); updates and schedules use the normal backoff.

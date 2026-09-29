@@ -35,3 +35,35 @@ def plan_today(
             minutes = round(total_duration_s(workout) / 60)
             console.print(f"  {workout.sport}, {minutes} min, estimated load {row.estimated_load:.0f}")
         console.print(f"  {escape(row.reason or '')}")
+
+
+@app.command("push-today")
+def push_today(
+    dry_run: bool = typer.Option(
+        False, "--dry-run", help="Print the Garmin workout JSON instead of pushing."
+    ),
+    day: str | None = typer.Option(None, "--date", help="Push another day (YYYY-MM-DD) instead of today."),
+) -> None:
+    """Push today's planned workout to Garmin Connect (re-push updates it; used by cron after sync)."""
+    import json
+
+    from training.services import plan_push
+    from training.services.errors import ServiceError
+
+    target_day = dt.date.fromisoformat(day) if day else dt.date.today()
+    settings = get_settings()
+    with Session(get_engine(settings)) as session:
+        try:
+            results = plan_push.push_day(session, target_day, settings=settings, dry_run=dry_run)
+        except ServiceError as exc:
+            console.print(f"[red]{escape(str(exc))}[/]")
+            raise typer.Exit(1) from None
+    if not results:
+        console.print(f"{target_day}: nothing to push")
+    for result in results:
+        garmin = f" → Garmin workout {result.garmin_workout_id}" if result.garmin_workout_id else ""
+        console.print(f"{target_day}: {result.action}{garmin}")
+        for note in result.notes:
+            console.print(f"  {escape(note)}")
+        if result.payload is not None:
+            console.print_json(json.dumps(result.payload, ensure_ascii=False))

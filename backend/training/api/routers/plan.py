@@ -1,13 +1,13 @@
-"""/api/plan routes (phase 6): today's decision, week, season, goal and workout status."""
+"""/api/plan routes (phases 6–7): today's decision, week, season, goal, workout status and Garmin push."""
 
 import datetime as dt
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Response
 
-from training.api.deps import SessionDep, TodayDep
+from training.api.deps import ConfigDep, SessionDep, TodayDep
 from training.api.errors import INVALID, NOT_FOUND
-from training.services import plan as service
+from training.services import plan as service, plan_push
 from training.services.dto import (
     DailyDecisionDTO,
     GoalDTO,
@@ -17,6 +17,7 @@ from training.services.dto import (
     StatusIn,
     WeekPlanDTO,
 )
+from training.services.dto_plan import PushResultDTO
 
 router = APIRouter(prefix="/plan", tags=["plan"])
 
@@ -39,6 +40,18 @@ def get_plan_today(session: SessionDep, today: TodayDep) -> DailyDecisionDTO:
 )
 def regenerate_today(session: SessionDep, today: TodayDep, sport: str | None = None) -> DailyDecisionDTO:
     return service.regenerate(session, today, sport)
+
+
+@router.post(
+    "/today/push",
+    response_model=list[PushResultDTO],
+    responses=INVALID,
+    summary="Push today's planned workout(s) to Garmin Connect; a re-push updates, never duplicates",
+)
+def push_today(
+    session: SessionDep, today: TodayDep, settings: ConfigDep, dry_run: bool = False
+) -> list[PushResultDTO]:
+    return plan_push.push_day(session, today, settings=settings, dry_run=dry_run)
 
 
 @router.get(
@@ -105,3 +118,15 @@ def post_plan_status(
     planned_id: int, body: StatusIn, session: SessionDep, today: TodayDep
 ) -> PlannedWorkoutDTO:
     return service.set_status(session, planned_id, body.status, today=today)
+
+
+@router.post(
+    "/{planned_id}/push",
+    response_model=PushResultDTO,
+    responses={**NOT_FOUND, **INVALID},
+    summary="Push a planned workout to Garmin Connect and schedule it; dry_run returns the payload only",
+)
+def push_plan(
+    planned_id: int, session: SessionDep, settings: ConfigDep, dry_run: bool = False
+) -> PushResultDTO:
+    return plan_push.push_planned(session, planned_id, settings=settings, dry_run=dry_run)

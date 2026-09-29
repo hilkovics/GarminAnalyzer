@@ -359,3 +359,13 @@ def test_missed_and_rest_cards(monkeypatch):
     at = run_page("plan")
     assert not at.exception and "Dnes voľno" in texts(at)
     assert not any(b.label in ("Hotovo", "Vynechať") for b in at.button)
+
+
+def test_push_button_calls_the_push_service(seeded, monkeypatch):
+    from training.services import plan_push
+
+    calls = []
+    monkeypatch.setattr(plan_push, "push_planned", lambda s, pid, settings: calls.append(pid))
+    at = run_page("plan")
+    button(at, "Poslať do Garmin").click().run()
+    assert not at.exception and not at.error and len(calls) == 1

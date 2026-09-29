@@ -178,16 +178,20 @@ class GarminClient:
             if wait > 0:
                 self._sleep(wait)
 
-    def call(self, method: str, *args: Any, **kwargs: Any) -> Any:
-        """Call `Garmin.<method>(*args, **kwargs)` with spacing and backoff on 429/5xx."""
+    def call(self, method: str, *args: Any, _attempts: int | None = None, **kwargs: Any) -> Any:
+        """Call `Garmin.<method>(*args, **kwargs)` with spacing and backoff on 429/5xx.
+
+        `_attempts` caps the tries for this call (1 = never retry, for non-idempotent POSTs).
+        """
         fn = getattr(self.api, method)
-        for attempt in range(1, self.max_retries + 1):
+        attempts = self.max_retries if _attempts is None else max(1, _attempts)
+        for attempt in range(1, attempts + 1):
             self._throttle()
             try:
                 result = fn(*args, **kwargs)
             except Exception as exc:
                 self._last_call = self._clock()
-                if not is_retryable(exc) or attempt == self.max_retries:
+                if not is_retryable(exc) or attempt == attempts:
                     raise
                 delay = self.backoff_base_s * 2 ** (attempt - 1)
                 log.warning(
@@ -196,7 +200,7 @@ class GarminClient:
                     type(exc).__name__,
                     http_status(exc),
                     attempt,
-                    self.max_retries - 1,
+                    attempts - 1,
                     delay,
                 )
                 self._sleep(delay)
@@ -280,3 +284,22 @@ class GarminClient:
     def lactate_threshold(self, day: dt.date) -> dict[str, Any]:
         """Garmin's latest LT (HR + speed) as of `day`; stored under that date."""
         return self._fetch(ep.LACTATE_THRESHOLD, day, "get_lactate_threshold", latest=True)
+
+    # --- workouts (outbound plan data, METRICS §10.8; not raw history, so no raw_sink) ---------------------
+
+    def upload_workout(self, payload: dict[str, Any]) -> dict[str, Any]:
+        """POST a new workout; one attempt only – a retried POST could create a duplicate."""
+        return self.call("upload_workout", payload, _attempts=1)
+
+    def update_workout(self, workout_id: int, payload: dict[str, Any]) -> Any:
+        """PUT the full workout in place (keeps its id and calendar entries)."""
+        return self.call("update_workout", workout_id, payload)
+
+    def delete_workout(self, workout_id: int) -> Any:
+        return self.call("delete_workout", workout_id)
+
+    def schedule_workout(self, workout_id: int, day: dt.date) -> Any:
+        return self.call("schedule_workout", workout_id, day.isoformat())
+
+    def unschedule_workout(self, schedule_id: int) -> Any:
+        return self.call("unschedule_workout", schedule_id)

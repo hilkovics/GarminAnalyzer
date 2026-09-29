@@ -23,7 +23,8 @@ from components.format import (
 from components.plan import ROLE_LABELS, WEEKDAY_LABELS, phase_text, status_badge, step_lines, week_chart
 from pydantic import ValidationError
 
-from training.services import plan as plan_service, settings as settings_service
+from training.config import get_settings
+from training.services import plan as plan_service, plan_push, settings as settings_service
 from training.services.dto import (
     AthleteDTO,
     AthleteIn,
@@ -200,6 +201,12 @@ def _today_buttons(decision: DailyDecisionDTO) -> None:
                 _call(lambda s: plan_service.set_status(s, workout.id, "done", today=today), "Hotovo.")
             if cols[1].button("Vynechať", key="plan_skip"):
                 _call(lambda s: plan_service.set_status(s, workout.id, "skipped", today=today), "Vynechané.")
+            label = "Aktualizovať v Garmin" if workout.status == "pushed" else "Poslať do Garmin"
+            if cols[2].button(label, key="plan_push"):
+                _call(
+                    lambda s: plan_push.push_planned(s, workout.id, settings=get_settings()),
+                    "Tréning je v Garmin Connect kalendári – hodinky ho dostanú pri ďalšej synchronizácii.",
+                )
     left, right = st.columns([2, 1], vertical_alignment="bottom")
     sport = left.selectbox(
         "Prepočítať pre šport",

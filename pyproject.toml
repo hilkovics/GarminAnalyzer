@@ -25,6 +25,11 @@ dependencies = [
 [project.scripts]
 training = "training.cli:app"
 
+[project.optional-dependencies]
+ai = [
+    "anthropic>=1.0",
+]
+
 [dependency-groups]
 dev = [
     "httpx2>=2.13.1",
