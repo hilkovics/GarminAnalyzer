@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from tests.synthetic import constant, hilly, intervals, with_hr_dropout, with_pause, without_gps
+from tests.synthetic import constant, hilly, intervals, stream, with_hr_dropout, with_pause, without_gps
 from training.metrics.activity import ActivityMetrics, AthleteParams, ThresholdParams, activity_metrics
 from training.metrics.gap import minetti_cost
 from training.metrics.load import rtss
@@ -118,19 +118,54 @@ def test_threshold_speed_without_lthr_still_gives_rtss():
 
 
 def test_run_without_hr_keeps_rtss_and_flags_low_confidence():
+    """§2.1 changed 2026-09-29: no valid HR → HR loads null; §2.4 still selects rTSS for a GPS run."""
     m = run(constant(3600, hr=np.nan, speed=TS))
     assert m.hr_coverage == 0.0 and m.low_confidence is True
-    assert m.hrtss == 0.0 and m.if_hr == 0.0  # NaN HR contributes 0 (§2.1)
-    assert m.trimp_norm == 0.0
-    assert m.time_in_hr_zone == ZERO
+    assert m.hrtss is None and m.if_hr is None and m.trimp_norm is None
+    assert m.time_in_hr_zone == ZERO  # seconds of valid HR per zone – there are none
+    assert m.rtss == pytest.approx(100.0, abs=1e-9)
     assert m.load_method == "rtss"
     assert m.load_primary == pytest.approx(100.0, abs=1e-9)
 
 
-def test_bike_without_hr_primary_is_zero_hrtss_flagged():
-    m = run(constant(3600, hr=np.nan, speed=8.0), sport="bike")
+@pytest.mark.parametrize("sport", ["bike", "other"])
+def test_ride_without_hr_has_null_load_and_is_flagged(sport):
+    """§2.1 changed 2026-09-29: a ride without the strap has unknown load (null), not 0."""
+    m = run(constant(3600, hr=np.nan, speed=8.0), sport=sport)
+    assert m.moving_s == 3600
+    assert m.hr_coverage == 0.0 and m.low_confidence is True
+    assert m.hrtss is None and m.if_hr is None and m.trimp_norm is None
+    assert m.rtss is None and m.if_pace is None
+    assert m.load_primary is None and m.load_method is None
+    assert m.time_in_hr_zone == ZERO
+
+
+@pytest.mark.parametrize(
+    ("df", "threshold", "is_indoor"),
+    [
+        (without_gps(constant(3600, hr=np.nan, speed=TS)), RUN, False),  # no usable GPS
+        (constant(3600, hr=np.nan, speed=TS), RUN, True),  # treadmill
+        (constant(3600, hr=np.nan, speed=TS), ThresholdParams(lthr=LTHR), False),  # no threshold_speed
+    ],
+)
+def test_run_without_hr_and_without_rtss_has_null_load(df, threshold, is_indoor):
+    m = run(df, threshold=threshold, is_indoor=is_indoor)
     assert m.low_confidence is True
-    assert m.load_method == "hrtss" and m.load_primary == 0.0
+    assert m.hrtss is None and m.if_hr is None and m.trimp_norm is None and m.rtss is None
+    assert m.load_primary is None and m.load_method is None
+
+
+@pytest.mark.parametrize("sport", ["run", "bike"])
+def test_one_valid_hr_sample_still_gives_a_small_load(sport):
+    df = constant(3600, hr=np.nan, speed=TS)
+    df.loc[0, "hr"] = LTHR  # one second at lthr (IF 1.0, HRr 120/140)
+    m = run(df, sport=sport, threshold=ThresholdParams(lthr=LTHR))
+    assert m.hr_coverage == pytest.approx(1 / 3600) and m.low_confidence is True
+    assert m.hrtss == pytest.approx(1 / 36, abs=1e-15)
+    assert m.if_hr == pytest.approx(1 / 60, abs=1e-15)  # sqrt((1/36) · 36 / 3600)
+    assert m.trimp_norm == pytest.approx(100 / 3600, abs=1e-12)  # 1 of the 3600 reference seconds
+    assert m.load_method == "hrtss" and m.load_primary == pytest.approx(1 / 36, abs=1e-15)
+    assert m.time_in_hr_zone == {"1": 0, "2": 0, "3": 0, "4": 1, "5": 0}
 
 
 def test_low_confidence_never_substitutes():
@@ -168,6 +203,43 @@ def test_hilly_run_rtss_uses_gap():
     assert m.if_pace == pytest.approx(ratio, rel=1e-3)
     assert m.rtss == pytest.approx(100 * ratio**2, rel=2e-3)
     assert m.hrtss == pytest.approx(100.0, abs=1e-9)  # hrTSS is not grade-adjusted
+
+
+def _ngs_with_glitch(base: float, glitch: float) -> float:
+    """NGS of 3600 samples at `base` with samples 1795..1804 at `glitch` (trailing 30-sample windows).
+
+    Windows end at 29..3599 (3571). A window ending at e holds k glitch samples: k = 1..10 for
+    e = 1795..1804, k = 10 for e = 1805..1824 (20 windows), k = 9..1 for e = 1825..1833; the other 3532
+    windows are all `base`. A window's mean is base + k · (glitch − base) / 30.
+    """
+    ks = [*range(1, 11), *[10] * 20, *range(9, 0, -1)]
+    assert len(ks) == 39
+    fourth = 3532 * base**4 + sum((base + k * (glitch - base) / 30) ** 4 for k in ks)
+    return (fourth / 3571) ** 0.25
+
+
+def test_altitude_glitch_on_a_flat_run_has_bounded_rtss():
+    """§3 changed 2026-09-29: a 30 m altitude step puts 10 samples at the +0.30 grade clamp; their GAP is
+    clamped to 7 m/s (unclamped 3 · C(0.30)/3.6 = 10.48 m/s), which bounds NGS / rTSS."""
+    alt = np.r_[np.full(1800, 100.0), np.full(1800, 130.0)]
+    df = stream(hr=LTHR, speed=3.0, alt=alt)
+    m = run(df, threshold=ThresholdParams(lthr=LTHR, threshold_speed=3.0))
+    gap = preprocess(df, "run").samples["gap_speed"].to_numpy()
+    assert gap.max() == 7.0 and np.count_nonzero(gap == 7.0) == 10
+    ngs = _ngs_with_glitch(3.0, 7.0)
+    assert m.if_pace == pytest.approx(ngs / 3.0, abs=1e-12)
+    assert m.rtss == pytest.approx(100 * (ngs / 3.0) ** 2, abs=1e-9)
+    assert m.load_method == "rtss" and m.load_primary == m.rtss
+    unclamped = _ngs_with_glitch(3.0, 3.0 * minetti_cost(np.array([0.30]))[0] / 3.6)
+    assert m.rtss < 100 * (unclamped / 3.0) ** 2
+    assert m.hrtss == pytest.approx(100.0, abs=1e-9)
+
+
+def test_run_entirely_at_the_grade_clamp_is_capped_at_7_mps():
+    # Every GAP sample clamps to 7.0 (see test_metrics_preprocess), so NGS = 7 and IF_pace = 7 / 3.
+    m = run(hilly(3600, speed=3.0, grade=0.30, hr=LTHR), threshold=ThresholdParams(LTHR, 3.0))
+    assert m.if_pace == pytest.approx(7 / 3, abs=1e-12)
+    assert m.rtss == pytest.approx(100 * 49 / 9, abs=1e-9)  # 544.44, unclamped it would be ≈ 1221
 
 
 def test_hilly_bike_is_not_grade_adjusted():
@@ -218,10 +290,9 @@ def test_trimp_norm_female():
 def test_empty_stream():
     m = run(empty_streams())
     assert m.moving_s == 0 and m.hr_coverage == 0.0 and m.low_confidence is True
-    assert m.hrtss == 0.0
-    assert m.if_hr is None  # moving_s = 0
+    assert m.hrtss is None and m.if_hr is None and m.trimp_norm is None  # no valid HR sample (§2.1)
     assert m.rtss is None
-    assert m.load_method == "hrtss" and m.load_primary == 0.0
+    assert m.load_method is None and m.load_primary is None
     assert m.time_in_hr_zone == ZERO
 
 

@@ -59,8 +59,8 @@ class Preprocessed:
 
     `samples`: columns `SAMPLE_COLUMNS`, time order, index 0..moving_s−1. `hr` is valid or NaN (§0.3),
     `speed` clamped (§0.4), `alt` smoothed and `grade` per §0.5, `distance` cumulative as given,
-    `gap_speed` per §3 for runs (= speed for bike/other), `is_slow` = walking/stopped (§0.4; NaN speed is
-    not slow).
+    `gap_speed` per §3 for runs (clamped to the §0.4 run range 0–7 m/s; = speed for bike/other),
+    `is_slow` = walking/stopped (§0.4; NaN speed is not slow).
     """
 
     samples: pd.DataFrame
@@ -105,8 +105,8 @@ def preprocess(streams: pd.DataFrame, sport: str) -> Preprocessed:
     alt_smooth = smooth_altitude(alt)
     grade = grade_from(alt_smooth, distance)
 
-    # §3 GAP – runs only.
-    gap = _gap_speed(speed, grade) if sport == "run" else speed.copy()
+    # §3 GAP – runs only, clamped to the §0.4 run range (changed 2026-09-29).
+    gap = _gap_speed(speed, grade, max_speed=MAX_SPEED["run"]) if sport == "run" else speed.copy()
 
     samples = pd.DataFrame(
         {

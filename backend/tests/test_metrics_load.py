@@ -89,8 +89,20 @@ def test_hrtss_nan_samples_contribute_zero():
     hr = np.r_[np.full(1800, 170.0), np.full(1800, np.nan)]
     assert hrtss(hr, 170.0) == pytest.approx(50.0, abs=1e-9)
     assert activity_if_hr(50.0, 3600) == pytest.approx(math.sqrt(0.5), abs=1e-12)
-    assert hrtss(np.full(10, np.nan), 170.0) == 0.0
-    assert hrtss(np.array([]), 170.0) == 0.0
+
+
+def test_hrtss_without_any_valid_hr_is_none():
+    """METRICS §2.1 changed 2026-09-29: no valid HR sample → hrTSS and IF_hr null (unknown), not 0."""
+    assert hrtss(np.full(10, np.nan), 170.0) is None
+    assert hrtss(np.array([]), 170.0) is None
+    assert activity_if_hr(None, 3600) is None
+    assert activity_if_hr(None, 0) is None
+
+
+def test_hrtss_one_valid_sample_is_a_small_number():
+    hr = np.r_[[170.0], np.full(3599, np.nan)]  # one second at lthr → IF 1.0
+    assert hrtss(hr, 170.0) == pytest.approx(1 / 36, abs=1e-15)
+    assert activity_if_hr(1 / 36, 3600) == pytest.approx(1 / 60, abs=1e-15)
 
 
 def test_hrtss_intervals():
@@ -127,7 +139,7 @@ def test_trimp_female_constants():
 
 
 def test_trimp_hrr_clamped_to_0_1():
-    assert trimp(np.full(600, 45.0), REST, MAX, "male") == 0.0  # below rest → HRr 0
+    assert trimp(np.full(600, 45.0), REST, MAX, "male") == 0.0  # valid HR below rest → HRr 0 (a real 0)
     above = trimp(np.full(3600, 200.0), REST, MAX, "male")  # above max → HRr 1
     assert above == pytest.approx(60 * 0.64 * math.exp(1.92), abs=1e-9)
     assert trimp(np.full(3600, 200.0), REST, MAX, "female") == pytest.approx(
@@ -138,6 +150,30 @@ def test_trimp_hrr_clamped_to_0_1():
 def test_trimp_nan_samples_skipped():
     hr = np.r_[np.full(1800, LTHR), np.full(1800, np.nan)]
     assert trimp(hr, REST, MAX, "male") == pytest.approx(30 * 0.8 * 0.64 * math.exp(1.92 * 0.8), abs=1e-9)
+
+
+@pytest.mark.parametrize("sex", ["male", "female"])
+def test_trimp_without_any_valid_hr_is_none(sex):
+    """METRICS §2.1 changed 2026-09-29: no valid HR sample → TRIMP and TRIMP_norm null, not 0."""
+    assert trimp(np.full(600, np.nan), REST, MAX, sex) is None
+    assert trimp(np.array([]), REST, MAX, sex) is None
+    assert trimp_norm(None, rest_hr=REST, max_hr=MAX, lthr=LTHR, sex=sex) is None
+
+
+def test_trimp_without_hr_still_validates_parameters():
+    with pytest.raises(ValueError):
+        trimp(np.full(10, np.nan), REST, MAX, "x")
+    with pytest.raises(ValueError):
+        trimp(np.full(10, np.nan), REST, REST, "male")  # max_hr ≤ rest_hr
+
+
+def test_trimp_one_valid_sample_is_a_small_number():
+    hr = np.r_[[LTHR], np.full(3599, np.nan)]  # one second at HRr 0.8
+    value = trimp(hr, REST, MAX, "male")
+    assert value == pytest.approx(0.8 * 0.64 * math.exp(1.92 * 0.8) / 60, abs=1e-12)
+    # One of the 3600 reference seconds → 100 / 3600.
+    got = trimp_norm(value, rest_hr=REST, max_hr=MAX, lthr=LTHR, sex="male")
+    assert got == pytest.approx(100 / 3600, abs=1e-12)
 
 
 @pytest.mark.parametrize("sex", ["male", "female"])
