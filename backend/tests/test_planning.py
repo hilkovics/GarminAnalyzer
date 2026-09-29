@@ -125,3 +125,49 @@ def test_rest_rows_are_never_matched(session):
     planning.match_completed(session, TODAY)
     rows = session.execute(select(PlannedWorkout).where(PlannedWorkout.sport == "rest")).scalars().all()
     assert all(r.status == "planned" for r in rows)
+
+
+def test_taper_weeks_use_the_stored_pre_taper_week(session):
+    """Review phase 6 B1: every taper week = 0.5 × the last pre-taper week's target from *its* CTL."""
+    race = TODAY + dt.timedelta(days=7)  # Wednesday: weeks d = 9 (taper) and 2 (taper); peak before
+    session.add(Goal(race_date=race, distance_m=10000.0, sport="run"))
+    session.commit()
+    monday = TODAY - dt.timedelta(days=TODAY.weekday())
+    peak_ctl = session.get(DailyLoad, monday - dt.timedelta(days=8)).ctl  # the day before the peak Monday
+    expected = 0.5 * 7 * peak_ctl  # peak ramp 0
+    this_week, next_week = planning.season_weeks(session, TODAY, 2)
+    assert (this_week.phase, next_week.phase) == ("taper", "taper")
+    assert this_week.target_load == pytest.approx(expected)
+    assert next_week.target_load == pytest.approx(expected)  # no compounding
+    assert planning.week_target(session, TODAY).target_load == pytest.approx(expected)
+
+
+def test_a_plan_decided_before_the_sync_is_redone_by_the_nightly_step(session):
+    """Review phase 6 B2: opening the page before the morning sync must not freeze a stale decision."""
+    from training.db import repo
+    from training.db.state_keys import LAST_ACTIVITY_SYNC
+
+    repo.set_state(session, LAST_ACTIVITY_SYNC, (TODAY - dt.timedelta(days=1)).isoformat())
+    session.commit()
+    early, _ = planning.plan_day(session, TODAY)  # e.g. GET /plan/today before the sync
+    assert planning.is_provisional(early)
+    _set_day(session, TODAY, readiness=30.0)  # the sync brings today's readiness …
+    repo.set_state(session, LAST_ACTIVITY_SYNC, TODAY.isoformat())
+    session.commit()
+    fresh = planning.nightly(session, TODAY)  # … and then plans
+    assert "30" in fresh.reason and not planning.is_provisional(fresh)
+    assert len(planning.planned_for(session, TODAY)) == 1
+    assert planning.nightly(session, TODAY).id == fresh.id  # a complete decision is kept
+
+
+def test_nightly_keeps_a_user_regeneration(session):
+    from training.db import repo
+    from training.db.state_keys import LAST_ACTIVITY_SYNC
+
+    repo.set_state(session, LAST_ACTIVITY_SYNC, (TODAY - dt.timedelta(days=1)).isoformat())
+    session.commit()
+    chosen, _ = planning.plan_day(session, TODAY, sport_override="bike")
+    assert not planning.is_provisional(chosen)  # origin "user"
+    repo.set_state(session, LAST_ACTIVITY_SYNC, TODAY.isoformat())
+    session.commit()
+    assert planning.nightly(session, TODAY).id == chosen.id

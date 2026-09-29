@@ -58,3 +58,18 @@
   Grep for the old wording every round 2.
 - Check approval claims in STATUS against METRICS.md and the commit that approved them (phase 4 approval came in
   ea1c748, which is legitimate).
+
+## Phase 6 notes (2026-09-29, coach)
+- New pattern: "reference value computed virtually from the current state" instead of the stored history.
+  coach/season.py `_virtual_pre_taper_target` uses CTL before the *current* Monday for the pre-taper week, and
+  planning.week_target always calls season_plan(monday, 1, ...), so the 2nd taper week (and taper week 1 if
+  Peak was not met) is not 0.5 x the real pre-taper target (§10.2). Check any "previous period" reference
+  for whether it is read from history or reconstructed from today's state.
+- New pattern: GET/view endpoints that persist a decision (services/plan.get_today via plan_day, called by
+  GET /api/plan/today and the Streamlit Plán page). A view before the morning sync freezes a decision with
+  readiness[D]/TSB[D] missing and without match_completed; nightly then keeps it. Check every "decide on
+  first call" service for input freshness.
+- Doc-change drift: when METRICS clarifications are edited mid-phase (ddd6f36 run share, a6d625a rule 1/2),
+  module docstrings that quote the clarification are not updated (season.py, rules.py). Diff quoted text.
+- Sync-wrapping try/except without session.rollback() (services/sync.py, cli/ingest.py) - flag each phase.
+- STATUS.md again not updated (phase 6). test_coach_rules.py 481 lines.

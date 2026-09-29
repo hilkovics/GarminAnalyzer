@@ -11,9 +11,10 @@
 Clarified 2026-09-29 (phase 6, proposed) – binding:
 - Inputs for day `D`: `readiness[D]`, `TSB[D]`, `ACWR[D−1]`, `monotony[D−1]`. A null input never triggers
   its condition (the reason says the value is missing).
-- Rule 1: **rest** if the week's rest quota is not yet used (days `Mon … D−1` without any activity < the
-  template's rest days), else **40 min Z1** (recovery, today's sport).
-- Rule 2: "session type" = the §10.7 workout key. If today's workout key was done in `D−7 … D−1`, take the
+- Rule 1: on a template rest day → rest. Otherwise **rest** if the week's rest quota is not yet used
+  (days `Mon … D−1` without any activity < the template's rest days), else **40 min Z1** (recovery,
+  today's sport).
+- Rule 2: "session type" = the §10.7 (sport, key) pair. If today's type was done in `D−7 … D−1`, take the
   first key of this week's remaining non-rest slots (order long, q1, q2, easy) that was not; if none, keep
   today's.
 - Rule 3: today's role gives the slot (rest → rest). If today is `easy` and an earlier `q1`/`q2`/`long` slot
@@ -24,7 +25,7 @@ Clarified 2026-09-29 (phase 6, proposed) – binding:
   `remaining · w_today / Σ w`; the parameter whose `estimated_load` is closest wins (ties → the smaller).
 - Rest output = `sport = "rest"`, no steps, `estimated_load = 0`. Reasons are Slovak fixed templates.
 
-Implementation decisions (not spelled out in METRICS):
+Decisions below are also recorded in METRICS §10.4 (phase 6, proposed):
 - Precedence: rule 1, then a template rest day → rest (rule 3), then rule 2 if `monotony > 2.0` (it picks
   the key starting from today's template role; rule 3's make-up / downgrade logic does not run), else rule 3.
   Rule 4 scales whatever rule 2 or 3 chose.

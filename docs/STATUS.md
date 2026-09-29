@@ -1,8 +1,46 @@
 # STATUS
 
-Last updated: 2026-09-29 (phase 5 session)
+Last updated: 2026-09-29 (phase 6 session)
 
 ## Done
+
+### Phase 6 – coach: season, rules, plan (code complete; METRICS §10 clarifications await approval)
+- `coach/` (pure, deterministic, no LLM; test-first by three metrics-implementers):
+  - `workout.py`: the §10.5 schema as Pydantic, plus §10.6 `estimated_load`.
+  - `library.py`: §10.7 as data. Every workout has one parameter, and `fit_param` picks the value whose
+    load is closest to the day's target.
+  - `season.py`: §10.1 phases and §10.2 targets (ramp cap, recovery weeks, non-compounding taper, CTL
+    projection).
+  - `template.py`: §10.3 weekday roles and `preferred_days`.
+  - `rules.py`: the §10.4 daily decision with Slovak reasons.
+- Glue: `training/planning.py` (context from the DB, a persisted `planned_workout`, date+sport matching,
+  done/skipped status).
+- Where plans are made:
+  - `training plan-today [--force] [--sport] [--date]`.
+  - The nightly step at the end of `training sync` and `POST /sync`. A failure there is rolled back and
+    never fails the sync.
+- Services/API/UI (ui-page-builder):
+  - `services/plan.py` + `dto_plan.py`.
+  - `/api/plan/today`, `/today/regenerate`, `/week`, `/season`, `/goal` (GET/PUT/DELETE), `/{id}`,
+    `/{id}/status`.
+  - Plán page: today's card (steps, load, reason, readiness, done/skip/regenerate), this week planned vs
+    done, season timeline, goal editor, preferred-days editor.
+- Acceptance:
+  - The decision changes with readiness and with ACWR (rules and DB tests).
+  - A simulated 16-week season peaks at a ramp of 4.76 (limit 6).
+  - The plan is visible in the UI and via `/api/plan/today` (browser-checked on the demo DB, no
+    exceptions on any page).
+- Spec review, 2 blockers fixed and tested:
+  1. The taper reference was rebuilt from the current week's CTL (compounding). It now uses the stored
+     CTL before the last pre-taper week.
+  2. A decision made before the morning sync (the page opened first) was frozen for the day. It is now
+     provisional and the nightly step decides it again.
+
+  Warnings fixed: stale docstrings, `_ctl_before` = exactly Monday−1, rollback after a caught planning
+  failure, interpretation notes moved into METRICS §10, UI imports only services, run share per week.
+- Demo (`plan-today` on the demo DB, no goal → Base cycle, recovery week): today "Progresívny beh 60 min",
+  estimated 56 points (day target 55). `--sport bike` gives "Sweet spot 2×20 min".
+- Tests: 1705 passed, 5 skipped. ruff clean.
 
 ### Phase 5 – sleep, readiness, correlations (code complete; METRICS §8–§9 clarifications await approval)
 - `analysis/` (pure, test-first by two metrics-implementers):
@@ -324,10 +362,21 @@ Last updated: 2026-09-29 (phase 5 session)
    (fills EF/curves and `daily_load.readiness`; until then `/wellness/daily` shows no readiness while
    `/wellness/readiness/today` computes it live). Then open Progres and Spánok and report today's readiness
    and the top 3 findings from your real data.
-8. **Approve** the METRICS §8–§9 "(phase 5, proposed)" clarifications.
-9. **Phase 6** – coach: season plan, weekly targets, daily decision, workouts.
+8. **Approve** the METRICS §8–§9 "(phase 5, proposed)" and §10 "(phase 6, proposed)" clarifications.
+9. **You, locally – phase 6 check:** set your goal on the Plán page (or `PUT /api/plan/goal`), your
+   run:bike split (`training athlete`) and your preferred days, then run `uv run training sync` and check
+   today's plan and its reason. Set your Garmin HR zones to METRICS §1 before phase 7 pushes workouts.
+10. **Phase 7** – push workouts to Garmin, morning report, AI report.
 
 ## Known issues / open questions
+- Phase 6:
+  - The §10.7 ranges cap a default run week at about 420 points; a larger weekly target (Build with
+    CTL > ≈ 39) is not reachable, and every workout then sits at its maximum. Options are wider ranges
+    or double sessions – your call.
+  - `planned_workout` has no unique index on the date. Plans are one per day by construction, but a page
+    view and the cron sync running at the same second could create two rows.
+  - `dto.py` (≈ 418 lines) and `test_coach_rules.py` (≈ 480 lines) are slightly over the file-size
+    guideline.
 
 - Phase 3 open points:
   - The lap keys (`lapDTOs[].duration/distance/averageHR/maxHR/averageSpeed/elevationGain`) are unverified until
@@ -383,8 +432,8 @@ Last updated: 2026-09-29 (phase 5 session)
   the next run, so nothing is lost.
 - Open METRICS.md points to decide before the phase that uses them:
   - (resolved) Phase-4 METRICS clarifications approved by the user on 2026-09-29.
-  - §10.4 rule 1 "whichever the template has fewer of" needs a deterministic tie-break.
-  - §10.6 Z1 IF 0.50 is not the table midpoint (0.30–0.55). Confirm that it is intended.
+  - (resolved, proposed) §10.4 rule 1: rest while the week's rest quota is open, else 40 min Z1 (METRICS §10.4 phase 6).
+  - §10.6 Z1 IF 0.50 is kept as written (not the table midpoint 0.43); noted in METRICS §10.6 – confirm.
 
 ## Decisions
 

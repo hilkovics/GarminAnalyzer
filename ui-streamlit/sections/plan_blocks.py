@@ -23,7 +23,6 @@ from components.format import (
 from components.plan import ROLE_LABELS, WEEKDAY_LABELS, phase_text, status_badge, step_lines, week_chart
 from pydantic import ValidationError
 
-from training.coach.template import DEFAULT_ROLES, ROLES, WEEKDAYS
 from training.services import plan as plan_service, settings as settings_service
 from training.services.dto import (
     AthleteDTO,
@@ -36,6 +35,11 @@ from training.services.dto import (
     WeekPlanDTO,
 )
 from training.services.errors import ServiceError
+from training.services.plan import (
+    DEFAULT_PREFERRED_DAYS as DEFAULT_ROLES,
+    PREFERRED_DAY_ROLES as ROLES,
+    PREFERRED_WEEKDAYS as WEEKDAYS,
+)
 
 FLASH_KEY = "plan_flash"
 DISTANCES = {"5 km": 5000.0, "10 km": 10000.0, "Polmaratón": 21097.5, "Maratón": 42195.0, "Vlastná": None}

@@ -35,6 +35,10 @@ from training.services.dto import (
 from training.services.errors import InvalidInputError, NotFoundError
 
 GOAL_SPORTS = ("run", "bike")
+# template vocabulary for the preferred-days editor (pages import services only, CLAUDE.md rule 2)
+PREFERRED_DAY_ROLES = template.ROLES
+PREFERRED_WEEKDAYS = template.WEEKDAYS
+DEFAULT_PREFERRED_DAYS = dict(template.DEFAULT_ROLES)
 STATUSES = ("done", "skipped", "planned")
 SEASON_WEEKS_NO_GOAL = 20
 SEASON_WEEKS_MAX = 60

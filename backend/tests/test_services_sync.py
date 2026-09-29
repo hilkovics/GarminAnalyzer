@@ -142,3 +142,24 @@ def test_a_failed_run_keeps_what_was_fetched_and_the_next_run_completes_it(sessi
     dto = svc.run_sync(session, settings=settings, today=TODAY)
     assert dto.metrics_computed == 2  # the "metrics needed" markers survived the failed run
     assert n(session, ActivityMetric) == 2
+
+
+def test_run_sync_plans_today(session, settings, api):
+    from training.db.models import PlannedWorkout
+
+    svc.run_sync(session, settings=settings, today=TODAY)
+    rows = session.execute(select(PlannedWorkout).where(PlannedWorkout.date == TODAY)).scalars().all()
+    assert len(rows) == 1  # nightly coach step (PLAN phase 6)
+
+
+def test_a_planning_failure_never_fails_the_sync(session, settings, api, monkeypatch):
+    from training import planning
+
+    def broken(s, today):
+        s.execute(select(func.count()).select_from(Activity))
+        raise RuntimeError("coach bug")
+
+    monkeypatch.setattr(planning, "nightly", broken)
+    dto = svc.run_sync(session, settings=settings, today=TODAY)
+    assert dto.activities_new == 2
+    assert n(session, Activity) == 2  # the session is still usable after the rollback

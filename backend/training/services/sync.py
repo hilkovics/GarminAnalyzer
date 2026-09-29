@@ -47,6 +47,7 @@ def run_sync(session: Session, *, settings: Settings, today: dt.date) -> SyncRes
     try:  # nightly coach step (PLAN phase 6); never fails the sync
         planning.nightly(session, today)
     except Exception:
+        session.rollback()  # a failed flush must not poison the session for the caller
         log.exception("planning today's workout failed")
     return SyncResultDTO(
         activities_new=synced.activities_new,

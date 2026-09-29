@@ -15,7 +15,9 @@ from sqlmodel import Session
 
 from training.coach import library, rules, season, template
 from training.coach.workout import estimated_load, from_structure, to_structure
+from training.db import repo
 from training.db.models import Activity, ActivityMetric, Athlete, DailyLoad, Goal, PlannedWorkout
+from training.db.state_keys import LAST_ACTIVITY_SYNC
 
 log = logging.getLogger(__name__)
 
@@ -50,18 +52,15 @@ def _daily(session: Session, day: dt.date) -> DailyLoad | None:
 
 
 def _ctl_before(session: Session, monday: dt.date) -> float:
-    """CTL of the day before `monday`, else the latest stored CTL before it, else 0 (§10.2 clarified)."""
-    row = session.execute(
-        select(DailyLoad.ctl)
-        .where(DailyLoad.date < monday, DailyLoad.ctl.is_not(None))
-        .order_by(DailyLoad.date.desc())
-        .limit(1)
-    ).scalar()
-    return float(row) if row is not None else 0.0
+    """CTL of the day before `monday`, 0 if unknown (§10.2 clarified; `daily_load` rows are dense)."""
+    row = _daily(session, monday - dt.timedelta(days=1))
+    return float(row.ctl) if row is not None and row.ctl is not None else 0.0
 
 
 def run_share_for(session: Session, day: dt.date) -> float:
+    """§10.2 run share from the 28 days before the week's Monday (stable within a week)."""
     athlete = _athlete(session)
+    day = season.monday(day)
     start = day - dt.timedelta(days=SHARE_DAYS)
     run, bike = session.execute(
         select(
@@ -76,22 +75,32 @@ def _race_date(goal: Goal | None) -> dt.date | None:
     return goal.race_date if goal is not None else None
 
 
-def week_target(session: Session, day: dt.date) -> season.WeekTarget:
-    """§10.2 target of the week containing `day`, from the stored CTL before its Monday."""
-    monday = season.monday(day)
-    goal = active_goal(session, day)
-    ctl = _ctl_before(session, monday)
-    # season_plan handles the taper's pre-taper reference; one week is enough
-    return season.season_plan(monday, 1, ctl, _race_date(goal), run_share_for(session, day))[0]
+def _pre_taper_target(session: Session, monday: dt.date, race_date: dt.date | None) -> float | None:
+    """Inside the taper: the target of the last pre-taper week from *its* stored CTL (review phase 6 B1),
+    so every taper week is 0.5 × the same reference (§10.2 clarified, no compounding)."""
+    if season.week_info(monday, race_date).phase != "taper":
+        return None
+    reference = season.pre_taper_monday(monday, race_date)
+    return season.weekly_target(_ctl_before(session, reference), season.week_info(reference, race_date))
 
 
 def season_weeks(session: Session, today: dt.date, weeks: int) -> list[season.WeekTarget]:
     """This week plus `weeks − 1` projected weeks (targets assumed to be met, §10.2 clarified)."""
     monday = season.monday(today)
-    goal = active_goal(session, today)
+    race_date = _race_date(active_goal(session, today))
     return season.season_plan(
-        monday, weeks, _ctl_before(session, monday), _race_date(goal), run_share_for(session, today)
+        monday,
+        weeks,
+        _ctl_before(session, monday),
+        race_date,
+        run_share_for(session, today),
+        pre_taper_target=_pre_taper_target(session, monday, race_date),
     )
+
+
+def week_target(session: Session, day: dt.date) -> season.WeekTarget:
+    """§10.2 target of the week containing `day`, from the stored CTL before its Monday."""
+    return season_weeks(session, day, 1)[0]
 
 
 def _sum_load(session: Session, start: dt.date, end: dt.date) -> tuple[float, float, float]:
@@ -205,17 +214,40 @@ def plan_day(
     existing = planned_for(session, day)
     if existing and not force and sport_override is None:
         return existing[0], None
+    user = force or sport_override is not None
+    return _decide_and_store(session, day, existing, sport_override, origin="user" if user else "auto")
+
+
+def _inputs_complete(session: Session, day: dt.date) -> bool:
+    """Whether the day's sync already ran (daily_load[D] exists and the last activity sync is ≥ D)."""
+    last_sync = repo.get_state_date(session, LAST_ACTIVITY_SYNC)
+    return _daily(session, day) is not None and last_sync is not None and last_sync >= day
+
+
+def is_provisional(row: PlannedWorkout) -> bool:
+    """An automatic decision made before the day's sync (review phase 6 B2): the nightly step redoes it."""
+    structure = row.structure or {}
+    return (
+        row.status == "planned" and structure.get("origin") == "auto" and bool(structure.get("provisional"))
+    )
+
+
+def _decide_and_store(
+    session: Session, day: dt.date, existing: list[PlannedWorkout], sport_override: str | None, *, origin: str
+) -> tuple[PlannedWorkout, rules.Decision]:
     if any(row.status not in REPLACEABLE for row in existing):
         raise PlanError(f"{day} already has a done or skipped workout – it is not replaced")
     decision = rules.decide(build_context(session, day, sport_override))
+    provisional = not _inputs_complete(session, day)  # before the delete: a flush would free the old id
     for row in existing:
         session.delete(row)
     workout = decision.workout
+    structure = {**to_structure(workout), "origin": origin, "provisional": provisional}
     row = PlannedWorkout(
         date=day,
         sport=workout.sport,
         name=workout.name,
-        structure=to_structure(workout),
+        structure=structure,
         estimated_load=round(estimated_load(workout), 1),
         reason=decision.reason,
         status="planned",
@@ -277,8 +309,16 @@ def match_completed(session: Session, today: dt.date) -> int:
 
 
 def nightly(session: Session, today: dt.date) -> PlannedWorkout:
-    """`training sync` step: match completed workouts, then plan today if nothing is planned yet."""
+    """`training sync` step: match completed workouts, then plan today if nothing is planned yet.
+
+    An automatic plan decided before this sync (e.g. the page was opened first) is decided again with the
+    fresh readiness/TSB and done sessions; user regenerations, pushed, done and skipped rows are kept.
+    """
     match_completed(session, today)
+    existing = planned_for(session, today)
+    if existing and all(is_provisional(row) for row in existing):
+        row, _ = _decide_and_store(session, today, existing, None, origin="auto")
+        return row
     row, _ = plan_day(session, today)
     return row
 

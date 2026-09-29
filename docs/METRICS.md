@@ -428,6 +428,15 @@ Inputs: readiness (§8), `ACWR`, `TSB`, `monotony`, sessions already completed t
   the §10.7 range; the value whose `estimated_load` is closest to the target wins (ties → the smaller).
 - Rest output = a planned workout with `sport = "rest"`, no steps, `estimated_load = 0`. Reasons are Slovak,
   built from fixed templates with the triggering values.
+- Precedence: rule 1, then a template rest day (→ rest), then rule 2 if `monotony[D−1] > 2.0` (it starts
+  from today's role; rule 3's make-up and downgrade do not run), else rule 3; rule 4 scales the result.
+  Rule-1 recovery sport: regenerate override, else today's slot sport, else goal sport, else run.
+- "Fulfilled" counts slots: the n-th earlier `q1` day is fulfilled when ≥ n done `q1` sessions lie in
+  `Mon … D−1`; "done quality yesterday" = a done session on `D−1` with slot `q1`/`q2`. A done recovery
+  fills no slot.
+- Timing: an automatic decision made before the day's sync (`daily_load[D]` missing or the last activity
+  sync < `D`, e.g. the page opened first) is provisional; the sync's nightly step decides it again. User
+  regenerations and pushed / done / skipped workouts are never replaced automatically.
 
 ### 10.5 Workout structure (JSON, sport-agnostic)
 ```json
@@ -454,19 +463,20 @@ threshold intervals (4–6 × 6 min Z4 / 2 min Z1), VO2 intervals (5–8 × 3 mi
 Bike: recovery spin (Z1 45 min), endurance (Z2 90–180 min), sweet spot (2–3 × 20 min high-Z3 / 5 min Z1),
 over-unders (3 × 12 min alternating 2 min Z4 / 1 min Z3), long ride (Z2 with 3 × 10 min Z3).
 *Clarified 2026-09-29 (phase 6, proposed):* quality sessions have warm-up 15 min Z2 and cool-down 10 min Z1.
-Parameter (range, step):
+Strides and spin-ups are exactly "easy X min + 6 × …" (no extra warm-up/cool-down). Parameter (range,
+step):
 - run: easy total 40–75 min; long total 90–150 (Peak 75–110; Build: last 20 min Z3); tempo main 20–40 min Z4;
   threshold 4–6 reps; VO2 5–8 reps; hill repeats 8–12 × (75 s open effort 5 / 120 s Z1); progression total
   45–75 min (last 20 min: 10 Z3 + 10 Z4); strides: easy 30–50 min Z2 + 6 × (20 s open effort 5 / 60 s Z1);
   race-pace 3–5 × (8 min at race zone / 3 min Z1), short race-pace 2–3 reps; short intervals 8–12 ×
   (1 min Z5 / 1 min Z1); recovery 40 min Z1 (rule 1, fixed).
 - bike: recovery spin 45 min Z1 (fixed); endurance 90–180 min; long ride 120–240 min (Z2, 3 × 10 min Z3
-  spread over the middle); sweet spot 2–3 × (20 min Z3 / 5 min Z1); over-unders 3 × [4 × (2 min Z4 / 1 min
+  splitting the Z2 time into four equal parts); sweet spot 2–3 × (20 min Z3 / 5 min Z1); over-unders 3 × [4 × (2 min Z4 / 1 min
   Z3)] with 5 min Z1 between sets (fixed); bike VO2 5–8 × (3 min Z5 / 3 min Z1); race-pace / short race-pace /
   short intervals as run; spin-ups: endurance 60–90 min + 6 × (20 s open effort 5 / 60 s Z1); rule-1
   recovery 40 min Z1.
 - Race zone from the goal: run ≤ 5 km Z5, ≤ 21.1 km Z4, longer Z3; bike Z4 if `target_time_s ≤ 2 h`, else
-  Z3; no goal → Z4.
+  Z3; no goal (or a goal without distance / target time) → Z4.
 
 ### 10.8 Push to Garmin
 Map §10.5 to the `garminconnect` workout builder (running/cycling workouts with HR-zone targets), upload,

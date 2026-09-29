@@ -12,7 +12,7 @@ Pure, deterministic functions; no I/O. Loads are TSS-equivalent points (1 h at t
 # Base/Build weeks with `d // 7 ≥ 4` and `(d // 7) % 4 == 0`. Cap: `7 · (CTL_now + 6 / (1 − (41/42)^7))`.
 # `CTL_now` = CTL of the day before the week's Monday; future weeks project CTL assuming each target is met
 # as a constant daily load `T / 7`. Split: `run_share` = athlete split, else the 28-day run share of
-# `load_total`, 1.0 without load; run = `T · run_share`, bike = the rest.
+# `load_run + load_bike`, 1.0 without load; run = `T · run_share`, bike = the rest.
 #
 # METRICS §4: `CTL[d] = CTL[d−1] + (daily_load[d] − CTL[d−1]) / 42`; `ramp_rate = CTL[d] − CTL[d−7]`.
 """
@@ -142,10 +142,9 @@ def split_targets(target: float, run_share: float) -> tuple[float, float]:
 
 
 def run_share(split: float | None, run_load_28: float, total_load_28: float) -> float:
-    """METRICS §10.2 clarified: the athlete `run_bike_split`; if null (or NaN) the run share of `load_total`
-    over the last 28 days; 1.0 if there is no load. Clamped to [0, 1].
-
-    "Other" load is part of `total_load_28`, so its share ends up in the bike target ("the rest").
+    """METRICS §10.2 clarified: the athlete `run_bike_split`; if null (or NaN) the run share of
+    `load_run + load_bike` over the last 28 days ("other" load is not planned; the caller passes run + bike as
+    `total_load_28`); 1.0 if there is no load. Clamped to [0, 1].
     """
     if split is not None and not math.isnan(split):
         return _clamp01(split)
@@ -186,22 +185,37 @@ def _virtual_pre_taper_target(first_monday: date, ctl_now: float, race_date: dat
         m -= timedelta(days=7)
 
 
+def pre_taper_monday(week_monday: date, race_date: date | None) -> date:
+    """Monday of the last non-taper week on or before `week_monday` (the §10.2 taper reference)."""
+    m = week_monday
+    while week_info(m, race_date).phase == "taper":
+        m -= timedelta(days=7)
+    return m
+
+
 def season_plan(
-    first_monday: date, weeks: int, ctl_now: float, race_date: date | None, run_share: float
+    first_monday: date,
+    weeks: int,
+    ctl_now: float,
+    race_date: date | None,
+    run_share: float,
+    *,
+    pre_taper_target: float | None = None,
 ) -> list[WeekTarget]:
     """Weekly targets for `weeks` weeks from `first_monday` (METRICS §10.1–§10.2).
 
     `ctl_now` = CTL of the day before `first_monday`. CTL is projected forward assuming each week's target
     is met as a constant daily load `T / 7`. Taper weeks all use `TAPER_FACTOR ·` the target of the last
-    pre-taper week (no compounding); if the plan starts inside the taper, that week is computed virtually
-    with `ctl_now` (see `_virtual_pre_taper_target`).
+    pre-taper week (no compounding). If the plan starts inside the taper, pass that week's real target as
+    `pre_taper_target` (the caller knows its stored CTL, review phase 6 B1); without it the week is computed
+    virtually with `ctl_now` (see `_virtual_pre_taper_target`).
     """
     _require_monday(first_monday, "first_monday")
     if weeks < 0:
         raise ValueError(f"weeks must be ≥ 0, got {weeks}")
     plan: list[WeekTarget] = []
     ctl = float(ctl_now)
-    pre_taper: float | None = None
+    pre_taper: float | None = pre_taper_target
     for i in range(weeks):
         m = first_monday + timedelta(days=7 * i)
         info = week_info(m, race_date)

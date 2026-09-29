@@ -121,6 +121,7 @@ def _plan_today(session: Session) -> None:
     try:
         row = planning.nightly(session, dt.date.today())
     except Exception:  # the coach must never fail a sync – the data is already stored
+        session.rollback()
         log.exception("planning today's workout failed")
         console.print("[yellow]Planning today's workout failed[/] (details in the log).")
         return
