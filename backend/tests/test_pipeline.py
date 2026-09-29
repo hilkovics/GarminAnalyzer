@@ -180,20 +180,26 @@ def test_interrupted_ingest_is_caught_up_by_the_next_run(session):
 
 
 def test_pmc_series_end_and_readiness_are_stable_across_entry_points(session):
-    """Review phase 2, warning 1: every entry point extends the series to `end` and keeps readiness."""
+    """Review phase 2, warning 1: every entry point extends the series to `end`; readiness (phase 5) is
+    recomputed by each of them from wellness + TSB (METRICS §8)."""
     pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 1, 1), lthr=LTHR)
     add_activity(session, 1, dt.date(2026, 9, 1))
     today = dt.date(2026, 9, 10)
-    pipeline.update_after_sync(session, [1], today=today)
-    row = session.get(DailyLoad, today)
-    row.readiness = 77.0
+    repo.upsert_wellness(session, {"date": today, "sleep_score": 80.0})
     session.commit()
+    pipeline.update_after_sync(session, [1], today=today)
+    tsb = session.get(DailyLoad, today).tsb
+    assert session.get(DailyLoad, today).readiness == pytest.approx(
+        (0.3 * 80 + 0.2 * max(0.0, min(100.0, 50 + 2 * tsb))) / 0.5
+    )
     pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 8, 1), lthr=LTHR + 5, end=today)
     pipeline.recompute(session, renormalize=False, end=today)
     session.expire_all()
     days = session.exec(select(DailyLoad).order_by(DailyLoad.date)).scalars().all()
     assert days[-1].date == today and len(days) == 10
-    assert session.get(DailyLoad, today).readiness == 77.0
+    row = session.get(DailyLoad, today)
+    assert row.readiness == pytest.approx((0.3 * 80 + 0.2 * max(0.0, min(100.0, 50 + 2 * row.tsb))) / 0.5)
+    assert session.get(DailyLoad, dt.date(2026, 9, 9)).readiness is None  # no wellness that day
 
 
 def test_old_wellness_change_recomputes_the_following_28_days(session):

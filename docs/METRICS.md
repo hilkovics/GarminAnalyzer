@@ -295,8 +295,10 @@ Bands: `≥ 70` green (train as planned / can push), `45–69` yellow (as planne
   Form uses `TSB[D]` from §4 (already the state entering the day). Each score is clamped to 0–100.
 - Readiness is computed for every day with at least one wellness component (RHR, Sleep or Body Battery).
   Form alone does not produce a score. Missing components drop out and the remaining weights are
-  renormalized to sum 1. The value is stored unrounded in `daily_load.readiness`; bands are applied to that
-  unrounded value, and the UI rounds it for display.
+  renormalized to sum 1 (the reported weights are empty when there is no score). The value is stored
+  unrounded in `daily_load.readiness`; bands are applied to that unrounded value (`45 ≤ x < 70` yellow), and
+  the UI displays it truncated to an integer, so the shown number always matches its band (69.98 → "69",
+  yellow).
 
 ## 9. Sleep ↔ performance correlation
 
@@ -327,7 +329,7 @@ Method:
 - **Predictors.** For each base predictor, three variants: `lag0` = wellness row `D`, `lag1` = row `D−1`,
   `mean3` = mean of rows `D−2 … D` (needs ≥ 2 valid values). `sleep_3n_mean` is the `mean3` variant of
   `sleep_s`. `sleep_debt_7` is `lag0` only: the sum over nights `D−6 … D`, each term using that night's §8
-  baseline (7.5 h floor replaced by 8 h here, as written). Surpluses offset deficits. It needs ≥ 5 valid
+  baseline (8 h floor here, as written; a null median counts as 8 h). Surpluses offset deficits. It needs ≥ 5 valid
   nights, and the sum is scaled by `7 / n_valid`.
 - **Controls:** `TSB[D]` (§4, pre-day), `ATL[D−1]`, `daily_load[D−1]`. Values from before the activity are
   used, so the session's own load does not leak into its controls.
