@@ -1,4 +1,4 @@
-"""Dashboard: this week vs the mean of the last 4 weeks, mini PMC, ACWR badge, sync health."""
+"""Dashboard: this week vs the mean of the last 4 weeks, mini PMC, ACWR badge, sync health, weekly report."""
 
 import _db
 import pandas as pd
@@ -16,7 +16,8 @@ from components.format import (
 from components.pmc import pmc_chart
 from components.weekly import WEEKLY_METRICS, week_compare_bars
 
-from training.services import fitness
+from training.config import get_settings
+from training.services import fitness, report
 from training.services.errors import ServiceError
 
 st.title("Dashboard")
@@ -91,3 +92,18 @@ else:
 # --- mini PMC -------------------------------------------------------------------------------------
 st.subheader("Kondícia a únava (posledných 42 dní)")
 st.plotly_chart(pmc_chart(dash.pmc, compact=True), width="stretch")
+
+# --- weekly AI report (read from disk; the page never calls the API) ------------------------------
+with st.expander("Týždenný report"):
+    latest_report = report.latest_report(get_settings())
+    if latest_report is None:
+        st.info(
+            "Týždenný report zatiaľ nie je. Zapni ho nastavením `TRAINING_ANTHROPIC_API_KEY` "
+            "a spusti `uv run training weekly-report`."
+        )
+    else:
+        st.caption(
+            f"Týždeň {latest_report.week}, vygenerované {fmt_date(latest_report.generated_at.date())} "
+            f"({latest_report.model})"
+        )
+        st.markdown(latest_report.markdown)

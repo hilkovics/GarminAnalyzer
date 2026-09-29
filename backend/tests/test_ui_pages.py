@@ -305,3 +305,30 @@ def test_app_navigation_reaches_every_page(monkeypatch):
         at.switch_page(page).run()
         assert not at.exception, page
         assert at.title[0].value == title
+
+
+def test_dashboard_weekly_report_expander(monkeypatch):
+    from training.services.dto import ReportDTO
+
+    stored = ReportDTO(
+        week="2026-W39",
+        generated_at=dt.datetime(2026, 9, 28, 6, 0, tzinfo=dt.UTC),
+        model="claude-opus-5-5",
+        markdown="## Uplynulý týždeň\nDobrý týždeň.",
+    )
+    patch_dashboard(monkeypatch)
+    patch_service(monkeypatch, "report", latest_report=lambda settings: stored)
+    at = run_page("dashboard")
+    assert not at.exception
+    text = texts(at)
+    assert "Týždeň 2026-W39, vygenerované 28. 09. 2026" in text
+    assert "Dobrý týždeň." in text
+
+
+def test_dashboard_weekly_report_hint_without_report(monkeypatch):
+    patch_dashboard(monkeypatch)
+    patch_service(monkeypatch, "report", latest_report=lambda settings: None)
+    at = run_page("dashboard")
+    assert not at.exception
+    text = texts(at)
+    assert "TRAINING_ANTHROPIC_API_KEY" in text and "training weekly-report" in text

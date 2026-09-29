@@ -16,12 +16,23 @@ from training.services.dto_plan import (
     GoalIn as GoalIn,
     PlannedWorkoutDTO as PlannedWorkoutDTO,
     PreferredDayDTO as PreferredDayDTO,
+    PushResultDTO as PushResultDTO,
     SeasonDTO as SeasonDTO,
     SeasonWeekDTO as SeasonWeekDTO,
     StatusIn as StatusIn,
     WeekDayDTO as WeekDayDTO,
     WeekPlanDTO as WeekPlanDTO,
     WorkoutStepDTO as WorkoutStepDTO,
+)
+
+# phase-7 DTOs live in dto_report.py
+from training.services.dto_report import (
+    MorningMessageDTO as MorningMessageDTO,
+    ReportActivityDTO as ReportActivityDTO,
+    ReportDTO as ReportDTO,
+    ReportPmcDTO as ReportPmcDTO,
+    ReportReadinessDTO as ReportReadinessDTO,
+    WeeklyReportInputsDTO as WeeklyReportInputsDTO,
 )
 
 # phase-5 DTOs live in dto_wellness.py (file size); re-exported so callers keep importing from here

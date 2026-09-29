@@ -24,6 +24,7 @@ docs at `/docs`).
 | GET | `/api/fitness/dashboard` | – | `DashboardDTO` | This week vs the last 4, PMC mini, sync health |
 | GET | `/api/plan/today` | – | `DailyDecisionDTO` | Today's planned workout; decided on the first call (redecided by the sync if made before it) |
 | POST | `/api/plan/today/regenerate` | `sport`? | `DailyDecisionDTO` | Decide today again, optionally for another sport (run \| bike); a done workout stays |
+| POST | `/api/plan/today/push` | `dry_run`? | `PushResultDTO[]` | Push today's planned workout(s) to Garmin Connect; a re-push updates, never duplicates |
 | GET | `/api/plan/week` | `date`? | `WeekPlanDTO` | The ISO week containing `date` (default today): targets, planned vs done per day |
 | GET | `/api/plan/season` | – | `SeasonDTO` | Season plan: this week and the projected weeks up to the race (phases, targets) |
 | GET | `/api/plan/goal` | – | `GoalDTO \| null` | The active goal, or null |
@@ -31,11 +32,14 @@ docs at `/docs`).
 | DELETE | `/api/plan/goal` | – | – | Clear the goal (the season falls back to the no-goal cycle) |
 | GET | `/api/plan/{planned_id}` | `planned_id` | `PlannedWorkoutDTO` | One planned workout with its steps |
 | POST | `/api/plan/{planned_id}/status` | `planned_id`, body: `StatusIn` | `PlannedWorkoutDTO` | Mark a planned workout done, skipped, or back to planned |
+| POST | `/api/plan/{planned_id}/push` | `planned_id`, `dry_run`? | `PushResultDTO` | Push a planned workout to Garmin Connect and schedule it; dry_run returns the payload only |
 | GET | `/api/progress/ef` | `sport`?, `days`?, `metric`? | `SeriesDTO` | EF / decoupling / pace at reference HR per activity with the 28-day median trend |
 | GET | `/api/progress/speed-hr-curve` | `months`? | `CurveDTO[]` | Month-end speed-HR curve snapshots of the last N months, oldest first |
 | GET | `/api/progress/best-efforts` | `sport`?, `range`? | `BestEffortsDTO` | Best effort per (kind, window) over the last 90 days or all time |
 | GET | `/api/progress/predictions` | – | `PredictionsDTO` | Riegel and Daniels race predictions from the best recent reference |
 | GET | `/api/progress/threshold-proposals` | – | `ProposalDTO[]` | LTHR / threshold-speed proposals (never applied automatically) |
+| GET | `/api/reports/latest` | – | `ReportDTO` | The newest stored weekly report (404 when there is none) |
+| POST | `/api/reports/weekly` | – | `ReportDTO` | Generate and store this week's report (needs TRAINING_ANTHROPIC_API_KEY; 422 without it) |
 | GET | `/api/settings` | – | `SettingsDTO` | Athlete, threshold history, today's zone bounds |
 | PUT | `/api/settings/thresholds` | body: `ThresholdIn` | `ThresholdDTO` | Add or replace a threshold from a date; recomputes only activities from that date on |
 | PUT | `/api/settings/athlete` | body: `AthleteIn` | `AthleteDTO` | Update athlete fields (null = unchanged); TRIMP inputs recompute all metrics |
@@ -438,6 +442,19 @@ GET /progress/threshold-proposals (§6.3) – never auto-applied.
 | `garmin_lt_speed` | number \| null | Garmin's lactate-threshold speed, m/s (if available) |
 | `garmin_vo2max` | number \| null |  |
 
+### PushResultDTO
+
+POST /plan/{id}/push and `training push-today` (METRICS §10.8).
+
+| Field | Type | Description |
+|---|---|---|
+| `planned_id` | integer |  |
+| `action` | string | "uploaded" \| "updated" \| "deleted" \| "skipped" \| "dry_run" |
+| `garmin_workout_id` (optional) | integer \| null |  |
+| `scheduled_date` (optional) | date \| null |  |
+| `payload` (optional) | object \| null | the Garmin workout JSON (dry run only) |
+| `notes` (optional) | string[] |  |
+
 ### ReadinessComponentDTO
 
 | Field | Type | Description |
@@ -471,6 +488,17 @@ GET /wellness/readiness/{date} – readiness of one day (METRICS §8).
 | `local_date` | date |  |
 | `source` | string | "race" \| "effort" |
 | `vdot` | number |  |
+
+### ReportDTO
+
+A stored weekly report (`reports_dir/YYYY-Www.md`).
+
+| Field | Type | Description |
+|---|---|---|
+| `week` | string | ISO week, e.g. "2026-W40" |
+| `generated_at` | date-time | UTC |
+| `model` | string |  |
+| `markdown` | string | the report body (Markdown, without the file header) |
 
 ### SeasonDTO
 

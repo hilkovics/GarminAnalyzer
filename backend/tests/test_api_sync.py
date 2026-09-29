@@ -158,6 +158,7 @@ EXPECTED_ROUTES = {
     ("get", "/api/progress/threshold-proposals"),
     ("get", "/api/plan/today"),
     ("post", "/api/plan/today/regenerate"),
+    ("post", "/api/plan/today/push"),
     ("get", "/api/plan/week"),
     ("get", "/api/plan/season"),
     ("get", "/api/plan/goal"),
@@ -165,10 +166,13 @@ EXPECTED_ROUTES = {
     ("delete", "/api/plan/goal"),
     ("get", "/api/plan/{planned_id}"),
     ("post", "/api/plan/{planned_id}/status"),
+    ("post", "/api/plan/{planned_id}/push"),
     ("get", "/api/wellness/daily"),
     ("get", "/api/wellness/readiness/today"),
     ("get", "/api/wellness/readiness/{day}"),
     ("get", "/api/wellness/correlations"),
+    ("get", "/api/reports/latest"),
+    ("post", "/api/reports/weekly"),
     ("get", "/api/settings"),
     ("put", "/api/settings/thresholds"),
     ("put", "/api/settings/athlete"),
@@ -211,6 +215,7 @@ def test_openapi_documents_every_endpoint_with_its_dto():
         "GoalIn",
         "PlannedWorkoutDTO",
         "StatusIn",
+        "ReportDTO",
     ]
     for name in dtos:
         assert name in schemas, name

@@ -528,6 +528,53 @@
         }
       }
     },
+    "/api/plan/today/push": {
+      "post": {
+        "tags": [
+          "plan"
+        ],
+        "summary": "Push today's planned workout(s) to Garmin Connect; a re-push updates, never duplicates",
+        "operationId": "push_today",
+        "parameters": [
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Dry Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PushResultDTO"
+                  },
+                  "title": "Response Push Today"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/plan/week": {
       "get": {
         "tags": [
@@ -793,6 +840,68 @@
         }
       }
     },
+    "/api/plan/{planned_id}/push": {
+      "post": {
+        "tags": [
+          "plan"
+        ],
+        "summary": "Push a planned workout to Garmin Connect and schedule it; dry_run returns the payload only",
+        "operationId": "push_plan",
+        "parameters": [
+          {
+            "name": "planned_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Planned Id"
+            }
+          },
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Dry Run"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushResultDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested entity does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/progress/ef": {
       "get": {
         "tags": [
@@ -995,6 +1104,78 @@
                   },
                   "type": "array",
                   "title": "Response Get Threshold Proposals"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/latest": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "The newest stored weekly report (404 when there is none)",
+        "operationId": "get_latest_report",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested entity does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reports/weekly": {
+      "post": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Generate and store this week's report (needs TRAINING_ANTHROPIC_API_KEY; 422 without it)",
+        "operationId": "post_weekly_report",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Garmin Connect failed or rejected the login.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
                 }
               }
             }
@@ -3582,6 +3763,69 @@
         "title": "ProposalDTO",
         "description": "GET /progress/threshold-proposals (§6.3) – never auto-applied."
       },
+      "PushResultDTO": {
+        "properties": {
+          "planned_id": {
+            "type": "integer",
+            "title": "Planned Id"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "\"uploaded\" | \"updated\" | \"deleted\" | \"skipped\" | \"dry_run\""
+          },
+          "garmin_workout_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Garmin Workout Id"
+          },
+          "scheduled_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled Date"
+          },
+          "payload": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payload",
+            "description": "the Garmin workout JSON (dry run only)"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "planned_id",
+          "action"
+        ],
+        "title": "PushResultDTO",
+        "description": "POST /plan/{id}/push and `training push-today` (METRICS §10.8)."
+      },
       "ReadinessComponentDTO": {
         "properties": {
           "name": {
@@ -3750,6 +3994,39 @@
           "vdot"
         ],
         "title": "ReferenceDTO"
+      },
+      "ReportDTO": {
+        "properties": {
+          "week": {
+            "type": "string",
+            "title": "Week",
+            "description": "ISO week, e.g. \"2026-W40\""
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Generated At",
+            "description": "UTC"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "markdown": {
+            "type": "string",
+            "title": "Markdown",
+            "description": "the report body (Markdown, without the file header)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "week",
+          "generated_at",
+          "model",
+          "markdown"
+        ],
+        "title": "ReportDTO",
+        "description": "A stored weekly report (`reports_dir/YYYY-Www.md`)."
       },
       "SeasonDTO": {
         "properties": {
