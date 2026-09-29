@@ -36,7 +36,7 @@ Garmin training load / training effect / VO2max estimates. **No power data.**
    the samples i−5 and i+5 (clipped at the ends): `Δalt = alt[i+5] − alt[i−5]` (smoothed altitude),
    `Δdist = dist[i+5] − dist[i−5]` (cumulative distance). NaN if either value is missing or `Δdist < 5 m`.
 6. HR lag: for any pairing of HR with pace/speed at sample level (§5, §6), shift HR **back** by 30 s.
-   *Clarified 2026-09-29 (phase 4, proposed; revised after review):* pair **by time**, not by index:
+   *Clarified 2026-09-29 (phase 4, approved):* pair **by time**, not by index:
    `hr_lagged(t) = hr(t + 30)` if every second of (t, t + 30] is a kept sample (no pause in between), else NaN – speed at second t is paired
    with the HR measured 30 s later (HR responds late). A pause inside (t, t + 30] therefore gives no partner,
    so speed before a stop is never paired with the recovered HR after it.
@@ -173,7 +173,7 @@ Series starts at the first synced day; the first 90 days are shaded "warming up"
 An activity is `steady_state` if, after dropping the first 600 s: `moving_s ≥ 1800`, `hr_coverage ≥ 0.9`,
 mean HR in `[0.70, 0.88]·lthr`, std of 60 s-averaged HR `< 6 bpm`, and no continuous ≥ 60 s stretch with
 `hr > 0.95·lthr`.
-*Clarified 2026-09-29 (phase 4, proposed):* all conditions are evaluated on the kept samples (§0.2) that remain after dropping the first 600 s
+*Clarified 2026-09-29 (phase 4, approved):* all conditions are evaluated on the kept samples (§0.2) that remain after dropping the first 600 s
 of moving time: `moving_s` here means their count, `hr_coverage` their valid-HR share. "60 s-averaged HR"
 = means of consecutive non-overlapping 60-sample blocks (last partial block dropped, blocks with fewer than
 30 valid HR values skipped); population std. The ≥ 60 s stretch counts consecutive kept samples with
@@ -185,21 +185,21 @@ EF/decoupling/curves use the §0.6 lag.
 On steady-state runs, after dropping the first 600 s and walking samples:
 `EF = mean(gap_speed) [m/min] / mean(hr) [bpm]`. Trend: 28-day rolling median over steady-state runs
 (show points + median line). Higher = fitter.
-*Clarified 2026-09-29 (phase 4, proposed):* samples = kept, after the first 600 s, not `is_slow`, with the §0.6 lag applied, and only pairs
+*Clarified 2026-09-29 (phase 4, approved):* samples = kept, after the first 600 s, not `is_slow`, with the §0.6 lag applied, and only pairs
 where both `gap_speed` and lagged HR are valid. `m/min` = m/s · 60. Trend value on day d = median EF of the
 steady-state runs with `local_date` in [d − 27, d]; null if none.
 
 ### 5.3 Aerobic decoupling (Pa:HR)
 Same samples as EF, split into two equal halves: `EF1`, `EF2`.
 `decoupling_pct = (EF1 − EF2) / EF1 · 100`. Bands: `< 5` good, `5–10` moderate, `> 10` poor endurance.
-*Clarified 2026-09-29 (phase 4, proposed):* halves by sample count of the EF sample set (first ⌊n/2⌋ vs the rest); needs ≥ 600 samples, else
+*Clarified 2026-09-29 (phase 4, approved):* halves by sample count of the EF sample set (first ⌊n/2⌋ vs the rest); needs ≥ 600 samples, else
 null. Band edges half-open: `[5, 10]` moderate.
 
 ### 5.4 Bike efficiency (approximate, no power)
 Use only samples with `|grade| ≤ 0.01`, speed `≥ 4 m/s`, after 600 s, no stops within ±30 s.
 `EF_bike = mean(speed) [m/min] / mean(hr)`. Steady-state definition as §5.1. Show with a "terrain/wind
 dependent – trend only" caveat. Decoupling as §5.3 on the same samples.
-*Clarified 2026-09-29 (phase 4, proposed):* a "stop" is a pause (a gap in `t` between consecutive kept samples) or a slow sample (§0.4, bike
+*Clarified 2026-09-29 (phase 4, approved):* a "stop" is a pause (a gap in `t` between consecutive kept samples) or a slow sample (§0.4, bike
 `< 2.0 m/s`); every sample within 30 s (by `t`, inclusive) of a stop is excluded; the missing whole seconds of a
 pause count as stop instants. Uses `speed`, not GAP; lag as §5.2.
 
@@ -210,7 +210,7 @@ For a trailing 28-day window: pool 60 s aggregates (mean gap_speed, mean HR with
 excluding first 600 s and walking. Bin HR in 5 bpm bins; per bin take the median gap_speed, require ≥ 10
 aggregates per bin. `pace_at_ref_hr` = value in the bin containing `ref_hr = 0.80·lthr` (configurable).
 Store the curve monthly (month-end snapshots) to show shift over time. Present as pace (min/km).
-*Clarified 2026-09-29 (phase 4, proposed):*
+*Clarified 2026-09-29 (phase 4, approved):*
 - 60 s aggregate: take the kept samples after the first 600 s that have a lagged partner, remove slow
   samples, then cut the rest into consecutive non-overlapping 60-sample blocks (a block may span a short
   walking break); a block counts if every sample has valid gap_speed and lagged HR; mean gap_speed, mean HR.
@@ -229,7 +229,7 @@ Windows `W ∈ {60, 300, 600, 1200, 1800, 3600} s`. For each activity and W: max
 mean of `gap_speed` (run) or `speed` (bike, W ≥ 300 only) over a contiguous window of moving samples
 (no pause inside). Also **HR best efforts**: max rolling-mean HR over `{1200, 1800, 3600} s`.
 Curves: best per W over trailing 90 days and all-time.
-*Clarified 2026-09-29 (phase 4, proposed):* "contiguous" = consecutive kept samples whose `t` increases by exactly 1 (no pause, no gap);
+*Clarified 2026-09-29 (phase 4, approved):* "contiguous" = consecutive kept samples whose `t` increases by exactly 1 (no pause, no gap);
 every sample in the window must have a valid value (a NaN breaks the window). The effort's distance is
 `distance[last] − distance[first − 1]` when the sample before the window is contiguous (t = t_first − 1),
 else `(distance[last] − distance[first]) · W / (W − 1)` – so W seconds of travel are counted, not W − 1
@@ -243,7 +243,7 @@ do speed efforts. Ties: the earliest position wins. Trailing 90 days = `local_da
 - `lthr_est` (per sport) = max over trailing 90 days of the 1800 s HR best effort **from activities with
   `if_pace ≥ 0.95` (run) or with the top-decile hrTSS/h (bike)**. Propose when `|Δ| > 3 bpm`.
 - Show Garmin's own VO2max and lactate-threshold values (when available) next to the proposal.
-*Clarified 2026-09-29 (phase 4, proposed):* "current" = the threshold valid today. `lthr_est` for runs uses activities with `if_pace ≥ 0.95`; for
+*Clarified 2026-09-29 (phase 4, approved):* "current" = the threshold valid today. `lthr_est` for runs uses activities with `if_pace ≥ 0.95`; for
 bikes, the activities whose `hrtss / (moving_s / 3600)` is in the top 10 % (≥ the 90th percentile, at least
 one activity) among the sport's activities of the window. No qualifying data → no proposal. Without a
 current threshold the estimate is always proposed. Proposals round: speed to 0.01 m/s, LTHR to whole bpm (half-up), and the > 2 % / > 3 bpm rules compare the
@@ -259,7 +259,7 @@ converted to (distance, time) using the effort's actual distance.
   `pct = 0.8 + 0.1894393·e^(−0.012778·t) + 0.2989558·e^(−0.1932605·t)`, `VDOT = VO2 / pct`.
   Equivalent race time for distance D: solve `t` such that `VDOT(D/t, t) == VDOT` (bisection).
 Show both; flag when the reference effort is older than 60 days.
-*Clarified 2026-09-29 (phase 4, proposed):* candidates = run `is_race` activities (distance_m, duration_s) and run gap_speed best efforts with
+*Clarified 2026-09-29 (phase 4, approved):* candidates = run `is_race` activities (distance_m, duration_s) and run gap_speed best efforts with
 `W ≥ 600 s` and a known distance (distance, W), from the trailing 90 days (if none: all-time). The
 reference is the candidate with the highest VDOT; Riegel and Daniels both start from it. Distances whose
 reference distance is under 1/4 of the target are still predicted (flagged `extrapolated`). VDOT ties go to
@@ -284,6 +284,20 @@ Baselines: trailing 28-day median and MAD (median absolute deviation) for `rhr, 
 Bands: `≥ 70` green (train as planned / can push), `45–69` yellow (as planned, nothing extra),
 `< 45` red (easy or rest).
 
+*Clarified 2026-09-29 (phase 5, proposed):*
+- Wellness row `D` = the night that ends on the morning of `D` (Garmin's sleep `calendarDate`), RHR / Body
+  Battery of day `D`.
+- Baseline of day `D` = median and MAD over the valid values of the 28 days `D−28 … D−1` (day `D` itself is
+  excluded, so a bad night cannot pull its own baseline). Needs ≥ 7 valid values, else null. MAD is the raw
+  median absolute deviation (no 1.4826 scaling); it is only displayed (baseline ± MAD band).
+- Components: RHR is null if `rhr` or its median is null. Sleep uses `sleep_score` if present, else the
+  fallback if `sleep_s` is present (a null median counts as 7.5 h). Body Battery is `body_battery_wake`.
+  Form uses `TSB[D]` from §4 (already the state entering the day). Each score is clamped to 0–100.
+- Readiness is computed for every day with at least one wellness component (RHR, Sleep or Body Battery).
+  Form alone does not produce a score. Missing components drop out and the remaining weights are
+  renormalized to sum 1. The value is stored unrounded in `daily_load.readiness`; bands are applied to that
+  unrounded value, and the UI rounds it for display.
+
 ## 9. Sleep ↔ performance correlation
 
 Day-level dataset (`analysis/correlation.py`), one row per day with a qualifying run/bike:
@@ -302,6 +316,36 @@ Method:
 4. Quartile contrast: mean outcome for top vs bottom quartile of the predictor, with bootstrap CI.
 5. UI shows a plain-language sentence per finding and always the caveat that correlation ≠ causation
    and that HR-based EF is affected by heat, caffeine and illness.
+
+*Clarified 2026-09-29 (phase 5, proposed):*
+- **Per sport.** Run and bike form separate datasets (EF units differ); `other` is excluded. A qualifying
+  day `D` has ≥ 1 activity of that sport with at least one non-null outcome. If there are several, the one
+  with the longest `moving_s` is used.
+- **Outcomes** are read from `activity_metric` (null if not steady state, per §5). `pace_at_ref_hr_day` is
+  run only. `IF_primary` = `if_pace` when `load_method = rTSS`, else `if_hr`. `rpe` comes from `subjective`
+  for that activity. `rpe_residual` is null if either value is missing.
+- **Predictors.** For each base predictor, three variants: `lag0` = wellness row `D`, `lag1` = row `D−1`,
+  `mean3` = mean of rows `D−2 … D` (needs ≥ 2 valid values). `sleep_3n_mean` is the `mean3` variant of
+  `sleep_s`. `sleep_debt_7` is `lag0` only: the sum over nights `D−6 … D`, each term using that night's §8
+  baseline (7.5 h floor replaced by 8 h here, as written). Surpluses offset deficits. It needs ≥ 5 valid
+  nights, and the sum is scaled by `7 / n_valid`.
+- **Controls:** `TSB[D]` (§4, pre-day), `ATL[D−1]`, `daily_load[D−1]`. Values from before the activity are
+  used, so the session's own load does not leak into its controls.
+- `n` = rows where predictor and outcome are both non-null (plus all controls, for the partial correlation).
+  If `n < 30`, status is `insufficient_data` and ρ, CI, p and the contrast are null (`n` is still reported).
+- **Spearman:** `scipy.stats.spearmanr`, p-value from its t approximation. **Partial:** OLS with an
+  intercept on the three controls, for predictor and outcome separately, then Spearman on the two residual
+  vectors (p not df-adjusted).
+- **Bootstrap:** 1000 resamples of the `n` rows with replacement, `numpy.random.default_rng(seed)` with
+  `seed = 0` by default. For the partial correlation each resample re-runs the residualization. The CI is
+  the percentile interval (2.5 %, 97.5 %). Resamples that yield NaN (a constant column) are dropped; if more
+  than 10 % are NaN, the CI is null.
+- **Quartile contrast:** `Q1`/`Q3` of the predictor (numpy linear quantiles), `bottom = x ≤ Q1`,
+  `top = x ≥ Q3`. Contrast = `mean(outcome | top) − mean(outcome | bottom)`, not partialled, with a
+  bootstrap CI (same resamples). It needs ≥ 5 rows in each group, else null.
+- **Findings:** every (sport, predictor variant, outcome) with `n ≥ 30`, sorted by |partial ρ| (raw ρ if the
+  partial is null). A finding whose CI contains 0 is labelled uncertain. No multiple-comparison correction
+  is applied; the caveat text says so.
 
 ## 10. Coach: season plan, daily decision, workouts
 

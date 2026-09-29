@@ -352,7 +352,7 @@ Last updated: 2026-09-29 (phase 4 session)
 - If page N of an activity list fails, pages 1..N−1 of that call are not stored raw. The whole call is retried on
   the next run, so nothing is lost.
 - Open METRICS.md points to decide before the phase that uses them:
-  - METRICS §0.6 and §5–§7 phase-4 clarifications (HR-lag direction, walking handling, effort distance, …) await approval.
+  - (resolved) Phase-4 METRICS clarifications approved by the user on 2026-09-29.
   - §10.4 rule 1 "whichever the template has fewer of" needs a deterministic tie-break.
   - §10.6 Z1 IF 0.50 is not the table midpoint (0.30–0.55). Confirm that it is intended.
 
