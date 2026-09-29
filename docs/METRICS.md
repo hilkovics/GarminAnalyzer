@@ -36,8 +36,10 @@ Garmin training load / training effect / VO2max estimates. **No power data.**
    the samples i−5 and i+5 (clipped at the ends): `Δalt = alt[i+5] − alt[i−5]` (smoothed altitude),
    `Δdist = dist[i+5] − dist[i−5]` (cumulative distance). NaN if either value is missing or `Δdist < 5 m`.
 6. HR lag: for any pairing of HR with pace/speed at sample level (§5, §6), shift HR **back** by 30 s.
-   *Clarified 2026-09-29 (phase 4, proposed):* `hr_lagged[i] = hr[i + 30]` over the kept samples in time order – speed at second t is paired
-   with the HR measured 30 s later (HR responds late). The last 30 samples have no partner and are dropped.
+   *Clarified 2026-09-29 (phase 4, proposed; revised after review):* pair **by time**, not by index:
+   `hr_lagged(t) = hr(t + 30)` if the kept sample at `t + 30` exists, else NaN – speed at second t is paired
+   with the HR measured 30 s later (HR responds late). A pause inside (t, t + 30] therefore gives no partner,
+   so speed before a stop is never paired with the recovered HR after it.
 
 ## 1. Thresholds and zones
 
@@ -198,7 +200,8 @@ Use only samples with `|grade| ≤ 0.01`, speed `≥ 4 m/s`, after 600 s, no sto
 `EF_bike = mean(speed) [m/min] / mean(hr)`. Steady-state definition as §5.1. Show with a "terrain/wind
 dependent – trend only" caveat. Decoupling as §5.3 on the same samples.
 *Clarified 2026-09-29 (phase 4, proposed):* a "stop" is a pause (a gap in `t` between consecutive kept samples) or a slow sample (§0.4, bike
-`< 2.0 m/s`); every sample within 30 s (by `t`) of a stop is excluded. Uses `speed`, not GAP; lag as §5.2.
+`< 2.0 m/s`); every sample within 30 s (by `t`, inclusive) of a stop is excluded; the missing whole seconds of a
+pause count as stop instants. Uses `speed`, not GAP; lag as §5.2.
 
 ## 6. Speed–HR curve, best efforts, threshold proposals
 
@@ -218,7 +221,8 @@ Store the curve monthly (month-end snapshots) to show shift over time. Present a
 - Snapshot for month M = the curve of the 28 days ending on the last day of M (or today for the current
   month), stored as `{"bins": {"145": v, …}, "counts": {…}, "ref_hr": x, "pace_at_ref_hr": v}`.
 - `pace_at_ref_hr_day` (§9) = median gap_speed of that activity's own 60 s aggregates with mean HR in
-  `[ref_hr − 5, ref_hr + 5]`; needs ≥ 20 such aggregates, else null.
+  `[ref_hr − 5, ref_hr + 5]` (read "reference bin ±5 bpm" as ±5 bpm around ref_hr); needs ≥ 20 such
+  aggregates, else null. Its trend on the Progres page uses the same 28-day median as §5.2.
 
 ### 6.2 Best efforts
 Windows `W ∈ {60, 300, 600, 1200, 1800, 3600} s`. For each activity and W: max over all positions of the
@@ -230,7 +234,8 @@ every sample in the window must have a valid value (a NaN breaks the window). Th
 `distance[last] − distance[first − 1]` when the sample before the window is contiguous (t = t_first − 1),
 else `(distance[last] − distance[first]) · W / (W − 1)` – so W seconds of travel are counted, not W − 1
 (stored with the effort; null if unavailable). HR efforts
-for all sports. Trailing 90 days = `local_date` in [today − 89, today].
+for all sports; HR efforts use raw HR (no §0.6 lag, nothing is paired) and include walking samples, as
+do speed efforts. Ties: the earliest position wins. Trailing 90 days = `local_date` in [today − 89, today].
 
 ### 6.3 Threshold proposals (never auto-applied; user confirms in Settings)
 - `threshold_speed_est` = max over trailing 90 days of best 1800 s gap_speed (fallback: 0.95 · best 1200 s).
@@ -241,7 +246,9 @@ for all sports. Trailing 90 days = `local_date` in [today − 89, today].
 *Clarified 2026-09-29 (phase 4, proposed):* "current" = the threshold valid today. `lthr_est` for runs uses activities with `if_pace ≥ 0.95`; for
 bikes, the activities whose `hrtss / (moving_s / 3600)` is in the top 10 % (≥ the 90th percentile, at least
 one activity) among the sport's activities of the window. No qualifying data → no proposal. Without a
-current threshold the estimate is always proposed. Proposals round: speed to 0.01 m/s, LTHR to whole bpm.
+current threshold the estimate is always proposed. Proposals round: speed to 0.01 m/s, LTHR to whole bpm (half-up), and the > 2 % / > 3 bpm rules compare the
+**rounded** estimate with the current value (so the shown numbers match the decision). The bike 90th
+percentile uses linear interpolation (numpy default), capped at the maximum.
 
 ## 7. Race predictions (runs)
 
@@ -255,7 +262,8 @@ Show both; flag when the reference effort is older than 60 days.
 *Clarified 2026-09-29 (phase 4, proposed):* candidates = run `is_race` activities (distance_m, duration_s) and run gap_speed best efforts with
 `W ≥ 600 s` and a known distance (distance, W), from the trailing 90 days (if none: all-time). The
 reference is the candidate with the highest VDOT; Riegel and Daniels both start from it. Distances whose
-reference distance is under 1/4 of the target are still predicted (flagged `extrapolated`).
+reference distance is under 1/4 of the target are still predicted (flagged `extrapolated`). VDOT ties go to
+the most recent candidate; "older than 60 days" = `today − local_date > 60`.
 Tests: 10 km in 40:00 → `VDOT ≈ 51.94` (± 0.05); equivalent half marathon ≈ 1:28:33 (± 10 s).
 
 ## 8. Wellness, baselines, readiness
