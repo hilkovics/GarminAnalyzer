@@ -1,0 +1,2375 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Training analytics",
+    "description": "API over the training services; the DTOs are the same ones the Streamlit UI renders.",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/api/activities": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "List activities, newest first",
+        "operationId": "list_activities",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "first local date",
+              "title": "From"
+            },
+            "description": "first local date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "last local date",
+              "title": "To"
+            },
+            "description": "last local date"
+          },
+          {
+            "name": "sport",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "run | bike | other",
+              "title": "Sport"
+            },
+            "description": "run | bike | other"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1,
+              "title": "Page"
+            }
+          },
+          {
+            "name": "page_size",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "1–500",
+              "default": 50,
+              "title": "Page Size"
+            },
+            "description": "1–500"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityListDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activities/{activity_id}": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Activity detail: metrics, laps, zones, subjective",
+        "operationId": "get_activity",
+        "parameters": [
+          {
+            "name": "activity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Activity Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivityDetailDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested entity does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activities/{activity_id}/streams": {
+      "get": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "LTTB-downsampled 1 Hz streams",
+        "operationId": "get_streams",
+        "parameters": [
+          {
+            "name": "activity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Activity Id"
+            }
+          },
+          {
+            "name": "fields",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "comma-separated: hr, speed, gap_speed, alt, grade, cadence, distance (default hr,speed,alt)",
+              "title": "Fields"
+            },
+            "description": "comma-separated: hr, speed, gap_speed, alt, grade, cadence, distance (default hr,speed,alt)"
+          },
+          {
+            "name": "points",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "description": "3–2000",
+              "default": 1500,
+              "title": "Points"
+            },
+            "description": "3–2000"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamsDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested entity does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/activities/{activity_id}/subjective": {
+      "post": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Save RPE / feel / soreness / notes (upsert, one row per activity)",
+        "operationId": "save_subjective",
+        "parameters": [
+          {
+            "name": "activity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Activity Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubjectiveIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubjectiveDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested entity does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fitness/pmc": {
+      "get": {
+        "tags": [
+          "fitness"
+        ],
+        "summary": "Daily CTL/ATL/TSB/ACWR/monotony/ramp series with flags",
+        "operationId": "get_pmc",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PmcDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fitness/weekly": {
+      "get": {
+        "tags": [
+          "fitness"
+        ],
+        "summary": "ISO-week volume, zone time and polarization per sport",
+        "operationId": "get_weekly",
+        "parameters": [
+          {
+            "name": "weeks",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 12,
+              "title": "Weeks"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WeeklyDTO"
+                  },
+                  "title": "Response Get Weekly"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fitness/dashboard": {
+      "get": {
+        "tags": [
+          "fitness"
+        ],
+        "summary": "This week vs the last 4, PMC mini, sync health",
+        "operationId": "get_dashboard",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Athlete, threshold history, today's zone bounds",
+        "operationId": "get_settings",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/thresholds": {
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Add or replace a threshold from a date; recomputes only activities from that date on",
+        "operationId": "put_threshold",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThresholdIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThresholdDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/settings/athlete": {
+      "put": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Update athlete fields (null = unchanged); TRIMP inputs recompute all metrics",
+        "operationId": "put_athlete",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AthleteIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AthleteDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/diagnostics": {
+      "get": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Sync state and the load sanity check",
+        "operationId": "get_diagnostics",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DiagnosticsDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sync": {
+      "post": {
+        "tags": [
+          "sync"
+        ],
+        "summary": "Run an incremental Garmin sync now (synchronous, local use only)",
+        "operationId": "post_sync",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncResultDTO"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Garmin Connect failed or rejected the login.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Liveness check",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object",
+                  "title": "Response Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ActivityDetailDTO": {
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/ActivitySummaryDTO"
+          },
+          "laps": {
+            "items": {
+              "$ref": "#/components/schemas/LapDTO"
+            },
+            "type": "array",
+            "title": "Laps"
+          },
+          "hr_zones": {
+            "items": {
+              "$ref": "#/components/schemas/ZoneTimeDTO"
+            },
+            "type": "array",
+            "title": "Hr Zones",
+            "description": "empty if no threshold / no HR"
+          },
+          "pace_zones": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ZoneTimeDTO"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace Zones",
+            "description": "runs with a threshold speed only"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThresholdDTO"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "the record valid at the activity date"
+          },
+          "subjective": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubjectiveDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "laps",
+          "hr_zones",
+          "pace_zones",
+          "threshold",
+          "subjective"
+        ],
+        "title": "ActivityDetailDTO"
+      },
+      "ActivityListDTO": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ActivitySummaryDTO"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "newest first"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "page": {
+            "type": "integer",
+            "title": "Page"
+          },
+          "page_size": {
+            "type": "integer",
+            "title": "Page Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "total",
+          "page",
+          "page_size"
+        ],
+        "title": "ActivityListDTO"
+      },
+      "ActivitySummaryDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "garmin_id": {
+            "type": "integer",
+            "title": "Garmin Id"
+          },
+          "sport": {
+            "type": "string",
+            "title": "Sport"
+          },
+          "sub_sport": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Sport"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Local Date"
+          },
+          "start_utc": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start Utc"
+          },
+          "tz": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tz"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "moving_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Moving S"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "elev_gain_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elev Gain M"
+          },
+          "avg_hr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Hr"
+          },
+          "max_hr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Hr"
+          },
+          "avg_speed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Speed",
+            "description": "m/s"
+          },
+          "is_race": {
+            "type": "boolean",
+            "title": "Is Race"
+          },
+          "is_indoor": {
+            "type": "boolean",
+            "title": "Is Indoor"
+          },
+          "load_primary": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Primary",
+            "description": "TSS-equivalent points (null = unknown, METRICS §2.1)"
+          },
+          "load_method": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Load Method",
+            "description": "\"rtss\" | \"hrtss\" | null"
+          },
+          "hrtss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hrtss"
+          },
+          "rtss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rtss"
+          },
+          "trimp_norm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trimp Norm"
+          },
+          "if_hr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "If Hr"
+          },
+          "if_pace": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "If Pace"
+          },
+          "hr_coverage": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hr Coverage",
+            "description": "0–1"
+          },
+          "low_confidence": {
+            "type": "boolean",
+            "title": "Low Confidence"
+          },
+          "garmin_training_load": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Garmin Training Load"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "garmin_id",
+          "sport",
+          "sub_sport",
+          "name",
+          "local_date",
+          "start_utc",
+          "tz",
+          "duration_s",
+          "moving_s",
+          "distance_m",
+          "elev_gain_m",
+          "avg_hr",
+          "max_hr",
+          "avg_speed",
+          "is_race",
+          "is_indoor",
+          "load_primary",
+          "load_method",
+          "hrtss",
+          "rtss",
+          "trimp_norm",
+          "if_hr",
+          "if_pace",
+          "hr_coverage",
+          "low_confidence",
+          "garmin_training_load"
+        ],
+        "title": "ActivitySummaryDTO"
+      },
+      "AthleteDTO": {
+        "properties": {
+          "sex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sex",
+            "description": "\"male\" | \"female\""
+          },
+          "birth_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth Year"
+          },
+          "max_hr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Hr",
+            "description": "bpm"
+          },
+          "rest_hr_override": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Hr Override",
+            "description": "bpm; null → 28-day median Garmin RHR"
+          },
+          "rest_hr_current": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Hr Current",
+            "description": "bpm, the value used today (override or median)"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "run_bike_split": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Bike Split",
+            "description": "share of weekly load for running (0–1)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sex",
+          "birth_year",
+          "max_hr",
+          "rest_hr_override",
+          "rest_hr_current",
+          "weight_kg",
+          "run_bike_split"
+        ],
+        "title": "AthleteDTO"
+      },
+      "AthleteIn": {
+        "properties": {
+          "sex": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sex"
+          },
+          "birth_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birth Year"
+          },
+          "max_hr": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Hr"
+          },
+          "rest_hr_override": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rest Hr Override"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "run_bike_split": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Bike Split"
+          }
+        },
+        "type": "object",
+        "title": "AthleteIn",
+        "description": "PUT /settings/athlete body; null fields are left unchanged."
+      },
+      "DashboardDTO": {
+        "properties": {
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today"
+          },
+          "week_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Week Start"
+          },
+          "this_week": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyDTO"
+            },
+            "type": "array",
+            "title": "This Week",
+            "description": "per sport + all (zeros if nothing yet)"
+          },
+          "last4_avg": {
+            "items": {
+              "$ref": "#/components/schemas/WeeklyDTO"
+            },
+            "type": "array",
+            "title": "Last4 Avg",
+            "description": "per sport + all: mean of the 4 previous ISO weeks"
+          },
+          "pmc": {
+            "$ref": "#/components/schemas/PmcDTO",
+            "description": "last 42 days"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PmcPointDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_sync": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync"
+          },
+          "sync_stale": {
+            "type": "boolean",
+            "title": "Sync Stale",
+            "description": "last successful sync older than 36 h (PLAN phase 8 health)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "today",
+          "week_start",
+          "this_week",
+          "last4_avg",
+          "pmc",
+          "latest",
+          "last_sync",
+          "sync_stale"
+        ],
+        "title": "DashboardDTO"
+      },
+      "DiagnosticsDTO": {
+        "properties": {
+          "last_activity_sync": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Activity Sync"
+          },
+          "last_wellness_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Wellness Date"
+          },
+          "backfill_cursor": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Backfill Cursor"
+          },
+          "pending_activities": {
+            "type": "integer",
+            "title": "Pending Activities"
+          },
+          "pending_wellness_days": {
+            "type": "integer",
+            "title": "Pending Wellness Days"
+          },
+          "failed_activities": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Failed Activities"
+          },
+          "failed_wellness_days": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Failed Wellness Days"
+          },
+          "activities": {
+            "type": "integer",
+            "title": "Activities"
+          },
+          "activities_with_metrics": {
+            "type": "integer",
+            "title": "Activities With Metrics"
+          },
+          "activities_without_threshold": {
+            "type": "integer",
+            "title": "Activities Without Threshold",
+            "description": "activities with no threshold record valid at their date"
+          },
+          "activities_without_load": {
+            "type": "integer",
+            "title": "Activities Without Load",
+            "description": "activities whose load_primary is null (no LTHR, no HR, …)"
+          },
+          "low_confidence_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Low Confidence Share",
+            "description": "share of activities flagged low_confidence (0–1)"
+          },
+          "load_sanity": {
+            "$ref": "#/components/schemas/LoadSanityDTO"
+          },
+          "hrtss_rtss_divergent": {
+            "items": {
+              "$ref": "#/components/schemas/LoadDivergenceDTO"
+            },
+            "type": "array",
+            "title": "Hrtss Rtss Divergent",
+            "description": "runs where hrTSS and rTSS differ by > 40 % of the smaller value (threshold check)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "last_activity_sync",
+          "last_wellness_date",
+          "backfill_cursor",
+          "pending_activities",
+          "pending_wellness_days",
+          "failed_activities",
+          "failed_wellness_days",
+          "activities",
+          "activities_with_metrics",
+          "activities_without_threshold",
+          "activities_without_load",
+          "low_confidence_share",
+          "load_sanity",
+          "hrtss_rtss_divergent"
+        ],
+        "title": "DiagnosticsDTO"
+      },
+      "ErrorBody": {
+        "properties": {
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "detail"
+        ],
+        "title": "ErrorBody"
+      },
+      "LapDTO": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index",
+            "description": "1-based"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          },
+          "avg_hr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Hr"
+          },
+          "max_hr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Hr"
+          },
+          "avg_speed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Speed",
+            "description": "m/s"
+          },
+          "elev_gain_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Elev Gain M"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "duration_s",
+          "distance_m",
+          "avg_hr",
+          "max_hr",
+          "avg_speed",
+          "elev_gain_m"
+        ],
+        "title": "LapDTO"
+      },
+      "LoadDivergenceDTO": {
+        "properties": {
+          "garmin_id": {
+            "type": "integer",
+            "title": "Garmin Id"
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Local Date"
+          },
+          "sport": {
+            "type": "string",
+            "title": "Sport"
+          },
+          "hrtss": {
+            "type": "number",
+            "title": "Hrtss",
+            "description": "TSS-equivalent points"
+          },
+          "rtss": {
+            "type": "number",
+            "title": "Rtss",
+            "description": "TSS-equivalent points"
+          },
+          "diff_pct": {
+            "type": "number",
+            "title": "Diff Pct",
+            "description": "|hrTSS − rTSS| / min(hrTSS, rTSS) · 100 (relative to the smaller)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "garmin_id",
+          "local_date",
+          "sport",
+          "hrtss",
+          "rtss",
+          "diff_pct"
+        ],
+        "title": "LoadDivergenceDTO"
+      },
+      "LoadSanityDTO": {
+        "properties": {
+          "r": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R",
+            "description": "Pearson correlation coefficient, null if n < 3"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N",
+            "description": "activities with both values"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "\"good\" (r > 0.8) | \"fair\" | \"warning\" (r < 0.7) | \"insufficient\""
+          }
+        },
+        "type": "object",
+        "required": [
+          "r",
+          "n",
+          "status"
+        ],
+        "title": "LoadSanityDTO",
+        "description": "METRICS §2.5: Pearson r between load_primary and Garmin training load."
+      },
+      "PmcDTO": {
+        "properties": {
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/PmcPointDTO"
+            },
+            "type": "array",
+            "title": "Points",
+            "description": "daily, date ascending"
+          },
+          "series_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Series Start"
+          },
+          "warming_up_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warming Up Until",
+            "description": "series_start + 89 days"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PmcPointDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "points",
+          "series_start",
+          "warming_up_until",
+          "latest"
+        ],
+        "title": "PmcDTO"
+      },
+      "PmcPointDTO": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "load_total": {
+            "type": "number",
+            "title": "Load Total"
+          },
+          "load_run": {
+            "type": "number",
+            "title": "Load Run"
+          },
+          "load_bike": {
+            "type": "number",
+            "title": "Load Bike"
+          },
+          "ctl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ctl"
+          },
+          "atl": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Atl"
+          },
+          "tsb": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tsb"
+          },
+          "acwr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acwr"
+          },
+          "acwr_band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Acwr Band",
+            "description": "\"under\" | \"optimal\" | \"caution\" | \"danger\""
+          },
+          "monotony": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Monotony"
+          },
+          "strain": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strain"
+          },
+          "ramp_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ramp Rate"
+          },
+          "ramp_warning": {
+            "type": "boolean",
+            "title": "Ramp Warning",
+            "description": "ramp_rate > 6 (METRICS §4)"
+          },
+          "warming_up": {
+            "type": "boolean",
+            "title": "Warming Up",
+            "description": "within the first 90 days of the series (§4)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "load_total",
+          "load_run",
+          "load_bike",
+          "ctl",
+          "atl",
+          "tsb",
+          "acwr",
+          "acwr_band",
+          "monotony",
+          "strain",
+          "ramp_rate",
+          "ramp_warning",
+          "warming_up"
+        ],
+        "title": "PmcPointDTO"
+      },
+      "PolarizationDTO": {
+        "properties": {
+          "low": {
+            "type": "number",
+            "title": "Low",
+            "description": "share Z1–Z2"
+          },
+          "mid": {
+            "type": "number",
+            "title": "Mid",
+            "description": "share Z3"
+          },
+          "high": {
+            "type": "number",
+            "title": "High",
+            "description": "share Z4–Z5"
+          }
+        },
+        "type": "object",
+        "required": [
+          "low",
+          "mid",
+          "high"
+        ],
+        "title": "PolarizationDTO"
+      },
+      "SettingsDTO": {
+        "properties": {
+          "athlete": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AthleteDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "thresholds": {
+            "items": {
+              "$ref": "#/components/schemas/ThresholdDTO"
+            },
+            "type": "array",
+            "title": "Thresholds",
+            "description": "full history, sport then valid_from ascending"
+          },
+          "current": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ThresholdDTO"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Current",
+            "description": "{\"run\": …, \"bike\": …} valid today"
+          },
+          "hr_zones": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/ZoneBoundDTO"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Hr Zones",
+            "description": "per sport, absolute bpm bounds of today's zones"
+          },
+          "pace_zones": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ZoneBoundDTO"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace Zones",
+            "description": "run pace zones in m/s for today's threshold"
+          }
+        },
+        "type": "object",
+        "required": [
+          "athlete",
+          "thresholds",
+          "current",
+          "hr_zones",
+          "pace_zones"
+        ],
+        "title": "SettingsDTO"
+      },
+      "StreamsDTO": {
+        "properties": {
+          "activity_id": {
+            "type": "integer",
+            "title": "Activity Id"
+          },
+          "points": {
+            "type": "integer",
+            "title": "Points",
+            "description": "number of points after LTTB downsampling"
+          },
+          "source_points": {
+            "type": "integer",
+            "title": "Source Points",
+            "description": "1 Hz samples before downsampling"
+          },
+          "t": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "T",
+            "description": "seconds since start (elapsed, pauses included)"
+          },
+          "series": {
+            "additionalProperties": {
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Series",
+            "description": "requested: hr (bpm), speed / gap_speed (m/s), alt (m), grade, cadence, distance (m)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "activity_id",
+          "points",
+          "source_points",
+          "t",
+          "series"
+        ],
+        "title": "StreamsDTO"
+      },
+      "SubjectiveDTO": {
+        "properties": {
+          "rpe": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rpe"
+          },
+          "feel": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feel"
+          },
+          "soreness": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soreness"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "activity_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activity Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "date",
+          "activity_id"
+        ],
+        "title": "SubjectiveDTO"
+      },
+      "SubjectiveIn": {
+        "properties": {
+          "rpe": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rpe"
+          },
+          "feel": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feel"
+          },
+          "soreness": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 3.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Soreness"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "title": "SubjectiveIn",
+        "description": "POST /activities/{id}/subjective body."
+      },
+      "SyncResultDTO": {
+        "properties": {
+          "activities_new": {
+            "type": "integer",
+            "title": "Activities New"
+          },
+          "activities_updated": {
+            "type": "integer",
+            "title": "Activities Updated"
+          },
+          "activities_unchanged": {
+            "type": "integer",
+            "title": "Activities Unchanged"
+          },
+          "activities_pending": {
+            "type": "integer",
+            "title": "Activities Pending"
+          },
+          "activities_failed": {
+            "type": "integer",
+            "title": "Activities Failed"
+          },
+          "wellness_days": {
+            "type": "integer",
+            "title": "Wellness Days"
+          },
+          "metrics_computed": {
+            "type": "integer",
+            "title": "Metrics Computed"
+          },
+          "pmc_days": {
+            "type": "integer",
+            "title": "Pmc Days"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "activities_new",
+          "activities_updated",
+          "activities_unchanged",
+          "activities_pending",
+          "activities_failed",
+          "wellness_days",
+          "metrics_computed",
+          "pmc_days",
+          "errors"
+        ],
+        "title": "SyncResultDTO"
+      },
+      "ThresholdDTO": {
+        "properties": {
+          "id": {
+            "type": "integer",
+            "title": "Id"
+          },
+          "sport": {
+            "type": "string",
+            "title": "Sport",
+            "description": "\"run\" | \"bike\""
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid From"
+          },
+          "lthr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lthr",
+            "description": "bpm"
+          },
+          "threshold_speed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Speed",
+            "description": "m/s, run only"
+          },
+          "zones": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Zones",
+            "description": "{\"hr\": [0.68, 0.84, 0.95, 1.05], \"pace\": [...]} – fractions (METRICS §1)"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "\"manual\" | \"proposal\""
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "sport",
+          "valid_from",
+          "lthr",
+          "threshold_speed",
+          "zones",
+          "source"
+        ],
+        "title": "ThresholdDTO"
+      },
+      "ThresholdIn": {
+        "properties": {
+          "sport": {
+            "type": "string",
+            "title": "Sport"
+          },
+          "valid_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Valid From"
+          },
+          "lthr": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Lthr",
+            "description": "bpm"
+          },
+          "threshold_speed": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Threshold Speed",
+            "description": "m/s, run only"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sport",
+          "valid_from",
+          "lthr"
+        ],
+        "title": "ThresholdIn",
+        "description": "PUT /settings/thresholds body."
+      },
+      "WeeklyDTO": {
+        "properties": {
+          "week_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Week Start",
+            "description": "Monday of the ISO week"
+          },
+          "iso_year": {
+            "type": "integer",
+            "title": "Iso Year"
+          },
+          "iso_week": {
+            "type": "integer",
+            "title": "Iso Week"
+          },
+          "sport": {
+            "type": "string",
+            "title": "Sport",
+            "description": "\"run\" | \"bike\" | \"other\" | \"all\""
+          },
+          "n_activities": {
+            "type": "integer",
+            "title": "N Activities"
+          },
+          "load": {
+            "type": "number",
+            "title": "Load"
+          },
+          "duration_s": {
+            "type": "number",
+            "title": "Duration S"
+          },
+          "distance_m": {
+            "type": "number",
+            "title": "Distance M"
+          },
+          "elev_gain_m": {
+            "type": "number",
+            "title": "Elev Gain M"
+          },
+          "time_in_zone": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Time In Zone",
+            "description": "HR zone seconds {\"1\": s, …, \"5\": s}"
+          },
+          "polarization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolarizationDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "week_start",
+          "iso_year",
+          "iso_week",
+          "sport",
+          "n_activities",
+          "load",
+          "duration_s",
+          "distance_m",
+          "elev_gain_m",
+          "time_in_zone",
+          "polarization"
+        ],
+        "title": "WeeklyDTO"
+      },
+      "ZoneBoundDTO": {
+        "properties": {
+          "zone": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Zone"
+          },
+          "lower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lower",
+            "description": "bpm (HR) or m/s (pace); null = open"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper"
+          }
+        },
+        "type": "object",
+        "required": [
+          "zone",
+          "lower",
+          "upper"
+        ],
+        "title": "ZoneBoundDTO"
+      },
+      "ZoneTimeDTO": {
+        "properties": {
+          "zone": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Zone"
+          },
+          "seconds": {
+            "type": "integer",
+            "title": "Seconds"
+          },
+          "share": {
+            "type": "number",
+            "title": "Share",
+            "description": "0–1 of the zone total"
+          },
+          "lower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lower",
+            "description": "bpm or m/s bound of the threshold used; null = open"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper"
+          }
+        },
+        "type": "object",
+        "required": [
+          "zone",
+          "seconds",
+          "share",
+          "lower",
+          "upper"
+        ],
+        "title": "ZoneTimeDTO"
+      }
+    }
+  }
+}
