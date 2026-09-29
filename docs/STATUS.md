@@ -328,6 +328,13 @@ Last updated: 2026-09-29 (phase 3 session)
 
 ## Decisions
 
+- 2026-09-29 **Deviations from PLAN §3 and §5 in phase 3.**
+  - Streamlit uses `st.navigation` with `ui-streamlit/views/` (one script per page), `sections/` (render blocks)
+    and `components/` (Plotly, DTO in → figure out) instead of the numbered `pages/` files.
+  - The API adds `GET /fitness/dashboard` (DashboardDTO) and `PUT /settings/athlete` (AthleteIn → AthleteDTO).
+  - `GET /diagnostics` lives in `routers/sync.py`.
+  PLAN.md is updated.
+
 - 2026-09-29 **The user approved two METRICS changes (§2.1, §3)**, implemented test-first by the metrics-implementer.
   - An activity without any valid HR sample has null hrTSS / IF_hr / TRIMP / TRIMP_norm, and so a null load
     unless rTSS applies. It still adds 0 to the PMC; `time_in_hr_zone` stays all zeros.

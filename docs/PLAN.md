@@ -76,7 +76,8 @@ training-app/
 │       └── test_*.py
 ├── ui-streamlit/
 │   ├── app.py
-│   ├── pages/  1_Dashboard.py · 2_Aktivity.py · 3_Fitness.py · 4_Progres.py · 5_Spanok.py · 6_Plan.py · 7_Nastavenia.py
+│   ├── views/  dashboard · aktivity · fitness · progres · spanok · plan · nastavenia   (st.navigation v app.py)
+│   ├── sections/                 # väčšie bloky stránok (detail aktivity, formuláre nastavení, diagnostika)
 │   └── components/               # grafy (Plotly) nad DTO – žiadna logika
 ├── frontend/                     # fáza 9: Vite + React + TS
 ├── scripts/  record_fixtures.py · install_cron.sh · telegram_morning.py
@@ -116,6 +117,7 @@ GET  /activities/{id}/streams?fields=hr,speed,…   → StreamsDTO (downsampled 
 POST /activities/{id}/subjective                 → SubjectiveDTO
 GET  /fitness/pmc?from&to                        → PmcDTO (denné rady ctl/atl/tsb/acwr/monotony/ramp + flags)
 GET  /fitness/weekly?weeks=12                    → WeeklyDTO[] (objem, zóny, polarizácia per šport)
+GET  /fitness/dashboard                          → DashboardDTO (tento týždeň vs. priemer 4, PMC 42 dní) – doplnené vo fáze 3
 GET  /progress/ef?sport&days=180                 → SeriesDTO
 GET  /progress/speed-hr-curve?months=6           → CurveDTO[]
 GET  /progress/best-efforts?sport&range=90d|all  → BestEffortsDTO
@@ -130,6 +132,7 @@ GET  /plan/today                                 → DailyDecisionDTO
 POST /plan/{id}/push                             → PlannedWorkoutDTO (po push do Garminu)
 POST /plan/{id}/status                           → PlannedWorkoutDTO
 GET  /settings                                   → SettingsDTO ;  PUT /settings/thresholds → ThresholdDTO
+PUT  /settings/athlete                           → AthleteDTO – doplnené vo fáze 3
 GET  /diagnostics                                → DiagnosticsDTO (posledný sync, korelácia s Garmin load, chyby)
 POST /sync                                       → SyncResultDTO (synchronne, len pre lokálne použitie)
 ```
