@@ -448,6 +448,215 @@
         }
       }
     },
+    "/api/progress/ef": {
+      "get": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "EF / decoupling / pace at reference HR per activity with the 28-day median trend",
+        "operationId": "get_ef_series",
+        "parameters": [
+          {
+            "name": "sport",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "run",
+              "title": "Sport"
+            }
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 180,
+              "title": "Days"
+            }
+          },
+          {
+            "name": "metric",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "ef",
+              "title": "Metric"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/progress/speed-hr-curve": {
+      "get": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "Month-end speed-HR curve snapshots of the last N months, oldest first",
+        "operationId": "get_speed_hr_curves",
+        "parameters": [
+          {
+            "name": "months",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 6,
+              "title": "Months"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CurveDTO"
+                  },
+                  "title": "Response Get Speed Hr Curves"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/progress/best-efforts": {
+      "get": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "Best effort per (kind, window) over the last 90 days or all time",
+        "operationId": "get_best_efforts",
+        "parameters": [
+          {
+            "name": "sport",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "run",
+              "title": "Sport"
+            }
+          },
+          {
+            "name": "range",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "90d",
+              "title": "Range"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BestEffortsDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/progress/predictions": {
+      "get": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "Riegel and Daniels race predictions from the best recent reference",
+        "operationId": "get_predictions",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PredictionsDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/progress/threshold-proposals": {
+      "get": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "LTHR / threshold-speed proposals (never applied automatically)",
+        "operationId": "get_threshold_proposals",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProposalDTO"
+                  },
+                  "type": "array",
+                  "title": "Response Get Threshold Proposals"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/settings": {
       "get": {
         "tags": [
@@ -1194,6 +1403,162 @@
         "title": "AthleteIn",
         "description": "PUT /settings/athlete body; null fields are left unchanged."
       },
+      "BestEffortDTO": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "\"gap_speed\" | \"speed\" | \"hr\""
+          },
+          "window_s": {
+            "type": "integer",
+            "title": "Window S"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value",
+            "description": "m/s or bpm"
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Local Date"
+          },
+          "activity_id": {
+            "type": "integer",
+            "title": "Activity Id"
+          },
+          "distance_m": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "window_s",
+          "value",
+          "local_date",
+          "activity_id",
+          "distance_m"
+        ],
+        "title": "BestEffortDTO"
+      },
+      "BestEffortsDTO": {
+        "properties": {
+          "sport": {
+            "type": "string",
+            "title": "Sport"
+          },
+          "range": {
+            "type": "string",
+            "title": "Range",
+            "description": "\"90d\" | \"all\""
+          },
+          "efforts": {
+            "items": {
+              "$ref": "#/components/schemas/BestEffortDTO"
+            },
+            "type": "array",
+            "title": "Efforts",
+            "description": "best per (kind, window_s)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sport",
+          "range",
+          "efforts"
+        ],
+        "title": "BestEffortsDTO",
+        "description": "GET /progress/best-efforts?sport&range=90d|all (§6.2)."
+      },
+      "CurveBinDTO": {
+        "properties": {
+          "hr_bin": {
+            "type": "integer",
+            "title": "Hr Bin",
+            "description": "lower edge of the 5 bpm bin"
+          },
+          "gap_speed": {
+            "type": "number",
+            "title": "Gap Speed",
+            "description": "median GAP speed in the bin, m/s"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hr_bin",
+          "gap_speed",
+          "count"
+        ],
+        "title": "CurveBinDTO"
+      },
+      "CurveDTO": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month",
+            "description": "\"YYYY-MM\""
+          },
+          "sport": {
+            "type": "string",
+            "title": "Sport"
+          },
+          "bins": {
+            "items": {
+              "$ref": "#/components/schemas/CurveBinDTO"
+            },
+            "type": "array",
+            "title": "Bins"
+          },
+          "ref_hr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ref Hr",
+            "description": "0.80 · LTHR valid at the window end, bpm"
+          },
+          "pace_at_ref_hr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace At Ref Hr",
+            "description": "m/s"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "sport",
+          "bins",
+          "ref_hr",
+          "pace_at_ref_hr"
+        ],
+        "title": "CurveDTO",
+        "description": "GET /progress/speed-hr-curve – one month-end snapshot (§6.1)."
+      },
       "DashboardDTO": {
         "properties": {
           "today": {
@@ -1784,6 +2149,309 @@
         ],
         "title": "PolarizationDTO"
       },
+      "PredictionDTO": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "\"5k\" | \"10k\" | \"half\" | \"marathon\""
+          },
+          "distance_m": {
+            "type": "number",
+            "title": "Distance M"
+          },
+          "riegel_s": {
+            "type": "number",
+            "title": "Riegel S"
+          },
+          "daniels_s": {
+            "type": "number",
+            "title": "Daniels S"
+          },
+          "extrapolated": {
+            "type": "boolean",
+            "title": "Extrapolated",
+            "description": "reference distance < 1/4 of the target"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "distance_m",
+          "riegel_s",
+          "daniels_s",
+          "extrapolated"
+        ],
+        "title": "PredictionDTO"
+      },
+      "PredictionsDTO": {
+        "properties": {
+          "reference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReferenceDTO"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "description": "reference older than 60 days"
+          },
+          "predictions": {
+            "items": {
+              "$ref": "#/components/schemas/PredictionDTO"
+            },
+            "type": "array",
+            "title": "Predictions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reference",
+          "stale",
+          "predictions"
+        ],
+        "title": "PredictionsDTO",
+        "description": "GET /progress/predictions (§7)."
+      },
+      "ProposalDTO": {
+        "properties": {
+          "sport": {
+            "type": "string",
+            "title": "Sport"
+          },
+          "field": {
+            "type": "string",
+            "title": "Field",
+            "description": "\"threshold_speed\" (m/s) | \"lthr\" (bpm)"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "estimate": {
+            "type": "number",
+            "title": "Estimate"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change",
+            "description": "relative (speed) or bpm (lthr) difference; null without current"
+          },
+          "propose": {
+            "type": "boolean",
+            "title": "Propose"
+          },
+          "basis": {
+            "type": "string",
+            "title": "Basis"
+          },
+          "garmin_lthr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Garmin Lthr",
+            "description": "Garmin's own lactate-threshold HR, bpm (if available)"
+          },
+          "garmin_lt_speed": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Garmin Lt Speed",
+            "description": "Garmin's lactate-threshold speed, m/s (if available)"
+          },
+          "garmin_vo2max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Garmin Vo2Max"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sport",
+          "field",
+          "current",
+          "estimate",
+          "change",
+          "propose",
+          "basis",
+          "garmin_lthr",
+          "garmin_lt_speed",
+          "garmin_vo2max"
+        ],
+        "title": "ProposalDTO",
+        "description": "GET /progress/threshold-proposals (§6.3) – never auto-applied."
+      },
+      "ReferenceDTO": {
+        "properties": {
+          "distance_m": {
+            "type": "number",
+            "title": "Distance M"
+          },
+          "time_s": {
+            "type": "number",
+            "title": "Time S"
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Local Date"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "\"race\" | \"effort\""
+          },
+          "vdot": {
+            "type": "number",
+            "title": "Vdot"
+          }
+        },
+        "type": "object",
+        "required": [
+          "distance_m",
+          "time_s",
+          "local_date",
+          "source",
+          "vdot"
+        ],
+        "title": "ReferenceDTO"
+      },
+      "SeriesDTO": {
+        "properties": {
+          "metric": {
+            "type": "string",
+            "title": "Metric",
+            "description": "\"ef\" | \"decoupling_pct\" | \"pace_at_ref_hr_day\""
+          },
+          "sport": {
+            "type": "string",
+            "title": "Sport"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "description": "\"m/min/bpm\" | \"%\" | \"m/s\""
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/SeriesPointDTO"
+            },
+            "type": "array",
+            "title": "Points",
+            "description": "date ascending; EF/decoupling only for steady-state runs"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/TrendPointDTO"
+            },
+            "type": "array",
+            "title": "Trend",
+            "description": "daily 28-day median over steady-state activities"
+          },
+          "caveat": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Caveat",
+            "description": "e.g. bike EF: terrain/wind dependent – trend only (§5.4)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "metric",
+          "sport",
+          "unit",
+          "points",
+          "trend",
+          "caveat"
+        ],
+        "title": "SeriesDTO",
+        "description": "GET /progress/ef (EF / decoupling / pace_at_ref_hr_day per activity + trend)."
+      },
+      "SeriesPointDTO": {
+        "properties": {
+          "activity_id": {
+            "type": "integer",
+            "title": "Activity Id"
+          },
+          "local_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Local Date"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "metric value of that activity (EF: m/min per bpm; pace metric: m/s)"
+          },
+          "steady_state": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steady State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "activity_id",
+          "local_date",
+          "value",
+          "steady_state"
+        ],
+        "title": "SeriesPointDTO"
+      },
       "SettingsDTO": {
         "properties": {
           "athlete": {
@@ -2198,6 +2866,12 @@
             ],
             "title": "Threshold Speed",
             "description": "m/s, run only"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "description": "\"manual\" | \"proposal\" (applied §6.3 proposal)",
+            "default": "manual"
           }
         },
         "type": "object",
@@ -2208,6 +2882,33 @@
         ],
         "title": "ThresholdIn",
         "description": "PUT /settings/thresholds body."
+      },
+      "TrendPointDTO": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "28-day rolling median (METRICS §5.2)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "value"
+        ],
+        "title": "TrendPointDTO"
       },
       "WeeklyDTO": {
         "properties": {

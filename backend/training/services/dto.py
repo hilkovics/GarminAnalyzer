@@ -31,6 +31,7 @@ class ThresholdIn(BaseModel):
     valid_from: dt.date
     lthr: float = Field(gt=0, description="bpm")
     threshold_speed: float | None = Field(default=None, gt=0, description="m/s, run only")
+    source: str = Field(default="manual", description='"manual" | "proposal" (applied §6.3 proposal)')
 
 
 class AthleteDTO(BaseModel):

@@ -2,8 +2,9 @@
 
 import _db
 import streamlit as st
-from sections import diagnostics, settings_forms
+from sections import diagnostics, progress_tables, settings_forms
 
+from training.services import progress as progress_service
 from training.services import settings as settings_service
 from training.services.errors import ServiceError
 
@@ -30,6 +31,13 @@ with tab_thresholds:
     settings_forms.threshold_history(cfg)
     settings_forms.add_threshold_form(cfg)
     settings_forms.zone_preview(cfg)
+    try:
+        with _db.session() as session:
+            proposals = progress_service.get_threshold_proposals(session, today=_db.today())
+    except ServiceError as exc:
+        st.error(str(exc))
+    else:
+        progress_tables.apply_actions(proposals)
 
 with tab_sync:
     st.markdown("##### Sync")

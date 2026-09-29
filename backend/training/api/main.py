@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 
 from training.api.errors import register_error_handlers
-from training.api.routers import activities, fitness, settings, sync
+from training.api.routers import activities, fitness, progress, settings, sync
 
 API_PREFIX = "/api"
 
@@ -22,7 +22,7 @@ def create_app() -> FastAPI:
         description="API over the training services; the DTOs are the same ones the Streamlit UI renders.",
     )
     register_error_handlers(app)
-    for module in (activities, fitness, settings, sync):
+    for module in (activities, fitness, progress, settings, sync):
         app.include_router(module.router, prefix=API_PREFIX)
 
     @app.get(f"{API_PREFIX}/health", tags=["health"], summary="Liveness check")

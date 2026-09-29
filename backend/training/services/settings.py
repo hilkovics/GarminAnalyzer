@@ -25,6 +25,7 @@ from training.services.errors import InvalidInputError
 from training.services.mappers import hr_zone_bounds, pace_zone_bounds, threshold_dto
 
 THRESHOLD_SPORTS = ("run", "bike")
+THRESHOLD_SOURCES = ("manual", "proposal")
 SEXES = ("male", "female")
 MIN_THRESHOLD_SPEED = 0.5  # m/s
 METRIC_FIELDS = ("sex", "max_hr", "rest_hr_override")  # athlete fields that change TRIMP (METRICS §2.2)
@@ -53,6 +54,8 @@ def add_threshold(session: Session, data: ThresholdIn, *, today: dt.date) -> Thr
         raise InvalidInputError(f"sport must be one of {', '.join(THRESHOLD_SPORTS)}")
     if data.sport == "bike" and data.threshold_speed is not None:
         raise InvalidInputError("threshold_speed (pace) is only used for run thresholds")
+    if data.source not in THRESHOLD_SOURCES:
+        raise InvalidInputError(f"source must be one of {', '.join(THRESHOLD_SOURCES)}")
     if not HR_MIN <= data.lthr <= HR_MAX:
         raise InvalidInputError(f"lthr must be between {HR_MIN:.0f} and {HR_MAX:.0f} bpm")
     speed = data.threshold_speed
@@ -66,6 +69,7 @@ def add_threshold(session: Session, data: ThresholdIn, *, today: dt.date) -> Thr
         valid_from=data.valid_from,
         lthr=data.lthr,
         threshold_speed=speed,
+        source=data.source,
         end=today,
     )
     stored = session.execute(

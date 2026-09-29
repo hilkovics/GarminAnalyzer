@@ -157,3 +157,19 @@ def parse_pace(text: str) -> float:
     if not _MIN_PACE_S <= total <= _MAX_PACE_S:
         raise ValueError("Tempo musí byť medzi 2:00 a 15:00 min/km.")
     return 1000.0 / total
+
+
+def fmt_window(seconds: int | float | None) -> str:
+    """Best-effort window length → "5 min" (whole minutes) or "45 s"; None → "–"."""
+    if not _valid(seconds) or seconds <= 0:
+        return DASH
+    return f"{int(seconds) // 60} min" if seconds % 60 == 0 else f"{int(seconds)} s"
+
+
+def fmt_time_hms(seconds: float | None) -> str:
+    """Race time → "h:mm:ss" (always with hours, e.g. "0:19:58"); None or negative → "–"."""
+    if not _valid(seconds) or seconds < 0:
+        return DASH
+    hours, rest = divmod(int(seconds + 0.5), 3600)
+    minutes, secs = divmod(rest, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}"
