@@ -134,9 +134,8 @@ def test_recompute_command_keeps_today_and_readiness(env, monkeypatch):
     monkeypatch.setattr(garmin_client, "connect", lambda tokens_dir: api)
     assert runner.invoke(cli.app, ["sync"]).exit_code == 0
     engine = get_engine(get_settings())
-    with Session(engine) as s:
-        s.get(DailyLoad, dt.date.today()).readiness = 77.0
-        s.commit()
+    with Session(engine) as s:  # phase 5: readiness is computed by the pipeline (METRICS §8)
+        after_sync = s.get(DailyLoad, dt.date.today()).readiness
     assert runner.invoke(cli.app, ["recompute"]).exit_code == 0
     with Session(engine) as s:
-        assert s.get(DailyLoad, dt.date.today()).readiness == 77.0
+        assert s.get(DailyLoad, dt.date.today()).readiness == after_sync

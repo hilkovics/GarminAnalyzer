@@ -31,7 +31,13 @@ from tests.test_ui_support import (
     texts,
     trace_names,
 )
-from training.services.dto import DashboardDTO, PmcDTO
+from training.services.dto import (
+    CorrelationsDTO,
+    DashboardDTO,
+    PmcDTO,
+    ReadinessDTO,
+    WellnessDTO,
+)
 from training.services.errors import ServiceError
 
 
@@ -242,7 +248,7 @@ def test_fitness_shows_service_error_message(monkeypatch):
 # --- placeholders and navigation ----------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(("page", "title", "phase"), [("spanok", "Spánok", 5), ("plan", "Plán", 6)])
+@pytest.mark.parametrize(("page", "title", "phase"), [("plan", "Plán", 6)])
 def test_placeholder_pages(page, title, phase):
     at = run_page(page)
     assert not at.exception
@@ -280,6 +286,17 @@ def test_app_navigation_reaches_every_page(monkeypatch):
         get_best_efforts=lambda session, *, range="90d", sport="run", **kwargs: sample_efforts(range, sport),
         get_predictions=lambda session, **kwargs: sample_predictions(),
         get_threshold_proposals=lambda session, **kwargs: sample_proposals(),
+    )
+    patch_service(
+        monkeypatch,
+        "sleep",
+        get_readiness=lambda session, day: ReadinessDTO(
+            date=day, available=False, score=None, band=None, components=[], message="Bez dát."
+        ),
+        get_wellness=lambda session, **kwargs: WellnessDTO(days=[], date_from=None, date_to=None),
+        get_correlations=lambda session, sport=None: CorrelationsDTO(
+            sports=[], findings=[], insufficient=[], min_n=30, caveat="Caveat.", n_days={}
+        ),
     )
     at = AppTest.from_file(str(UI_DIR / "app.py"), default_timeout=20).run()
     for page, title in {

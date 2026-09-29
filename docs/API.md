@@ -32,6 +32,10 @@ docs at `/docs`).
 | PUT | `/api/settings/athlete` | body: `AthleteIn` | `AthleteDTO` | Update athlete fields (null = unchanged); TRIMP inputs recompute all metrics |
 | GET | `/api/diagnostics` | – | `DiagnosticsDTO` | Sync state and the load sanity check |
 | POST | `/api/sync` | – | `SyncResultDTO` | Run an incremental Garmin sync now (synchronous, local use only) |
+| GET | `/api/wellness/daily` | `from`?, `to`? | `WellnessDTO` | Daily wellness rows with 28-day baselines, sleep debt and readiness |
+| GET | `/api/wellness/readiness/today` | – | `ReadinessDTO` | Readiness of today with the component breakdown |
+| GET | `/api/wellness/readiness/{day}` | `day` | `ReadinessDTO` | Readiness of one day with the component breakdown |
+| GET | `/api/wellness/correlations` | `sport`? | `CorrelationsDTO` | Sleep ↔ performance findings (n ≥ 30) sorted by \|ρ\|, plus pairs with insufficient data |
 | GET | `/api/health` | – | `map<string, string>` | Liveness check |
 
 ## Schemas
@@ -114,6 +118,15 @@ PUT /settings/athlete body; null fields are left unchanged.
 | `run_bike_split` (optional) | number \| null |  |
 | `clear_rest_hr_override` (optional) | boolean | true → remove the manual rest HR (back to the 28-day Garmin median) |
 
+### BaselineDTO
+
+Trailing 28-day baseline of one wellness field (METRICS §8, day itself excluded).
+
+| Field | Type | Description |
+|---|---|---|
+| `median` | number \| null | median of the valid values of D-28 … D-1; null with < 7 values |
+| `mad` | number \| null | raw median absolute deviation (no scaling), same window |
+
 ### BestEffortDTO
 
 | Field | Type | Description |
@@ -134,6 +147,50 @@ GET /progress/best-efforts?sport&range=90d|all (§6.2).
 | `sport` | string |  |
 | `range` | string | "90d" \| "all" |
 | `efforts` | BestEffortDTO[] | best per (kind, window_s) |
+
+### CorrelationDTO
+
+One (sport, predictor, outcome) finding (METRICS §9). Null statistics are null.
+
+| Field | Type | Description |
+|---|---|---|
+| `sport` | string | "run" \| "bike" |
+| `predictor` | string | predictor column, e.g. "sleep_s_lag0", "sleep_debt_7" |
+| `predictor_base` | string | predictor without variant, e.g. "sleep_s" |
+| `variant` | string | "lag0" (night before) \| "lag1" (two nights before) \| "mean3" |
+| `outcome` | string | "ef" \| "decoupling_pct" \| "pace_at_ref_hr_day" \| "rpe_residual" |
+| `n` | integer |  |
+| `status` | string | "ok" \| "insufficient_data" (n < 30) |
+| `rho` | number \| null | Spearman ρ |
+| `p` | number \| null |  |
+| `ci_low` | number \| null | bootstrap 95 % CI of ρ |
+| `ci_high` | number \| null |  |
+| `partial_n` | integer \| null |  |
+| `partial_rho` | number \| null | Spearman on OLS residuals after TSB, ATL[D-1], load[D-1] |
+| `partial_p` | number \| null |  |
+| `partial_ci_low` | number \| null |  |
+| `partial_ci_high` | number \| null |  |
+| `q_contrast` | number \| null | mean outcome top quartile − bottom quartile (outcome unit) |
+| `q_ci_low` | number \| null |  |
+| `q_ci_high` | number \| null |  |
+| `q_n_bottom` | integer \| null |  |
+| `q_n_top` | integer \| null |  |
+| `uncertain` | boolean | the headline CI contains 0 (or there is none) |
+| `headline_rho` | number \| null | partial ρ if present, else raw ρ (sort key) |
+| `sentence` | string | one plain-Slovak sentence describing the finding |
+
+### CorrelationsDTO
+
+GET /wellness/correlations – findings sorted by |headline ρ| plus the pairs without enough data.
+
+| Field | Type | Description |
+|---|---|---|
+| `sports` | string[] | sports covered by this response |
+| `findings` | CorrelationDTO[] | status ok, sorted by \|headline ρ\| descending |
+| `insufficient` | CorrelationDTO[] | status insufficient_data; n is reported |
+| `min_n` | integer | minimum n for a finding (30) |
+| `caveat` | string | fixed Slovak caveat text (METRICS §9.5); always show it |
+| `n_days` | map<string, integer> | qualifying days (dataset rows) per sport |
 
 ### CurveBinDTO
 
@@ -299,6 +356,30 @@ GET /progress/threshold-proposals (§6.3) – never auto-applied.
 | `garmin_lt_speed` | number \| null | Garmin's lactate-threshold speed, m/s (if available) |
 | `garmin_vo2max` | number \| null |  |
 
+### ReadinessComponentDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | string | "rhr" \| "sleep" \| "body_battery" \| "form" |
+| `score` | number \| null | component score 0–100; null when the input is missing |
+| `weight` | number \| null | renormalized weight (the used ones sum to 1); null if missing |
+| `value` | number \| null | raw input: bpm (rhr), sleep score points or seconds (sleep, see unit), Body Battery points, TSB (form) |
+| `baseline` | number \| null | 28-day median of the input, where the score uses one |
+| `unit` | string | unit of value/baseline: "bpm" \| "score" \| "s" \| "points" \| "TSB" |
+
+### ReadinessDTO
+
+GET /wellness/readiness/{date} – readiness of one day (METRICS §8).
+
+| Field | Type | Description |
+|---|---|---|
+| `date` | date |  |
+| `available` | boolean | false when the day has no wellness component (no score) |
+| `score` | number \| null | 0–100, unrounded (display truncated to an integer) |
+| `band` | string \| null | "green" (≥ 70) \| "yellow" (45–69) \| "red" (< 45) |
+| `components` | ReadinessComponentDTO[] | always the four components, in table order |
+| `message` | string | Slovak advice for the band |
+
 ### ReferenceDTO
 
 | Field | Type | Description |
@@ -434,6 +515,51 @@ PUT /settings/thresholds body.
 | `elev_gain_m` | number |  |
 | `time_in_zone` | map<string, number> | HR zone seconds {"1": s, …, "5": s} |
 | `polarization` | PolarizationDTO \| null |  |
+
+### WellnessBaselinesDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `rhr` | BaselineDTO | bpm |
+| `sleep_s` | BaselineDTO | seconds |
+| `sleep_score` | BaselineDTO | Garmin sleep score points |
+| `body_battery_wake` | BaselineDTO | Body Battery points |
+
+### WellnessDTO
+
+GET /wellness/daily – wellness rows (only days that have one), date ascending.
+
+| Field | Type | Description |
+|---|---|---|
+| `days` | WellnessDayDTO[] |  |
+| `date_from` | date \| null | requested start, else the first returned day |
+| `date_to` | date \| null | requested end, else the last returned day |
+
+### WellnessDayDTO
+
+One wellness row: the night that ends on the morning of `date`, RHR / Body Battery of `date`.
+
+| Field | Type | Description |
+|---|---|---|
+| `date` | date |  |
+| `sleep_start` | date-time \| null | UTC |
+| `sleep_end` | date-time \| null | UTC |
+| `sleep_s` | number \| null | seconds |
+| `deep_s` | number \| null | seconds |
+| `light_s` | number \| null | seconds |
+| `rem_s` | number \| null | seconds |
+| `awake_s` | number \| null | seconds |
+| `sleep_score` | number \| null | Garmin sleep score, 0–100 |
+| `rhr` | number \| null | resting HR, bpm |
+| `body_battery_wake` | number \| null |  |
+| `body_battery_min` | number \| null |  |
+| `stress_avg` | number \| null |  |
+| `steps` | integer \| null |  |
+| `weight_kg` | number \| null |  |
+| `baselines` | WellnessBaselinesDTO | baselines valid for this day (computed over the full history) |
+| `sleep_debt_7_s` | number \| null | 7-night sleep debt, seconds (METRICS §9); negative = surplus; null with < 5 valid nights |
+| `readiness` | number \| null | persisted daily_load.readiness, unrounded, 0–100 |
+| `readiness_band` | string \| null | "green" \| "yellow" \| "red" |
 
 ### ZoneBoundDTO
 

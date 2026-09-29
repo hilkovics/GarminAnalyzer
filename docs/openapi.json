@@ -812,6 +812,186 @@
         }
       }
     },
+    "/api/wellness/daily": {
+      "get": {
+        "tags": [
+          "wellness"
+        ],
+        "summary": "Daily wellness rows with 28-day baselines, sleep debt and readiness",
+        "operationId": "get_wellness",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WellnessDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wellness/readiness/today": {
+      "get": {
+        "tags": [
+          "wellness"
+        ],
+        "summary": "Readiness of today with the component breakdown",
+        "operationId": "get_readiness_today",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wellness/readiness/{day}": {
+      "get": {
+        "tags": [
+          "wellness"
+        ],
+        "summary": "Readiness of one day with the component breakdown",
+        "operationId": "get_readiness",
+        "parameters": [
+          {
+            "name": "day",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Day"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wellness/correlations": {
+      "get": {
+        "tags": [
+          "wellness"
+        ],
+        "summary": "Sleep ↔ performance findings (n ≥ 30) sorted by |ρ|, plus pairs with insufficient data",
+        "operationId": "get_correlations",
+        "parameters": [
+          {
+            "name": "sport",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Sport"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrelationsDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "tags": [
@@ -1403,6 +1583,41 @@
         "title": "AthleteIn",
         "description": "PUT /settings/athlete body; null fields are left unchanged."
       },
+      "BaselineDTO": {
+        "properties": {
+          "median": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median",
+            "description": "median of the valid values of D-28 … D-1; null with < 7 values"
+          },
+          "mad": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mad",
+            "description": "raw median absolute deviation (no scaling), same window"
+          }
+        },
+        "type": "object",
+        "required": [
+          "median",
+          "mad"
+        ],
+        "title": "BaselineDTO",
+        "description": "Trailing 28-day baseline of one wellness field (METRICS §8, day itself excluded)."
+      },
       "BestEffortDTO": {
         "properties": {
           "kind": {
@@ -1479,6 +1694,310 @@
         ],
         "title": "BestEffortsDTO",
         "description": "GET /progress/best-efforts?sport&range=90d|all (§6.2)."
+      },
+      "CorrelationDTO": {
+        "properties": {
+          "sport": {
+            "type": "string",
+            "title": "Sport",
+            "description": "\"run\" | \"bike\""
+          },
+          "predictor": {
+            "type": "string",
+            "title": "Predictor",
+            "description": "predictor column, e.g. \"sleep_s_lag0\", \"sleep_debt_7\""
+          },
+          "predictor_base": {
+            "type": "string",
+            "title": "Predictor Base",
+            "description": "predictor without variant, e.g. \"sleep_s\""
+          },
+          "variant": {
+            "type": "string",
+            "title": "Variant",
+            "description": "\"lag0\" (night before) | \"lag1\" (two nights before) | \"mean3\""
+          },
+          "outcome": {
+            "type": "string",
+            "title": "Outcome",
+            "description": "\"ef\" | \"decoupling_pct\" | \"pace_at_ref_hr_day\" | \"rpe_residual\""
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "\"ok\" | \"insufficient_data\" (n < 30)"
+          },
+          "rho": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rho",
+            "description": "Spearman ρ"
+          },
+          "p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low",
+            "description": "bootstrap 95 % CI of ρ"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "partial_n": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial N"
+          },
+          "partial_rho": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial Rho",
+            "description": "Spearman on OLS residuals after TSB, ATL[D-1], load[D-1]"
+          },
+          "partial_p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial P"
+          },
+          "partial_ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial Ci Low"
+          },
+          "partial_ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Partial Ci High"
+          },
+          "q_contrast": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q Contrast",
+            "description": "mean outcome top quartile − bottom quartile (outcome unit)"
+          },
+          "q_ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q Ci Low"
+          },
+          "q_ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q Ci High"
+          },
+          "q_n_bottom": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q N Bottom"
+          },
+          "q_n_top": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Q N Top"
+          },
+          "uncertain": {
+            "type": "boolean",
+            "title": "Uncertain",
+            "description": "the headline CI contains 0 (or there is none)"
+          },
+          "headline_rho": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline Rho",
+            "description": "partial ρ if present, else raw ρ (sort key)"
+          },
+          "sentence": {
+            "type": "string",
+            "title": "Sentence",
+            "description": "one plain-Slovak sentence describing the finding"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sport",
+          "predictor",
+          "predictor_base",
+          "variant",
+          "outcome",
+          "n",
+          "status",
+          "rho",
+          "p",
+          "ci_low",
+          "ci_high",
+          "partial_n",
+          "partial_rho",
+          "partial_p",
+          "partial_ci_low",
+          "partial_ci_high",
+          "q_contrast",
+          "q_ci_low",
+          "q_ci_high",
+          "q_n_bottom",
+          "q_n_top",
+          "uncertain",
+          "headline_rho",
+          "sentence"
+        ],
+        "title": "CorrelationDTO",
+        "description": "One (sport, predictor, outcome) finding (METRICS §9). Null statistics are null."
+      },
+      "CorrelationsDTO": {
+        "properties": {
+          "sports": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sports",
+            "description": "sports covered by this response"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/CorrelationDTO"
+            },
+            "type": "array",
+            "title": "Findings",
+            "description": "status ok, sorted by |headline ρ| descending"
+          },
+          "insufficient": {
+            "items": {
+              "$ref": "#/components/schemas/CorrelationDTO"
+            },
+            "type": "array",
+            "title": "Insufficient",
+            "description": "status insufficient_data; n is reported"
+          },
+          "min_n": {
+            "type": "integer",
+            "title": "Min N",
+            "description": "minimum n for a finding (30)"
+          },
+          "caveat": {
+            "type": "string",
+            "title": "Caveat",
+            "description": "fixed Slovak caveat text (METRICS §9.5); always show it"
+          },
+          "n_days": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "N Days",
+            "description": "qualifying days (dataset rows) per sport"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sports",
+          "findings",
+          "insufficient",
+          "min_n",
+          "caveat",
+          "n_days"
+        ],
+        "title": "CorrelationsDTO",
+        "description": "GET /wellness/correlations – findings sorted by |headline ρ| plus the pairs without enough data."
       },
       "CurveBinDTO": {
         "properties": {
@@ -2316,6 +2835,140 @@
         "title": "ProposalDTO",
         "description": "GET /progress/threshold-proposals (§6.3) – never auto-applied."
       },
+      "ReadinessComponentDTO": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "description": "\"rhr\" | \"sleep\" | \"body_battery\" | \"form\""
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "component score 0–100; null when the input is missing"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight",
+            "description": "renormalized weight (the used ones sum to 1); null if missing"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value",
+            "description": "raw input: bpm (rhr), sleep score points or seconds (sleep, see unit), Body Battery points, TSB (form)"
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline",
+            "description": "28-day median of the input, where the score uses one"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "description": "unit of value/baseline: \"bpm\" | \"score\" | \"s\" | \"points\" | \"TSB\""
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "score",
+          "weight",
+          "value",
+          "baseline",
+          "unit"
+        ],
+        "title": "ReadinessComponentDTO"
+      },
+      "ReadinessDTO": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "false when the day has no wellness component (no score)"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score",
+            "description": "0–100, unrounded (display truncated to an integer)"
+          },
+          "band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band",
+            "description": "\"green\" (≥ 70) | \"yellow\" (45–69) | \"red\" (< 45)"
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/ReadinessComponentDTO"
+            },
+            "type": "array",
+            "title": "Components",
+            "description": "always the four components, in table order"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Slovak advice for the band"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "available",
+          "score",
+          "band",
+          "components",
+          "message"
+        ],
+        "title": "ReadinessDTO",
+        "description": "GET /wellness/readiness/{date} – readiness of one day (METRICS §8)."
+      },
       "ReferenceDTO": {
         "properties": {
           "distance_m": {
@@ -2985,6 +3638,317 @@
           "polarization"
         ],
         "title": "WeeklyDTO"
+      },
+      "WellnessBaselinesDTO": {
+        "properties": {
+          "rhr": {
+            "$ref": "#/components/schemas/BaselineDTO",
+            "description": "bpm"
+          },
+          "sleep_s": {
+            "$ref": "#/components/schemas/BaselineDTO",
+            "description": "seconds"
+          },
+          "sleep_score": {
+            "$ref": "#/components/schemas/BaselineDTO",
+            "description": "Garmin sleep score points"
+          },
+          "body_battery_wake": {
+            "$ref": "#/components/schemas/BaselineDTO",
+            "description": "Body Battery points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rhr",
+          "sleep_s",
+          "sleep_score",
+          "body_battery_wake"
+        ],
+        "title": "WellnessBaselinesDTO"
+      },
+      "WellnessDTO": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/WellnessDayDTO"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From",
+            "description": "requested start, else the first returned day"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To",
+            "description": "requested end, else the last returned day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "days",
+          "date_from",
+          "date_to"
+        ],
+        "title": "WellnessDTO",
+        "description": "GET /wellness/daily – wellness rows (only days that have one), date ascending."
+      },
+      "WellnessDayDTO": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "sleep_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep Start",
+            "description": "UTC"
+          },
+          "sleep_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep End",
+            "description": "UTC"
+          },
+          "sleep_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep S",
+            "description": "seconds"
+          },
+          "deep_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deep S",
+            "description": "seconds"
+          },
+          "light_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Light S",
+            "description": "seconds"
+          },
+          "rem_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rem S",
+            "description": "seconds"
+          },
+          "awake_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Awake S",
+            "description": "seconds"
+          },
+          "sleep_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep Score",
+            "description": "Garmin sleep score, 0–100"
+          },
+          "rhr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rhr",
+            "description": "resting HR, bpm"
+          },
+          "body_battery_wake": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Battery Wake"
+          },
+          "body_battery_min": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Battery Min"
+          },
+          "stress_avg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stress Avg"
+          },
+          "steps": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps"
+          },
+          "weight_kg": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight Kg"
+          },
+          "baselines": {
+            "$ref": "#/components/schemas/WellnessBaselinesDTO",
+            "description": "baselines valid for this day (computed over the full history)"
+          },
+          "sleep_debt_7_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep Debt 7 S",
+            "description": "7-night sleep debt, seconds (METRICS §9); negative = surplus; null with < 5 valid nights"
+          },
+          "readiness": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readiness",
+            "description": "persisted daily_load.readiness, unrounded, 0–100"
+          },
+          "readiness_band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readiness Band",
+            "description": "\"green\" | \"yellow\" | \"red\""
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "sleep_start",
+          "sleep_end",
+          "sleep_s",
+          "deep_s",
+          "light_s",
+          "rem_s",
+          "awake_s",
+          "sleep_score",
+          "rhr",
+          "body_battery_wake",
+          "body_battery_min",
+          "stress_avg",
+          "steps",
+          "weight_kg",
+          "baselines",
+          "sleep_debt_7_s",
+          "readiness",
+          "readiness_band"
+        ],
+        "title": "WellnessDayDTO",
+        "description": "One wellness row: the night that ends on the morning of `date`, RHR / Body Battery of `date`."
       },
       "ZoneBoundDTO": {
         "properties": {

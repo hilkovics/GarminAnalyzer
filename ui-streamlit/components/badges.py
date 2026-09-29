@@ -23,6 +23,11 @@ _ACWR = {
     "caution": Badge("pozor", "orange"),
     "danger": Badge("riziko", "red"),
 }
+_READINESS = {
+    "green": Badge("zelená", "green"),
+    "yellow": Badge("žltá", "orange"),
+    "red": Badge("červená", "red"),
+}
 _UNKNOWN = Badge("–", "gray")
 
 _SANITY = {
@@ -41,3 +46,8 @@ def acwr_badge(band: str | None) -> Badge:
 def load_sanity_badge(status: str | None) -> Badge:
     """Load-sanity status (METRICS §2.5) → label and colour."""
     return _SANITY.get(status or "", _UNKNOWN)
+
+
+def readiness_badge(band: str | None) -> Badge:
+    """Readiness band ("green" | "yellow" | "red" | None) → label and colour."""
+    return _READINESS.get(band or "", _UNKNOWN)

@@ -173,3 +173,13 @@ def fmt_time_hms(seconds: float | None) -> str:
     hours, rest = divmod(int(seconds + 0.5), 3600)
     minutes, secs = divmod(rest, 60)
     return f"{hours}:{minutes:02d}:{secs:02d}"
+
+
+def fmt_rho(rho: float | None, low: float | None = None, high: float | None = None, digits: int = 2) -> str:
+    """Correlation "+0.35" or with its interval "+0.35 [95 % CI −0.10; +0.55]"; None → "–"."""
+    if not _valid(rho):
+        return DASH
+    text = f"{rho:+.{digits}f}"
+    if _valid(low) and _valid(high):
+        text += f" [95 % CI {low:+.{digits}f}; {high:+.{digits}f}]"
+    return text
