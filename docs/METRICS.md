@@ -176,7 +176,8 @@ of moving time: `moving_s` here means their count, `hr_coverage` their valid-HR 
 = means of consecutive non-overlapping 60-sample blocks (last partial block dropped, blocks with fewer than
 30 valid HR values skipped); population std. The ≥ 60 s stretch counts consecutive kept samples with
 valid HR above the limit (a NaN breaks the stretch). No threshold (lthr) → not steady state. Steady state
-uses raw HR (no lag); EF/decoupling/curves use the §0.6 lag.
+uses raw HR (no lag) and keeps walking samples (so long walk breaks can fail the HR checks);
+EF/decoupling/curves use the §0.6 lag.
 
 ### 5.2 Efficiency Factor (EF)
 On steady-state runs, after dropping the first 600 s and walking samples:
@@ -207,8 +208,9 @@ excluding first 600 s and walking. Bin HR in 5 bpm bins; per bin take the median
 aggregates per bin. `pace_at_ref_hr` = value in the bin containing `ref_hr = 0.80·lthr` (configurable).
 Store the curve monthly (month-end snapshots) to show shift over time. Present as pace (min/km).
 *Clarified 2026-09-29 (phase 4, proposed):*
-- 60 s aggregate = a consecutive non-overlapping block of 60 kept samples (after the first 600 s, lagged
-  pairs, not slow) in which every sample has valid gap_speed and lagged HR; mean gap_speed and mean HR.
+- 60 s aggregate: take the kept samples after the first 600 s that have a lagged partner, remove slow
+  samples, then cut the rest into consecutive non-overlapping 60-sample blocks (a block may span a short
+  walking break); a block counts if every sample has valid gap_speed and lagged HR; mean gap_speed, mean HR.
 - Bin = `floor(mean_hr / 5) · 5` (label = lower edge, e.g. 145 = [145, 150)). Bins with < 10 aggregates
   are omitted.
 - `ref_hr = 0.80 · lthr` of the run threshold valid at the window end; `pace_at_ref_hr` = the median of the
@@ -224,8 +226,10 @@ mean of `gap_speed` (run) or `speed` (bike, W ≥ 300 only) over a contiguous wi
 (no pause inside). Also **HR best efforts**: max rolling-mean HR over `{1200, 1800, 3600} s`.
 Curves: best per W over trailing 90 days and all-time.
 *Clarified 2026-09-29 (phase 4, proposed):* "contiguous" = consecutive kept samples whose `t` increases by exactly 1 (no pause, no gap);
-every sample in the window must have a valid value (a NaN breaks the window). The effort's distance is the
-cumulative-distance difference across the window (stored with the effort; null if unavailable). HR efforts
+every sample in the window must have a valid value (a NaN breaks the window). The effort's distance is
+`distance[last] − distance[first − 1]` when the sample before the window is contiguous (t = t_first − 1),
+else `(distance[last] − distance[first]) · W / (W − 1)` – so W seconds of travel are counted, not W − 1
+(stored with the effort; null if unavailable). HR efforts
 for all sports. Trailing 90 days = `local_date` in [today − 89, today].
 
 ### 6.3 Threshold proposals (never auto-applied; user confirms in Settings)

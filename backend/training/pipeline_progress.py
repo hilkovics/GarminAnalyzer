@@ -104,6 +104,7 @@ def compute_curve_snapshots(session: Session, today: dt.date, months: Iterable[s
     if not runs:
         return 0
     wanted = sorted(set(months)) if months is not None else curve_months(runs[0].local_date, today)
+    wanted = [m for m in wanted if m <= f"{today:%Y-%m}"]  # never a snapshot for a month after today
     cache: dict[int, pd.DataFrame] = {}
     from training.pipeline import load_streams
 
