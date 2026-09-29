@@ -24,3 +24,11 @@
 ## Project state notes
 - Phase 4 METRICS clarifications (§0.6, §5-§7) marked "(proposed)", awaiting user approval as of 2026-09-29.
 - Garmin LT speed unit (x10 when < 1) in services/garmin_values.py is an unverified guess.
+
+## Round-2 notes (phase 4, 2026-09-29)
+- Fixes verified: `pipeline_progress.refresh_curves` + sync_state `curves_refreshed_until` (rollover scratch
+  test now matches full recompute), lag by time (`preprocess.has_lag_partner`/`lag_hr(t, hr)`).
+- New pattern: state-key-based incremental logic has a first-run gap (key absent -> falls back to "now"), so
+  data computed before the upgrade stays stale unless a full recompute is run. Check for this whenever a new
+  sync_state cursor is introduced.
+- Re-run my own scratch repro on round 2 instead of trusting the new unit test.

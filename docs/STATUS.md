@@ -21,7 +21,14 @@ Last updated: 2026-09-29 (phase 4 session)
   - Nastavenia: "apply proposal" (source `proposal`).
   - `training propose-thresholds`.
 - Browser check on the demo DB: the Progres page renders with no exceptions.
-- Tests: 1073 passed, 5 skipped.
+- Spec review of phase 4: round 1 found 1 Blocker, fixed. Month curve snapshots went stale after month end, so
+  refresh now covers every month since `curves_refreshed_until`. Warnings fixed:
+  - the HR lag now pairs by time and never bridges a pause;
+  - rules that were only in docstrings moved into METRICS;
+  - a run LTHR change refreshes all months;
+  - a broken run no longer stops the curve step.
+  Round 2: READY TO COMMIT.
+- Tests: 1082 passed, 5 skipped.
 - Unverified Garmin keys (`services/garmin_values.py`):
   - `lactate_threshold.speed_and_heart_rate.{heartRate, speed}`; the speed unit is guessed as ×10 when < 1;
   - `max_metrics[0].generic.vo2MaxPreciseValue`.

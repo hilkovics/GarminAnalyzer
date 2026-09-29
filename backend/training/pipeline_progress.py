@@ -146,10 +146,10 @@ def refresh_curves(session: Session, last: dt.date, days: list[dt.date] | None) 
     from training.db import repo
     from training.db.state_keys import CURVES_REFRESHED_UNTIL
 
-    if days is None:
+    previous = repo.get_state_date(session, CURVES_REFRESHED_UNTIL)
+    if days is None or previous is None:  # first run with this marker: refresh every month once
         months = None
     else:
-        previous = repo.get_state_date(session, CURVES_REFRESHED_UNTIL) or last
         months = months_touched(days) | set(curve_months(min(previous, last), last))
     written = compute_curve_snapshots(session, last, months)
     repo.set_state(session, CURVES_REFRESHED_UNTIL, last.isoformat())
