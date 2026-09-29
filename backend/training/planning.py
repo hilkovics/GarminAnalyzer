@@ -245,8 +245,11 @@ def _decide_and_store(
         raise PlanError(f"{day} already has a done or skipped workout – it is not replaced")
     decision = rules.decide(build_context(session, day, sport_override))
     provisional = not _inputs_complete(session, day)  # before the delete: a flush would free the old id
-    # a pushed workout's Garmin ids move to the new plan, so the next push updates it (METRICS §10.8)
-    pushed = next((r for r in existing if r.garmin_workout_id is not None), None)
+    # a pushed workout's Garmin ids and pending markers move to the new plan, so the next push updates it
+    # (or recovers an interrupted upload) instead of uploading a duplicate (METRICS §10.8)
+    pushed = next(
+        (r for r in existing if r.garmin_workout_id is not None or (r.structure or {}).get("garmin")), None
+    )
     for row in existing:
         session.delete(row)
     workout = decision.workout

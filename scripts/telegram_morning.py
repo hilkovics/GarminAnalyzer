@@ -8,7 +8,9 @@ never makes this fail.
 
 import typer
 
+from training import log_redaction
 from training.cli.notify import telegram_morning
 
 if __name__ == "__main__":
+    log_redaction.setup_logging()  # typer.run skips the CLI callback: same logging + token redaction
     typer.run(telegram_morning)

@@ -41,16 +41,24 @@ def _pmc_point(session: Session, day: dt.date) -> ReportPmcDTO | None:
     )
 
 
+def reviewed_week(today: dt.date) -> tuple[dt.date, dt.date]:
+    """Mon..Sun of the week the report reviews (the week of `today − 1`, as `llm.week_label`), ≤ today."""
+    monday = today - dt.timedelta(days=1)
+    monday -= dt.timedelta(days=monday.weekday())
+    return monday, min(monday + dt.timedelta(days=DAYS - 1), today)
+
+
 def weekly_inputs(session: Session, today: dt.date) -> WeeklyReportInputsDTO:
-    """The prompt inputs from existing services: last 7 days, PMC now vs a week ago, readiness, top-3
-    findings, this and next week's plan and the goal."""
-    first = today - dt.timedelta(days=DAYS - 1)
-    listed = activities.list_activities(session, date_from=first, date_to=today, page_size=200)
+    """The prompt inputs from existing services, all anchored on the reviewed week (review phase 7): its
+    activities and readiness, PMC at its end vs a week earlier, top-3 findings, its plan and the next
+    week's plan, and the goal."""
+    first, last = reviewed_week(today)
+    listed = activities.list_activities(session, date_from=first, date_to=last, page_size=200)
     acts = [
         ReportActivityDTO(date=a.local_date, sport=a.sport, duration_s=a.duration_s, load=a.load_primary)
         for a in sorted(listed.items, key=lambda a: a.start_utc)
     ]
-    days = [first + dt.timedelta(days=i) for i in range(DAYS)]
+    days = [first + dt.timedelta(days=i) for i in range((last - first).days + 1)]
     readiness = []
     for day in days:
         r = sleep.get_readiness(session, day)
@@ -59,12 +67,12 @@ def weekly_inputs(session: Session, today: dt.date) -> WeeklyReportInputsDTO:
     return WeeklyReportInputsDTO(
         today=today,
         activities=acts,
-        pmc_now=_pmc_point(session, today),
-        pmc_week_ago=_pmc_point(session, today - dt.timedelta(days=DAYS)),
+        pmc_now=_pmc_point(session, last),
+        pmc_week_ago=_pmc_point(session, last - dt.timedelta(days=DAYS)),
         readiness=readiness,
         findings=findings,
-        this_week=plan.get_week(session, today, today=today),
-        next_week=plan.get_week(session, today + dt.timedelta(days=DAYS), today=today),
+        this_week=plan.get_week(session, first, today=today),
+        next_week=plan.get_week(session, first + dt.timedelta(days=DAYS), today=today),
         goal=plan.get_goal(session, today),
     )
 

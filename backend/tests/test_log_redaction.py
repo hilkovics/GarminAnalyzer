@@ -4,6 +4,7 @@ import io
 import logging
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 
 import pytest
 import requests
@@ -61,3 +62,16 @@ def test_telegram_token_is_redacted_from_urllib3_debug_lines(server, monkeypatch
     output = stream.getvalue()
     assert "/bot<redacted>/sendMessage" in output  # urllib3 did log the request line …
     assert TOKEN not in output and "SECRET_token" not in output  # … without the token
+
+
+def test_every_entry_point_installs_the_filter(monkeypatch):
+    """The CLI callback and the cron script use `setup_logging`, which filters every root handler."""
+    from training.cli import _app
+
+    root = logging.getLogger()
+    handler = logging.StreamHandler(io.StringIO())
+    monkeypatch.setattr(root, "handlers", [handler])  # basicConfig keeps an existing handler
+    _app.main(verbose=False)
+    assert any(isinstance(f, log_redaction.RedactingFilter) for f in handler.filters)
+    script = Path("scripts/telegram_morning.py").read_text(encoding="utf-8")
+    assert "log_redaction.setup_logging()" in script

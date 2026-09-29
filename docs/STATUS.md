@@ -35,7 +35,8 @@ Last updated: 2026-09-29 (phase 7 session)
   that could not be removed from Garmin. Also fixed: duplicate risks (upload/schedule markers, schedule sent
   once), 404 recovery, unchanged re-push, the missing `ai` extra, the served model, `max_tokens`, the week
   label, the 502 declaration, and rollback.
-- **Tests:** 1778 passed, 5 skipped. ruff clean.
+- **Review round 2:** READY; also fixed the remaining duplicate/orphan paths (markers survive a regeneration, a rename, a switch to rest and a date change; the workout lookup pages through the whole library), the cron script now uses the shared logging + redaction setup, and the report data is anchored on the reviewed week.
+- **Tests:** 1787 passed, 5 skipped. ruff clean.
 
 ### Phase 6 – coach: season, rules, plan (code complete; METRICS §10 clarifications await approval)
 - `coach/` (pure, deterministic, no LLM; test-first by three metrics-implementers):

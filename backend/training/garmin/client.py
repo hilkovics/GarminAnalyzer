@@ -302,10 +302,16 @@ class GarminClient:
         """POST a calendar entry; one attempt only – a retried POST could schedule it twice."""
         return self.call("schedule_workout", workout_id, day.isoformat(), _attempts=1)
 
-    def workouts(self, limit: int = 100) -> list[dict[str, Any]]:
-        """The newest workouts of the account (to recover an upload whose response was lost)."""
-        result = self.call("get_workouts", 0, limit)
-        return result if isinstance(result, list) else []
+    def workouts(self, page_size: int = 100, max_pages: int = 50) -> list[dict[str, Any]]:
+        """All workouts of the account, paged until a short page (to recover a lost upload response)."""
+        out: list[dict[str, Any]] = []
+        for page in range(max_pages):
+            result = self.call("get_workouts", page * page_size, page_size)
+            items = result if isinstance(result, list) else []
+            out += [item for item in items if isinstance(item, dict)]
+            if len(items) < page_size:
+                break
+        return out
 
     def calendar(self, year: int, month: int) -> list[dict[str, Any]]:
         """`calendarItems` of a month (1–12), to find a workout's scheduled entry."""

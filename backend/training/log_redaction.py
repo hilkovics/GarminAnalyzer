@@ -36,3 +36,18 @@ def install(logger: logging.Logger | None = None) -> None:
     for handler in target.handlers:
         if not any(isinstance(f, RedactingFilter) for f in handler.filters):
             handler.addFilter(RedactingFilter())
+
+
+QUIET_LOGGERS = ("garminconnect", "urllib3", "curl_cffi", "alembic")
+
+
+def setup_logging(verbose: bool = False) -> None:
+    """The one logging setup of every entry point (CLI callback and the cron scripts)."""
+    logging.basicConfig(
+        level=logging.DEBUG if verbose else logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    # garminconnect/urllib3 debug output can include request details; quiet unless asked, redacted always
+    for name in QUIET_LOGGERS:
+        logging.getLogger(name).setLevel(logging.DEBUG if verbose else logging.WARNING)
+    install()

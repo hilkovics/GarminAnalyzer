@@ -64,9 +64,14 @@ def api_error(cls, status: int):
 def test_inputs_collect_seven_days_and_top_findings(module_inputs):
     inputs = module_inputs
     assert inputs.today == TODAY
-    assert [r.date for r in inputs.readiness] == [TODAY - dt.timedelta(days=6 - i) for i in range(7)]
-    assert all(TODAY - dt.timedelta(days=6) <= a.date <= TODAY for a in inputs.activities)
+    first, last = svc.reviewed_week(TODAY)  # Mon of the week of TODAY − 1 … min(Sun, TODAY)
+    assert first.weekday() == 0 and last <= TODAY
+    assert [r.date for r in inputs.readiness] == [
+        first + dt.timedelta(days=i) for i in range((last - first).days + 1)
+    ]
+    assert all(first <= a.date <= last for a in inputs.activities)
     assert inputs.activities
+    assert inputs.this_week.monday == first
     assert len(inputs.findings) <= 3
     assert inputs.pmc_now is not None and inputs.pmc_week_ago is not None
     assert inputs.next_week.monday == inputs.this_week.monday + dt.timedelta(days=7)
@@ -83,7 +88,7 @@ def test_prompt_contains_dto_numbers_and_slovak_rules(module_inputs):
     assert f"{inputs.this_week.target_load:.0f}" in user
     assert str(inputs.activities[0].date) in user
     for finding in inputs.findings:
-        assert finding.sentence in user and f"ρ = {finding.rho:.2f}" in user
+        assert finding.sentence in user and f"ρ = {finding.headline_rho:.2f}" in user
     assert "Cieľ: chýba" in user  # no goal in the seeded DB
     assert KEY not in system + user
 
@@ -93,7 +98,11 @@ def test_prompt_says_missing_for_absent_data(module_inputs):
         update={"activities": [], "pmc_now": None, "pmc_week_ago": None, "findings": []}
     )
     _, user = llm.build_weekly_prompt(empty)
-    assert "žiadne aktivity" in user and "teraz: chýba" in user and "chýba (málo dát)" in user
+    assert (
+        "žiadne aktivity" in user
+        and "koniec hodnoteného týždňa: chýba" in user
+        and "chýba (málo dát)" in user
+    )
 
 
 # --- generation ---------------------------------------------------------------------------------------------
@@ -288,3 +297,16 @@ def test_a_broken_report_file_is_skipped(tmp_path):
 
     (tmp_path / "2026-W40.md").write_bytes(b"\xff\xfe broken")
     assert svc.latest_report(Settings(db_path=tmp_path / "x.db", reports_dir=tmp_path)) is None
+
+
+@pytest.mark.parametrize(
+    ("today", "first", "last"),
+    [
+        (dt.date(2026, 9, 27), dt.date(2026, 9, 21), dt.date(2026, 9, 27)),  # Sunday evening
+        (dt.date(2026, 9, 28), dt.date(2026, 9, 21), dt.date(2026, 9, 27)),  # Monday morning: same week
+        (dt.date(2026, 9, 30), dt.date(2026, 9, 28), dt.date(2026, 9, 30)),  # mid-week: clipped to today
+    ],
+)
+def test_reviewed_week_matches_the_label(today, first, last):
+    assert svc.reviewed_week(today) == (first, last)
+    assert llm.week_label(today) == llm.week_label(last + dt.timedelta(days=1))

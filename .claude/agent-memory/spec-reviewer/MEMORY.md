@@ -115,3 +115,22 @@
   period labels of anything cron-generated.
 - STATUS.md not updated for the third phase in a row. Generated personal reports in docs/reports are not
   gitignored.
+
+## Phase 7 round 2 (2026-09-29)
+- Verified: redaction filter on root handlers catches propagated records from any logger (urllib3 test uses a
+  real local server); markers cleared on success; payload_hash skip never skips a date change; schedule and
+  upload are 1-attempt POSTs; 404 on update/delete recovers. New push tests fail on the base commit (real).
+- New pattern: pending markers only work if every code path that REPLACES the row or changes the lookup key
+  carries them. Scratch-verified gaps: planning._decide_and_store copies structure["garmin"] only when
+  garmin_workout_id is set (upload_pending dropped by a regeneration -> second upload); upload_pending is
+  honoured only if it equals the CURRENT name; rest path ignores upload_pending (orphan); schedule_pending on
+  day D1 is ignored after a date move to D2 (old entry never unscheduled). Check markers against: regen,
+  name/key change, sport->rest, date change.
+- Recovery lookups over a paged list (get_workouts(0, 100)) with unknown default order silently fail once the
+  library grows past the page -> duplicate. Check ordering/paging of every "find by name" recovery.
+- Entry-point scripts (scripts/*.py via typer.run) bypass the CLI callback, so anything installed there
+  (logging setup, redaction) is missing on the cron path. Check every script entry point.
+- Label fixes that do not move the data window: week_label now names the ended week, but weekly_inputs still
+  uses today-6..today and "Tento/Budúci týždeň" = week of today / today+7 (Monday run -> upcoming week).
+- A test that calls the new helper itself (log_redaction.install()) does not prove the wiring (cli/_app.py);
+  it passed on the base commit with the module copied in.

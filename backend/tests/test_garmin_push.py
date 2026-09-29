@@ -394,3 +394,77 @@ def test_push_day(session, client, api):
     _planned(session, day=TODAY + dt.timedelta(days=1))
     results = push.push_day(session, client, TODAY)
     assert [r.action for r in results] == ["uploaded"]
+
+
+# --- review phase 7 round 2: markers survive regeneration, renames, rest and date changes -----------------
+
+
+def _lose_upload(session, client, api, row):
+    api.fail["upload_workout"] = GarminConnectConnectionError("API Error 504 - gateway timeout")
+    with pytest.raises(GarminConnectConnectionError):
+        push.push_planned(session, client, row.id)
+    session.refresh(row)
+    name = row.structure["garmin"]["upload_pending"]
+    api.account = [{"workoutId": 4242, "workoutName": name}]  # Garmin created it anyway
+    api.calls.clear()
+    return name
+
+
+def test_a_regeneration_keeps_the_upload_marker(session, client, api):
+    row, _ = planning.plan_day(session, TODAY, sport_override="run")
+    row.structure, row.sport = to_structure(library.build("run", "easy", 50)), "run"
+    session.add(row)
+    session.commit()
+    _lose_upload(session, client, api, row)
+    new, _ = planning.plan_day(session, TODAY, sport_override="bike")
+    assert new.structure["garmin"].get("upload_pending")
+    if new.sport == "rest":
+        assert push.push_planned(session, client, new.id).action == "deleted"
+        assert ("delete_workout", 4242) in api.calls
+    else:
+        assert push.push_planned(session, client, new.id).garmin_workout_id == 4242
+    assert "upload_workout" not in [c[0] for c in api.calls]
+
+
+def test_a_renamed_workout_still_finds_the_lost_upload(session, client, api):
+    row = _planned(session)
+    _lose_upload(session, client, api, row)
+    garmin = row.structure["garmin"]
+    row.structure = {**to_structure(library.build("run", "threshold", 6)), "garmin": garmin}  # new name
+    session.add(row)
+    session.commit()
+    result = push.push_planned(session, client, row.id)
+    assert result.garmin_workout_id == 4242 and "upload_workout" not in [c[0] for c in api.calls]
+    assert ("update_workout", 4242) in api.calls  # the new content goes into the found workout
+
+
+def test_a_rest_day_deletes_a_workout_from_a_lost_upload(session, client, api):
+    row = _planned(session)
+    _lose_upload(session, client, api, row)
+    row.structure = {**to_structure(rest_workout()), "garmin": row.structure["garmin"]}
+    row.sport = "rest"
+    session.add(row)
+    session.commit()
+    assert push.push_planned(session, client, row.id).action == "deleted"
+    assert ("delete_workout", 4242) in api.calls
+
+
+def test_a_lost_schedule_on_an_old_date_is_removed_after_a_date_change(session, client, api):
+    api.fail["schedule_workout"] = GarminConnectConnectionError("API Error 503 - down")
+    row = _planned(session)
+    with pytest.raises(GarminConnectConnectionError):
+        push.push_planned(session, client, row.id)
+    api.calendar = [{"itemType": "workout", "date": TODAY.isoformat(), "workoutId": 1001, "id": 777}]
+    row.date = TODAY + dt.timedelta(days=1)
+    session.add(row)
+    session.commit()
+    api.calls.clear()
+    push.push_planned(session, client, row.id)
+    assert ("unschedule_workout", 777) in api.calls  # the entry of the lost call on the old date is gone
+
+
+def test_workout_lookup_pages_through_the_library(api):
+    api.account = [{"workoutId": i, "workoutName": f"w{i}"} for i in range(250)]
+    api.get_workouts = lambda start, limit: api.account[start : start + limit]
+    client = GarminClient(api, rate_limit_s=0, sleep=lambda s: None)
+    assert len(client.workouts()) == 250

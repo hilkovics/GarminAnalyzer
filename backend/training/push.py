@@ -85,8 +85,8 @@ def push_planned(
     api = _client(client)
     garmin, workout_id, notes = _garmin_state(row), row.garmin_workout_id, []
 
-    if workout_id is None and garmin.get("upload_pending") == payload["workoutName"]:
-        workout_id = _find_workout(api, payload["workoutName"])  # a previous upload's response was lost
+    if workout_id is None and garmin.get("upload_pending"):  # a previous upload's response was lost
+        workout_id = _find_workout(api, str(garmin["upload_pending"]))  # by the name it was uploaded with
         if workout_id is not None:
             notes.append("recovered the workout of an interrupted upload")
             garmin.pop("upload_pending", None)
@@ -123,6 +123,11 @@ def _push_rest(
 ) -> PushResult:
     """A rest day that still has a Garmin workout (a regeneration to rest): delete it."""
     workout_id = row.garmin_workout_id
+    pending = _garmin_state(row).get("upload_pending")
+    if workout_id is None and pending and not dry_run:  # an interrupted upload may have created it
+        workout_id = _find_workout(_client(client), str(pending))
+        if workout_id is None:
+            _save(session, row, {})
     if workout_id is None:
         return PushResult(row.id, "skipped", notes=["rest day – nothing to push"])
     if dry_run:
@@ -147,6 +152,8 @@ def _schedule(
     """Move the calendar entry to `row.date` without ever creating two entries (METRICS §10.8)."""
     day = row.date.isoformat()
     old_date = garmin.get("scheduled_date")
+    if not old_date and garmin.get("schedule_pending") not in (None, day):
+        old_date = garmin["schedule_pending"]  # a lost schedule call for another date may have succeeded
     old_id = garmin.get("schedule_id")
     if old_id is None and old_date:
         old_id = _find_schedule(api, workout_id, dt.date.fromisoformat(old_date))

@@ -101,7 +101,7 @@ def _goal(inputs: WeeklyReportInputsDTO) -> str:
 
 def build_weekly_prompt(inputs: WeeklyReportInputsDTO) -> tuple[str, str]:
     """(system, user) prompt of the weekly report. Pure: numbers come from the DTOs, nothing is computed."""
-    lines = [f"Dnes je {inputs.today}.", "", "## Posledných 7 dní – aktivity (dátum, šport, trvanie, záťaž)"]
+    lines = [f"Dnes je {inputs.today}.", "", "## Hodnotený týždeň – aktivity (dátum, šport, trvanie, záťaž)"]
     if inputs.activities:
         lines += [
             f"- {a.date}: {a.sport}, {_min(a.duration_s)}, záťaž {_n(a.load)}" for a in inputs.activities
@@ -111,17 +111,17 @@ def build_weekly_prompt(inputs: WeeklyReportInputsDTO) -> tuple[str, str]:
     lines += [
         "",
         "## Kondícia (PMC)",
-        _pmc("teraz", inputs.pmc_now),
-        _pmc("pred 7 dňami", inputs.pmc_week_ago),
+        _pmc("koniec hodnoteného týždňa", inputs.pmc_now),
+        _pmc("o 7 dní skôr", inputs.pmc_week_ago),
     ]
-    lines += ["", "## Pripravenosť (0–100) za posledných 7 dní"]
+    lines += ["", "## Pripravenosť (0–100) v hodnotenom týždni"]
     lines += [
         f"- {r.date}: {_n(r.score)}" + (f" ({r.band})" if r.band else "") for r in inputs.readiness
     ] or [f"- {MISSING}"]
     lines += ["", "## Najsilnejšie zistenia o spánku"]
     lines += [_finding(f) for f in inputs.findings] or [f"- {MISSING} (málo dát)"]
-    lines += ["", "## Plán", *_week("Tento týždeň", inputs.this_week), ""]
-    lines += _week("Budúci týždeň", inputs.next_week)
+    lines += ["", "## Plán", *_week("Hodnotený týždeň", inputs.this_week), ""]
+    lines += _week("Nasledujúci týždeň", inputs.next_week)
     lines += ["", _goal(inputs)]
     return SYSTEM_PROMPT, "\n".join(lines)
 
