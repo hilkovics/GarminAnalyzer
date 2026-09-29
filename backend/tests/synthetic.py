@@ -205,3 +205,122 @@ def without_gps(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     out[["distance", "lat", "lon"]] = np.nan
     return out
+
+
+# ---------------------------------------------------------------- phase 4 (METRICS §5, §6.1)
+
+
+def with_segment(
+    df: pd.DataFrame,
+    start: int,
+    length: int,
+    *,
+    hr: float | None = None,
+    speed: float | None = None,
+) -> pd.DataFrame:
+    """Copy of `df` with HR and/or speed replaced for t in [start, start + length); the timer keeps running.
+
+    Distance is re-derived from the new speed (unless `df` has no distance at all). A warm-up is
+    `with_segment(df, 0, 600, hr=120.0, speed=2.0)`: §5.1/§5.2/§6.1 drop the first 600 s, so it changes
+    nothing there – except the lagged HR partners of samples 570..599 (§0.6), which are dropped anyway.
+    """
+    out = df.copy()
+    seg = (out["t"] >= start) & (out["t"] < start + length)
+    if hr is not None:
+        out.loc[seg, "hr"] = hr
+    if speed is not None:
+        out.loc[seg, "speed"] = speed
+    if out["distance"].notna().any():
+        out["distance"] = cumulative_distance(out["speed"].to_numpy(), out["moving"].to_numpy())
+    return out
+
+
+def block_hr(
+    n: int = 2400,
+    *,
+    base: float = 150.0,
+    amplitude: float = 6.0,
+    start: int = 600,
+    block: int = 60,
+    speed: float = 3.0,
+) -> pd.DataFrame:
+    """Flat, constant speed; HR = base for t < start, then `base + amplitude` / `base − amplitude`
+    alternating per `block`-second block (block 0 = [start, start + block) is the high one).
+
+    Expected (§5.1, the defaults): 30 blocks of 60 s after the first 600 s, 15 high and 15 low, so the
+    mean HR is `base` and the population std of the 60 s means is exactly `amplitude` (the sample std
+    would be `amplitude · sqrt(30/29)`).
+    """
+    t = np.arange(n)
+    sign = np.where(((t - start) // block) % 2 == 0, 1.0, -1.0)
+    hr = np.where(t < start, base, base + amplitude * sign)
+    return stream(hr=hr, speed=speed)
+
+
+def hr_drift(
+    n: int = 3630, *, hr0: float = 150.0, slope: float = 0.0025, drift_from: int = 630, speed: float = 3.0
+) -> pd.DataFrame:
+    """Flat, constant speed; HR = hr0 for t < drift_from, then `hr0 + slope · (t − drift_from)`.
+
+    Expected with the defaults (§0.6, §5.3, run): the EF sample set is positions 600..3599 (m = 3000) and its
+    lagged HR is `hr[i + 30] = 150 + 0.0025 · (i − 600)`, i.e. 150 → 157.4975. Half means 150 + 0.0025 ·
+    749.5 = 151.87375 and 150 + 0.0025 · 2249.5 = 155.62375, so with a constant speed
+    `decoupling_pct = (1 − 151.87375 / 155.62375) · 100 = 375 / 155.62375 ≈ 2.40966` ("good").
+    """
+    t = np.arange(n, dtype=float)
+    hr = np.where(t < drift_from, hr0, hr0 + slope * (t - drift_from))
+    return stream(hr=hr, speed=speed)
+
+
+def speed_hr_step(
+    n: int = 2430,
+    *,
+    step_at: int = 1200,
+    hr_delay: int = 30,
+    speed0: float = 3.0,
+    speed1: float = 3.1,
+    hr0: float = 150.0,
+    hr1: float = 155.0,
+) -> pd.DataFrame:
+    """Flat; speed steps speed0 → speed1 at `step_at`, HR steps hr0 → hr1 `hr_delay` seconds later.
+
+    Expected (§0.6 with the defaults): HR responds 30 s late, so every lagged pair (speed[t], hr[t + 30])
+    is (3.0, 150) or (3.1, 155) – a constant ratio of 0.02 (m/s)/bpm, hence EF = 0.02 · 60 = 1.2 exactly
+    in both halves and decoupling 0. With the opposite lag direction 60 pairs would be (3.1, 150)/(3.0, 155).
+    """
+    t = np.arange(n)
+    return stream(hr=np.where(t < step_at + hr_delay, hr0, hr1), speed=np.where(t < step_at, speed0, speed1))
+
+
+def flat_then_climb(
+    n: int = 2430, *, climb_from: int = 1500, grade: float = 0.02, speed: float = 8.0, hr: float = 140.0
+) -> pd.DataFrame:
+    """Constant speed and HR; flat (alt 100) up to `climb_from`, then climbing at `grade`.
+
+    Expected (§0.5): altitude is non-decreasing, so the 5-sample median is the altitude itself away from the
+    ends and `grade[i] = grade · (i + 5 − climb_from) / 10` for climb_from − 5 ≤ i ≤ climb_from + 5 (0 before,
+    `grade` after). With grade 0.02 the §5.4 filter `|grade| ≤ 0.01` keeps exactly the samples i ≤ climb_from
+    (i = climb_from has grade 0.01 up to rounding just below it).
+    """
+    t = np.arange(n, dtype=float)
+    distance = speed * t
+    alt = 100.0 + grade * np.maximum(0.0, distance - speed * climb_from)
+    return stream(hr=hr, speed=speed, alt=alt, distance=distance)
+
+
+def ramp(
+    n: int = 930,
+    *,
+    hr0: float = 100.0,
+    hr_slope: float = 0.01,
+    speed0: float = 2.0,
+    speed_slope: float = 0.001,
+) -> pd.DataFrame:
+    """Flat; `hr = hr0 + hr_slope · t`, `speed = speed0 + speed_slope · t` (both linear in t).
+
+    Expected (§6.1, run, the defaults): the aggregate sample set is positions 600..899 (the last 30 have no
+    lagged partner), i.e. five 60 s blocks starting at 600 + 60k. Block k has mean gap_speed
+    `2.0 + 0.001 · (629.5 + 60k)` and mean lagged HR `100 + 0.01 · (659.5 + 60k)` (partner t + 30).
+    """
+    t = np.arange(n, dtype=float)
+    return stream(hr=hr0 + hr_slope * t, speed=speed0 + speed_slope * t)
