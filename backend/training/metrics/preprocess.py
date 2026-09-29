@@ -26,7 +26,12 @@ ends: `Δalt = alt[i+5] − alt[i−5]` (smoothed), `Δdist = dist[i+5] − dist
 value is missing or `Δdist < 5 m`.)
 
 # METRICS §0.6
-For any pairing of HR with pace/speed at sample level (§5, §6), shift HR **back** by 30 s → `lag_hr`.
+For any pairing of HR with pace/speed at sample level (§5, §6), shift HR **back** by 30 s.
+(Clarified, revised: pair **by time**, not by index: `hr_lagged(t) = hr(t + 30)` if the kept sample at
+`t + 30` exists, else NaN. A pause inside (t, t + 30] therefore gives no partner.) → `lag_hr`.
+Interpretation: "a pause inside (t, t + 30] gives no partner" is applied literally, so a short pause that
+ends before t + 30 also leaves t without a partner; on the 1 s grid this means every second of
+(t, t + 30] is a kept sample.
 
 Pure functions, no I/O.
 """
@@ -155,25 +160,46 @@ def grade_from(alt_smooth: np.ndarray, distance: np.ndarray) -> np.ndarray:
     return grade
 
 
-def lag_hr(hr: np.ndarray, lag_s: int = HR_LAG_S) -> np.ndarray:
-    """METRICS §0.6 helper for phase 4: `result[i] = hr[i + lag_s]`, NaN where `i + lag_s` is outside.
+def has_lag_partner(t: np.ndarray, lag_s: int = HR_LAG_S) -> np.ndarray:
+    """METRICS §0.6 (revised): True where the kept sample at `t + lag_s` exists and no pause lies in
+    between, i.e. every second of (t, t + lag_s] (or [t + lag_s, t) for a negative lag) is kept.
 
-    This pairs speed(t) with HR(t + 30 s), i.e. HR is moved back by 30 s to line up with the pace that
-    caused it. The direction is still an open question (docs/STATUS.md → Known issues, "§0.6 HR-lag
-    direction"); a negative `lag_s` gives the other direction (`result[i] = hr[i − |lag_s|]`). The
-    array is shifted by position, so call it on a gap-free series (e.g. the kept samples of one
-    continuous stretch) when positions must equal seconds.
+    `t` are the kept seconds of one activity, strictly increasing integers (the §0.1 grid), so the partner
+    of position i can only be position `i + lag_s`, and it is contiguous iff `t[i + lag_s] − t[i] == lag_s`.
+    """
+    t = _strictly_increasing(t)
+    n = len(t)
+    out = np.zeros(n, dtype=bool)
+    i = np.arange(n)
+    j = i + lag_s
+    inside = (j >= 0) & (j < n)
+    out[inside] = t[j[inside]] - t[i[inside]] == lag_s
+    return out
+
+
+def lag_hr(t: np.ndarray, hr: np.ndarray, lag_s: int = HR_LAG_S) -> np.ndarray:
+    """METRICS §0.6 (revised): `hr_lagged(t) = hr(t + lag_s)` where `has_lag_partner`, else NaN.
+
+    Speed at second t is paired with the HR measured `lag_s` seconds later (HR responds late); a pause in
+    (t, t + lag_s] gives no partner, so speed before a stop is never paired with the recovered HR after
+    it. A partner with invalid (NaN) HR stays NaN. A negative `lag_s` gives the other direction.
     """
     hr = np.asarray(hr, dtype=float)
-    n = len(hr)
-    out = np.full(n, np.nan)
-    if abs(lag_s) >= n:
-        return out
-    if lag_s >= 0:
-        out[: n - lag_s] = hr[lag_s:]
-    else:
-        out[-lag_s:] = hr[: n + lag_s]
+    if len(hr) != len(np.asarray(t)):
+        raise ValueError(f"t and hr differ in length ({len(np.asarray(t))} vs {len(hr)})")
+    partner = has_lag_partner(t, lag_s)
+    out = np.full(len(hr), np.nan)
+    idx = np.flatnonzero(partner)
+    out[idx] = hr[idx + lag_s]
     return out
+
+
+def _strictly_increasing(t: np.ndarray) -> np.ndarray:
+    """`t` as int64, checked to be strictly increasing (kept seconds in time order)."""
+    t = np.asarray(t, dtype=np.int64)
+    if len(t) > 1 and not (np.diff(t) > 0).all():
+        raise ValueError("t must be strictly increasing (kept seconds in time order)")
+    return t
 
 
 def _floats(column: pd.Series) -> np.ndarray:
