@@ -11,7 +11,8 @@ source of truth) before starting any phase. Keep `docs/STATUS.md` updated at the
 
 - Python 3.12, managed with `uv`. Backend package: `backend/training/`.
 - SQLite via SQLModel/SQLAlchemy, migrations with Alembic. DB file: `data/training.db` (gitignored).
-- Garmin data: `garminconnect` library (unofficial Garmin Connect client, uses `garth` tokens).
+- Garmin data: `garminconnect` ≥ 0.3 (unofficial Garmin Connect client with native DI tokens in
+  `garmin_tokens.json`; it no longer uses `garth`).
   Everything is JSON from Garmin Connect – **no FIT files, no manual exports**.
 - Metrics: pandas, numpy, scipy, statsmodels. Pure functions, no I/O.
 - API: FastAPI (`backend/training/api/`). UI v1: Streamlit (`ui-streamlit/`). UI v2 (later): React + Vite + TS (`frontend/`).
@@ -23,6 +24,8 @@ source of truth) before starting any phase. Keep `docs/STATUS.md` updated at the
 ```bash
 uv sync                                  # install
 uv run training login                    # one-time Garmin login (interactive, MFA prompt), stores tokens in ~/.garminconnect
+uv run training whoami                   # verify stored tokens (prints your Garmin name)
+uv run python scripts/record_fixtures.py # record anonymized JSON fixtures into backend/tests/fixtures/
 uv run training sync                     # incremental sync (activities + wellness), then recompute affected days
 uv run training backfill --months 24     # first-run history download (resumable)
 uv run training recompute                # recompute all metrics from stored raw JSON (no network)
@@ -47,7 +50,7 @@ uv run ruff check . && uv run ruff format .
    seems wrong, change the doc first (and say so), then the code. Never silently "improve" constants.
 7. **Thresholds are historical.** LTHR / threshold pace have `valid_from` dates; a metric always uses the
    threshold valid at the activity date.
-8. **Never store the Garmin password.** Only `garth` tokens in `~/.garminconnect` (path via `GARMINTOKENS`).
+8. **Never store the Garmin password.** Only the token file `~/.garminconnect/garmin_tokens.json` (dir via `GARMINTOKENS`).
    Never print tokens or credentials to logs.
 9. **Rate-limit Garmin calls** (default 0.7 s sleep between requests, exponential backoff on 429/5xx).
 10. **Sport-aware everything.** Thresholds, zones and load methods are per sport (`run`, `bike`, `other`).

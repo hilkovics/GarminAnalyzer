@@ -25,7 +25,7 @@ Súvisiace dokumenty: `CLAUDE.md` (pravidlá pre Claude Code), `docs/METRICS.md`
 ## 2. Architektúra
 
 ```
-Garmin Connect (garminconnect/garth tokens)
+Garmin Connect (garminconnect, tokeny v garmin_tokens.json)
         │  JSON
         ▼
 training/garmin/        client.py (rate limit, retry) · sync.py (incremental) · backfill.py (cursor)
@@ -433,7 +433,7 @@ migrácie nemenili okrem pridávania nových endpointov.
 - **Overuj proti Garminu.** Po fáze 2 porovnaj 5 aktivít: hrTSS vs. Garmin training load (rôzne jednotky, ale
   poradie musí sedieť), čas v zónach vs. Garmin Connect (má sedieť takmer presne).
 - **Nikdy nedávaj heslo do promptu ani do súborov.** Login rob ty v termináli; Claude Code pracuje s tokenmi.
-- **Keď sa rozbije Garmin login** (stáva sa po ich zmenách): `uv pip install -U garminconnect garth`,
+- **Keď sa rozbije Garmin login** (stáva sa po ich zmenách): `uv lock --upgrade-package garminconnect && uv sync`,
   `training login`, prípadne počkaj na fix knižnice. Dáta neprídu o nič – DB je cache.
 - **Commit po každej fáze**, správa v tvare `phase-N: …`. Pri väčšej fáze aj priebežné commity po krokoch.
 - **Refaktor len s dôvodom.** Ak Claude Code chce „vyčistiť“ architektúru, pripomeň CLAUDE.md pravidlá 1–3.

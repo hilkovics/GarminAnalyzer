@@ -1,0 +1,30 @@
+# Local data and caches (DB is a cache, rebuilt with `training backfill` / `recompute`)
+data/
+*.db
+*.db-journal
+
+# Garmin tokens – never commit (CLAUDE.md rule 8)
+.garminconnect/
+oauth1_token.json
+oauth2_token.json
+garmin_tokens*/
+.env
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# Frontend (phase 9)
+node_modules/
+frontend/dist/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
