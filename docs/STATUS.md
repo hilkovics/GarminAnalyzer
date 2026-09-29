@@ -194,6 +194,15 @@ Last updated: 2026-09-29 (phase 1 session)
 
 ## Decisions
 
+- 2026-09-29 **Phase 2 METRICS clarifications written first**, marked "Clarified 2026-09-29 (phase 2, proposed)"
+  in §0.3–§0.5, §1, §2.1–§2.3, §2.5 and §4. They resolve points the spec leaves open:
+  - window alignment and minimum periods;
+  - population vs sample standard deviation for monotony;
+  - which samples each sum runs over;
+  - threshold resolution for `other`;
+  - the JSON shapes.
+  **They await the user's approval.**
+
 - 2026-09-29 **METRICS.md fixes** (approved by the user):
   - §1 zone boundaries are half-open intervals, so there are no gaps at 0.835 / 0.945.
   - §7 test value: 10 km in 40:00 gives VDOT 51.94 and a 1:28:33 half marathon (was "≈ 52.5").
@@ -221,8 +230,7 @@ Last updated: 2026-09-29 (phase 1 session)
   and §0.2 (`moving` = timer running, derived from `sumDuration`), plus the §0.4 speed derivation when the speed
   channel is missing. HR validity, clamping, altitude smoothing and lag (§0.3–0.6) are phase 2 preprocessing.
 - 2026-09-29 **Stream normalization rules are now in METRICS.md** (§0.1, §0.2 and §0.4, marked "clarified
-  2026-09-29"; changed in the doc first, per rule 6). **They await the user's approval**; they are interpretations,
-  not new constants:
+  2026-09-29"; changed in the doc first, per rule 6). **Approved by the user on 2026-09-29**:
   - Per channel, a gap is the time between consecutive valid values. If it is ≤ 10 s it is forward-filled, and
     this also covers nulls inside a channel.
   - Samples are bucketed per second with floor, and the last sample in a second wins.

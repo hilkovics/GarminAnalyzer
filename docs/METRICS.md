@@ -20,13 +20,21 @@ Garmin training load / training effect / VO2max estimates. **No power data.**
    sample (t = 0) counts as running, so `moving_s` = 1 + Σ running seconds of all gaps.
 3. HR validity: `40 ≤ hr ≤ 230`, else NaN. `hr_coverage` = valid HR samples / kept samples.
    If `hr_coverage < 0.70`, all HR-based metrics for the activity are flagged `low_confidence=True`.
+   *Clarified 2026-09-29 (phase 2, proposed):* applied to the kept samples of §0.2 (after the §0.1 forward-fill); an activity without any
+   kept sample has `hr_coverage = 0`.
 4. Speed: from Garmin speed stream (m/s); if missing, derive from cumulative distance (*clarified
    2026-09-29:* `(d_b − d_a) / (t_b − t_a)` on the seconds (a, b] between consecutive valid distance values;
    NaN over all of (a, b] when `t_b − t_a > 10 s`, and at t = 0). Clamp run speed to
    `0–7 m/s`, bike to `0–25 m/s`. Walking/stopped samples (run `< 1.0 m/s`, bike `< 2.0 m/s`) are kept for load
    metrics but excluded from efficiency/curve metrics.
+   *Clarified 2026-09-29 (phase 2, proposed):* clamping maps values below 0 to 0 and above the maximum to the maximum (they are not dropped);
+   `other` uses the run limits.
 5. Altitude: 5 s rolling median. Grade over a 10 s centred window: `grade = Δalt / Δdist`, clamp to ±0.30,
    NaN where `Δdist < 5 m`.
+   *Clarified 2026-09-29 (phase 2, proposed):* both windows are centred and computed on the kept samples in time order (a pause is skipped,
+   not bridged by NaN). Rolling median: window 5 samples, at least 3 non-NaN values. Grade at sample i uses
+   the samples i−5 and i+5 (clipped at the ends): `Δalt = alt[i+5] − alt[i−5]` (smoothed altitude),
+   `Δdist = dist[i+5] − dist[i−5]` (cumulative distance). NaN if either value is missing or `Δdist < 5 m`.
 6. HR lag: for any pairing of HR with pace/speed at sample level (§5, §6), shift HR **back** by 30 s.
 
 ## 1. Thresholds and zones
@@ -48,6 +56,13 @@ Z1 `s < 0.78`, Z2 `0.78 ≤ s < 0.88`, Z3 `0.88 ≤ s < 0.95`, Z4 `0.95 ≤ s �
 *(Changed 2026-09-29: the previous closed ranges `0.68–0.83`, `0.84–0.94` left gaps such as r = 0.835 unassigned.)*
 
 `time_in_zone` per activity: seconds of valid HR samples per HR zone (and per pace zone for runs).
+*Clarified 2026-09-29 (phase 2, proposed):*
+- Counted over the kept samples of §0.2. Pace zones use `gap_speed` (§3; equals speed where grade is NaN)
+  and need a valid speed; walking samples count (they fall into Z1).
+- `threshold.zones` stores the boundaries as `{"hr": [0.68, 0.84, 0.95, 1.05], "pace": [0.78, 0.88, 0.95,
+  1.05]}`; `time_in_zone` is `{"1": s, …, "5": s}` (all five keys present, integers).
+- Threshold resolution: the record of the activity's sport with the latest `valid_from ≤ local_date`.
+  `other` uses the run record (LTHR only). No record → all threshold-based metrics are null.
 
 ## 2. Training load (all in TSS-equivalent points: 1 h at threshold = 100)
 
@@ -70,18 +85,26 @@ Clamp `r` to `[0.50, 1.15]` before interpolation.
 `hrTSS = Σ_i IF_i² · dt_i / 36` with `dt_i = 1 s` (derivation: `TSS = s · IF² · 100 / 3600`).
 `IF_hr` (activity) = `sqrt(hrTSS · 36 / moving_s)`.
 Tests: 3600 s at `hr == lthr` → `hrTSS == 100.0`; 3600 s at `r = 0.83` → `hrTSS == 56.25`.
+*Clarified 2026-09-29 (phase 2, proposed):* the sum runs over kept samples with valid HR (samples with NaN HR contribute 0); `moving_s` in
+`IF_hr` is the §0.2 count including samples without HR. `lthr` missing → `hrTSS`, `IF_hr` null.
 
 ### 2.2 TRIMP (Banister) – secondary, reported for comparison
 
 `HRr_i = (hr_i − rest_hr) / (max_hr − rest_hr)`, clamp `[0, 1]`.
 Male: `TRIMP = Σ_i (dt_i/60) · HRr_i · 0.64 · e^(1.92·HRr_i)`; female: `0.86 · e^(1.67·HRr_i)`.
 `TRIMP_norm = TRIMP · 100 / TRIMP_ref`, where `TRIMP_ref` = TRIMP of 60 min at `hr == lthr` for this athlete/sport.
+*Clarified 2026-09-29 (phase 2, proposed):* over kept samples with valid HR, `dt_i = 1 s`. `rest_hr` = athlete `rest_hr_override`, else the median
+of `daily_wellness.rhr` over the 28 days ending on the activity's local date (null if none). `TRIMP` and
+`TRIMP_norm` are null if `sex`, `max_hr`, `rest_hr` or `lthr` is missing or `max_hr ≤ rest_hr`.
 
 ### 2.3 rTSS (primary for runs with usable GPS and a threshold_speed)
 
 `gap_speed_i` from §3. Normalized graded speed: `NGS = ( mean( rolling_mean_30s(gap_speed)^4 ) )^(1/4)`
 over moving samples. `IF_pace = NGS / threshold_speed`. `rTSS = moving_s · IF_pace² / 36`.
 Usable GPS: distance stream present, `≥ 90 %` of moving samples with speed, not treadmill/indoor.
+*Clarified 2026-09-29 (phase 2, proposed):* `rolling_mean_30s` is a trailing 30-sample mean over the kept samples; windows containing NaN are
+skipped, and fewer than 30 valid windows → `rTSS` null. "Distance stream present" = at least one non-NaN
+distance value. `threshold_speed` missing → `rTSS`, `IF_pace` null.
 
 ### 2.4 Primary load selection
 
@@ -94,6 +117,7 @@ Store `load_primary`, `load_method`, `hrtss`, `trimp_norm`, `rtss`, `if_hr`, `if
 
 Pearson r between `load_primary` and Garmin `training_load` across all activities with both present.
 Expect `r > 0.8`. Below 0.7 → show a warning to review thresholds.
+*Clarified 2026-09-29 (phase 2, proposed):* needs at least 3 activities with both values, else `r` is null.
 
 ## 3. Grade-adjusted pace (GAP) – runs
 
@@ -117,6 +141,18 @@ Series starts at the first synced day; the first 90 days are shaded "warming up"
 - `ramp_rate = CTL[d] − CTL[d−7]`. Warn if `> 6`.
 - Weekly aggregates: ISO weeks, per sport: load, duration, distance, elevation, `time_in_zone`.
   Polarization index = share of time in Z1–Z2 vs Z3 vs Z4–Z5.
+
+*Clarified 2026-09-29 (phase 2, proposed):*
+- `CTL` / `ATL` of the day before the first day are 0, so the first day's `TSB` is 0.
+- Windows (`acute`, `chronic`, `mean7`, `std7`, `sum7`, the 28-day training-day count) include day d and
+  need their full length of series history; before that the value is NaN. `std7` is the population
+  standard deviation (ddof = 0). A training day is a day with `daily_load > 0`.
+- `ramp_rate` is NaN for the first 7 days. Flags: `ramp_warning = ramp_rate > 6`, `acwr_band` per the
+  bands above (NaN → no band).
+- `daily_load` is split into `load_run`, `load_bike` (and `other`, part of the total only). An activity with
+  a null `load_primary` contributes 0.
+- Weekly aggregates: ISO week (Monday start). Duration = `duration_s` (timer time). Polarization shares use
+  the HR `time_in_zone` totals of the week: `(Z1+Z2, Z3, Z4+Z5) / total`, null if the total is 0.
 
 ## 5. Aerobic efficiency and endurance (runs; bike variant in §5.4)
 
