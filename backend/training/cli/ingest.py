@@ -25,8 +25,8 @@ from training.garmin.sync import (
     Ingestor,
     SyncResult,
     raw_sink_for,
+    sync as run_sync,
 )
-from training.garmin.sync import sync as run_sync
 
 
 @contextmanager

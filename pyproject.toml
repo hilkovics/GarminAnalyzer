@@ -55,6 +55,7 @@ ignore = ["RUF001", "RUF002", "RUF003"]  # allow en dash / ≤ etc. in strings a
 
 [tool.ruff.lint.isort]
 known-first-party = ["training"]
+combine-as-imports = true
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["typer.Option", "typer.Argument", "fastapi.Depends", "fastapi.Query", "fastapi.Path"]

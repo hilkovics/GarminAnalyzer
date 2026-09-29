@@ -349,6 +349,10 @@ Method:
 - **Findings:** every (sport, predictor variant, outcome) with `n ≥ 30`, sorted by |partial ρ| (raw ρ if the
   partial is null). A finding whose CI contains 0 is labelled uncertain. No multiple-comparison correction
   is applied; the caveat text says so.
+- Numerical edge cases: residuals whose size is at rounding level (the controls explain the variable
+  completely) are set to exactly 0, so the partial ρ is null rather than a correlation of noise; a control
+  that is constant within a resample is handled by the pseudo-inverse. Ties in `moving_s` when picking the
+  day's activity go to the lower activity id.
 
 ## 10. Coach: season plan, daily decision, workouts
 

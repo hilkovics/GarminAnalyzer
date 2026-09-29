@@ -119,11 +119,11 @@ def test_range_and_sport_controls(seeded):
 
 def test_correlations_are_cached_between_reruns(seeded, monkeypatch):
     calls = []
-    real = svc.get_correlations
-    monkeypatch.setattr(svc, "get_correlations", lambda s, sport=None: calls.append(sport) or real(s, sport))
+    real = svc.correlations
+    monkeypatch.setattr(svc, "correlations", lambda *a, **k: calls.append(a[1]) or real(*a, **k))
     at = run_page("spanok")
     at.radio(key="sleep_range").set_value("30 dní").run()
-    assert calls == ["run"]
+    assert calls == ["run"]  # the rerun reuses the service cache (same inputs)
 
 
 def test_empty_database_renders_without_exceptions(empty):

@@ -364,7 +364,7 @@ GET /progress/threshold-proposals (§6.3) – never auto-applied.
 | `score` | number \| null | component score 0–100; null when the input is missing |
 | `weight` | number \| null | renormalized weight (the used ones sum to 1); null if missing |
 | `value` | number \| null | raw input: bpm (rhr), sleep score points or seconds (sleep, see unit), Body Battery points, TSB (form) |
-| `baseline` | number \| null | 28-day median of the input, where the score uses one |
+| `baseline` | number \| null | 28-day median of the input (context only; the RHR score and the sleep fallback use it) |
 | `unit` | string | unit of value/baseline: "bpm" \| "score" \| "s" \| "points" \| "TSB" |
 
 ### ReadinessDTO

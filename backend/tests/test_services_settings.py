@@ -296,8 +296,7 @@ def test_clear_rest_hr_override_on_empty_db_creates_nothing(tmp_path):
     import pytest as _pytest
     from sqlmodel import Session as _Session
 
-    from training.db.session import make_engine as _make_engine
-    from training.db.session import migrate as _migrate
+    from training.db.session import make_engine as _make_engine, migrate as _migrate
 
     _migrate(tmp_path / "empty.db")
     session = _Session(_make_engine(tmp_path / "empty.db"))

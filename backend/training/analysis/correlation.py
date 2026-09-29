@@ -381,12 +381,12 @@ def _partial(
     if rho is None:
         return _NO_PARTIAL
     idx = boot.indices(len(xp))
-    boot = memo.get("projector_boot", rows, lambda: ols_projector(cp[idx]))
+    projector = memo.get("projector_boot", rows, lambda: ols_projector(cp[idx]))
     x_ranks = memo.get(
-        "x_partial_ranks", (pair.predictor, rows), lambda: centered_ranks(ols_residuals(boot, xp[idx]))
+        "x_partial_ranks", (pair.predictor, rows), lambda: centered_ranks(ols_residuals(projector, xp[idx]))
     )
     y_ranks = memo.get(
-        "y_partial_ranks", (pair.outcome, rows), lambda: centered_ranks(ols_residuals(boot, yp[idx]))
+        "y_partial_ranks", (pair.outcome, rows), lambda: centered_ranks(ols_residuals(projector, yp[idx]))
     )
     low, high = percentile_ci(pearson_of_ranks(x_ranks, y_ranks))
     return {"partial_rho": rho, "partial_p": p, "partial_ci_low": low, "partial_ci_high": high}

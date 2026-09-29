@@ -13,8 +13,7 @@ from components.badges import load_sanity_badge
 from components.format import fmt_date, fmt_num, fmt_pct, sport_label
 
 from training.config import get_settings
-from training.services import diagnostics as diagnostics_service
-from training.services import sync
+from training.services import diagnostics as diagnostics_service, sync
 from training.services.dto import SyncResultDTO
 from training.services.errors import ServiceError
 

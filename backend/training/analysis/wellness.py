@@ -16,8 +16,8 @@ Pure functions over pandas/numpy; no I/O.
 #   sleep_debt_7 = Σ_{7 nights} (max(8 h, sleep_s_median28) − sleep_s)
 # Clarified 2026-09-29 (phase 5, proposed):
 #   sleep_debt_7 is lag0 only: the sum over nights D−6 … D, each term using that night's §8 baseline
-#   (7.5 h floor replaced by 8 h here, as written). Surpluses offset deficits. It needs ≥ 5 valid nights,
-#   and the sum is scaled by 7 / n_valid.
+#   (8 h floor here, as written; a null median counts as 8 h). Surpluses offset deficits. It needs
+#   ≥ 5 valid nights, and the sum is scaled by 7 / n_valid.
 
 Windows are calendar days: a sparse date index is reindexed to the full daily range internally, so a
 missing day is simply a missing value. A null nightly baseline in the sleep debt uses the 8 h floor.

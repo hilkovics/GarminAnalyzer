@@ -1,10 +1,36 @@
 # STATUS
 
-Last updated: 2026-09-29 (phase 4 session)
+Last updated: 2026-09-29 (phase 5 session)
 
 ## Done
 
-### Phase 4 – progress without power (code complete; METRICS clarifications await approval)
+### Phase 5 – sleep, readiness, correlations (code complete; METRICS §8–§9 clarifications await approval)
+- `analysis/` (pure, test-first by two metrics-implementers):
+  - `wellness.py`: trailing 28-day median/MAD baselines (D−28…D−1, ≥ 7 values) and `sleep_debt_7`.
+  - `readiness.py`: §8 components, renormalized weights, bands.
+  - `correlation.py` + `stats.py`: §9 per-sport dataset (lag0/lag1/mean3, controls TSB[D], ATL[D−1],
+    load[D−1]), Spearman, partial correlation via OLS residuals, a vectorized seeded bootstrap, the quartile
+    contrast, and `insufficient_data` below n = 30. A planted correlation is detected; a planted confounder
+    disappears after partialling.
+- Pipeline: `pipeline_wellness.compute_readiness` runs at the end of every `compute_daily_load`, so `recompute`,
+  `sync`, a threshold change and an athlete change all refresh `daily_load.readiness`.
+- Services/API/UI (ui-page-builder):
+  - `services/sleep.py`, `sleep_findings.py` (Slovak sentences, caveat) and `dto_wellness.py`.
+  - `GET /api/wellness/daily`, `/wellness/readiness/today`, `/wellness/readiness/{day}` and
+    `/wellness/correlations`.
+  - Streamlit Spánok page: readiness gauge + breakdown, sleep stages, sleep score and RHR with median ± MAD,
+    sleep debt, and Findings.
+  - Correlations are cached in-process by a hash of all their inputs, so any data change refreshes them.
+- Spec review: 1 blocker (the cache fingerprint missed most inputs → stale findings) fixed and tested;
+  warnings (DTO file size, test split, timing-test margin, doc notes) addressed.
+- **Demo report** (`scripts/seed_demo.py`, 240 synthetic days with a planted sleep → HR effect; no real data
+  yet): readiness today **77, green** (RHR 100, sleep 84, Body Battery 74, form 37). Top 3 run findings:
+  1. sleep_s (night before) → EF: partial ρ +0.46 [0.21; 0.65], n = 51 – the planted effect.
+  2. sleep_s (3-night mean) → EF: partial ρ +0.35 [0.04; 0.57], n = 51.
+  3. REM (night before) → pace at ref HR: ρ −0.31 [−0.52; +0.05], n = 41 – uncertain (chance).
+- Tests: 1227 passed, 5 skipped (real fixtures). ruff clean.
+
+### Phase 4 – progress without power (code complete; METRICS clarifications approved)
 - `metrics/`, test-first by two metrics-implementers:
   - `efficiency.py` (§5): steady state, EF, decoupling, bike variant, the 28-day `ef_trend`.
   - `curve.py` (§6.1): 60 s aggregates, speed–HR curve, `pace_at_ref_hr_day`. It is a separate module (was
@@ -294,8 +320,12 @@ Last updated: 2026-09-29 (phase 4 session)
 6. **You, locally – phase 3 check:** run `uv run streamlit run ui-streamlit/app.py` against your real DB, and
    compare `GET /api/fitness/pmc` (`uv run training api`) with the Fitness page. Change an LTHR in Nastavenia
    with a `valid_from` in the middle of your history: only later activities may change.
-7. **Phase 4** – progress without power: EF, decoupling, speed–HR curve, best efforts, threshold proposals,
-   predictions.
+7. **You, locally – phase 4/5 check:** after upgrading an existing DB run `uv run training recompute` once
+   (fills EF/curves and `daily_load.readiness`; until then `/wellness/daily` shows no readiness while
+   `/wellness/readiness/today` computes it live). Then open Progres and Spánok and report today's readiness
+   and the top 3 findings from your real data.
+8. **Approve** the METRICS §8–§9 "(phase 5, proposed)" clarifications.
+9. **Phase 6** – coach: season plan, weekly targets, daily decision, workouts.
 
 ## Known issues / open questions
 

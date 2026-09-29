@@ -9,8 +9,7 @@ from sqlmodel import Session
 from training.db import raw_kinds, repo
 from training.db.models import Activity, CurveSnapshot, RawGarmin, Threshold
 from training.db.session import make_engine, migrate
-from training.services import progress as svc
-from training.services import settings as settings_svc
+from training.services import progress as svc, settings as settings_svc
 from training.services.dto import ThresholdIn
 from training.services.errors import InvalidInputError
 

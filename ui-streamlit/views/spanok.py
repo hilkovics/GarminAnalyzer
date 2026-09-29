@@ -19,13 +19,11 @@ from training.services.errors import ServiceError
 
 RANGES = {"30 dní": 30, "90 dní": 90, "180 dní": 180}
 SPORTS = {"run": "Beh", "bike": "Bicykel"}
-CORRELATIONS_TTL_S = 600
 
 
-@st.cache_data(ttl=CORRELATIONS_TTL_S, show_spinner="Počítam korelácie…")
 def load_correlations(sport: str) -> CorrelationsDTO:
-    """The (slow) bootstrap runs in the service; this only keeps the DTO for ten minutes."""
-    with _db.session() as session:
+    """The (slow) bootstrap is cached in the service by a hash of its inputs, so a sync shows up at once."""
+    with st.spinner("Počítam korelácie…"), _db.session() as session:
         return sleep_service.get_correlations(session, sport=sport)
 
 

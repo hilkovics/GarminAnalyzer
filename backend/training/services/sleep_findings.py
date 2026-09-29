@@ -83,7 +83,9 @@ def sentence(result: CorrelationResult) -> str:
     rho = result.headline_rho
     if rho is None:
         return f"{head} → {subject}: súvislosť sa nedá určiť (konštantná hodnota)."
-    text = f"{head}, {subject} je {higher if rho >= 0 else lower} – {strength_word(rho)} súvislosť"
+    if rho == 0:
+        return f"{head} → {subject}: žiadna súvislosť (ρ = 0)."
+    text = f"{head}, {subject} je {higher if rho > 0 else lower} – {strength_word(rho)} súvislosť"
     return text + (UNCERTAIN_SUFFIX if result.uncertain else "") + "."
 
 

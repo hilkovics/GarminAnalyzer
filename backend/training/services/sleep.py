@@ -9,6 +9,7 @@ cache keyed by the database identity and a cheap fingerprint of the tables it re
 """
 
 import datetime as dt
+import hashlib
 import logging
 import math
 import threading
@@ -16,13 +17,11 @@ from collections import OrderedDict
 from typing import Any
 
 import pandas as pd
-from sqlalchemy import func, select
 from sqlmodel import Session
 
 from training.analysis.correlation import MIN_N, N_BOOT, SPORTS, build_dataset, correlations
 from training.analysis.readiness import ReadinessResult, band, readiness
 from training.analysis.wellness import BASELINE_FIELDS, with_baselines
-from training.db.models import Activity, ActivityMetric, DailyLoad, DailyWellness, Subjective
 from training.pipeline_wellness import correlation_activities, daily_frame, wellness_frame
 from training.services.dto import (
     BaselineDTO,
@@ -104,16 +103,14 @@ def get_wellness(
     Baselines and sleep debt are computed over the whole stored history and then sliced to the range, so
     the first days of a range still have a baseline.
     """
-    if date_from is not None and date_to is not None:
-        if date_from > date_to:
-            raise InvalidInputError("from must not be after to")
-        if (date_to - date_from).days + 1 > MAX_DAYS:
-            raise InvalidInputError(f"the range must not exceed {MAX_DAYS} days")
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise InvalidInputError("from must not be after to")
+    if date_from is not None and date_to is not None and (date_to - date_from).days + 1 > MAX_DAYS:
+        raise InvalidInputError(f"the range must not exceed {MAX_DAYS} days")
     frame = with_baselines(wellness_frame(session))
     readiness_by_day = daily_frame(session)["readiness"]
     days = []
     for day, row in frame.iterrows():
-        assert isinstance(day, dt.date)
         if (date_from is not None and day < date_from) or (date_to is not None and day > date_to):
             continue
         persisted = _num(readiness_by_day.get(day))
@@ -212,44 +209,31 @@ def clear_cache() -> None:
         _cache.clear()
 
 
-def _fingerprint(session: Session) -> tuple:
-    """Cheap DB fingerprint: row counts and max dates of the tables §9 reads, plus a sum per table so that a
-    recompute that changes values without adding rows also invalidates the cache."""
-    metrics = session.execute(
-        select(func.count(), func.max(Activity.local_date), func.sum(ActivityMetric.ef))
-        .select_from(ActivityMetric)
-        .join(Activity, Activity.id == ActivityMetric.activity_id)
-    ).one()
-    wellness = session.execute(
-        select(func.count(), func.max(DailyWellness.date), func.sum(DailyWellness.sleep_s))
-    ).one()
-    subjective = session.execute(
-        select(func.count(), func.max(Subjective.date), func.sum(Subjective.rpe))
-    ).one()
-    load = session.execute(
-        select(func.count(), func.max(DailyLoad.date), func.sum(DailyLoad.load_total))
-    ).one()
-    return tuple(
-        tuple(round(v, 6) if isinstance(v, float) else v for v in row)
-        for row in (metrics, wellness, subjective, load)
-    )
+def _frames(session: Session) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """The exact §9 inputs: activities with outcomes, wellness with baselines, daily load (all small)."""
+    return correlation_activities(session), with_baselines(wellness_frame(session)), daily_frame(session)
 
 
-def _sport_findings(session: Session, sport: str, n_boot: int) -> tuple[list[CorrelationDTO], int]:
-    """All results of one sport (sorted by |headline ρ|) and the number of qualifying days."""
-    dataset = build_dataset(
-        correlation_activities(session), with_baselines(wellness_frame(session)), daily_frame(session), sport
-    )
-    return [correlation_dto(r) for r in correlations(dataset, sport, n_boot=n_boot)], len(dataset)
+def _fingerprint(*frames: pd.DataFrame) -> str:
+    """Hash of every value the correlation reads (review phase 5, blocker 1): any changed input – a revised
+    RHR, a recomputed decoupling, a new TSB – changes the key, so cached findings are never stale."""
+    digest = hashlib.sha256()
+    for frame in frames:
+        digest.update(",".join(map(str, frame.columns)).encode())
+        digest.update(pd.util.hash_pandas_object(frame.astype(object), index=True).to_numpy().tobytes())
+    return digest.hexdigest()
 
 
 def _cached_sport(session: Session, sport: str, n_boot: int) -> tuple[list[CorrelationDTO], int]:
-    key = (str(session.get_bind().engine.url), _fingerprint(session), sport, n_boot)
+    """Results of one sport (sorted by |headline ρ|) and its qualifying days, cached by input hash."""
+    activities, wellness, daily = _frames(session)
+    key = (_fingerprint(activities, wellness, daily), sport, n_boot)
     with _cache_lock:
         if key in _cache:
             _cache.move_to_end(key)
             return _cache[key]
-    value = _sport_findings(session, sport, n_boot)
+    dataset = build_dataset(activities, wellness, daily, sport)
+    value = [correlation_dto(r) for r in correlations(dataset, sport, n_boot=n_boot)], len(dataset)
     with _cache_lock:
         _cache[key] = value
         while len(_cache) > CACHE_SIZE:
@@ -265,7 +249,7 @@ def get_correlations(session: Session, sport: str | None = None, n_boot: int = N
     """Sleep ↔ performance findings (METRICS §9) for one sport or for run and bike.
 
     `findings` (n ≥ 30) are sorted by |headline ρ| across the sports; `insufficient` lists the other pairs
-    with their n. The bootstrap is cached per (database, fingerprint, sport, n_boot).
+    with their n. The bootstrap is cached per (hash of all inputs, sport, n_boot).
     """
     if sport is not None and sport not in SPORTS:
         raise InvalidInputError(f"sport must be one of {', '.join(SPORTS)}")

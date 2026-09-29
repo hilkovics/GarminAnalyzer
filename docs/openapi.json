@@ -2888,7 +2888,7 @@
               }
             ],
             "title": "Baseline",
-            "description": "28-day median of the input, where the score uses one"
+            "description": "28-day median of the input (context only; the RHR score and the sleep fallback use it)"
           },
           "unit": {
             "type": "string",

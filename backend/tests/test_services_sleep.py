@@ -7,10 +7,9 @@ from sqlalchemy import select
 from sqlmodel import Session
 
 from training.db import repo
-from training.db.models import DailyLoad
+from training.db.models import ActivityMetric, DailyLoad, DailyWellness
 from training.db.session import make_engine, migrate
-from training.services import sleep as svc
-from training.services import sleep_findings
+from training.services import sleep as svc, sleep_findings
 from training.services.errors import InvalidInputError
 
 from .progress_seeding import progress_db
@@ -245,9 +244,38 @@ def test_cache_reuses_results_until_the_data_changes(session, monkeypatch):
     assert calls == ["run", "bike", "run", "run"]
 
 
+def _count_computations(monkeypatch) -> list[str]:
+    calls: list[str] = []
+    real = svc.correlations
+    monkeypatch.setattr(svc, "correlations", lambda *a, **k: calls.append(a[1]) or real(*a, **k))
+    return calls
+
+
+def test_cache_invalidates_when_only_rhr_changes(session, monkeypatch):
+    """Review phase 5, blocker 1: a revised Garmin RHR (no new rows) must refresh the findings."""
+    calls = _count_computations(monkeypatch)
+    svc.get_correlations(session, "run", n_boot=N_BOOT)
+    svc.get_correlations(session, "run", n_boot=N_BOOT)
+    assert calls == ["run"]
+    session.execute(DailyWellness.__table__.update().values(rhr=DailyWellness.__table__.c.rhr + 1))
+    session.commit()
+    svc.get_correlations(session, "run", n_boot=N_BOOT)
+    assert calls == ["run", "run"]
+
+
+def test_cache_invalidates_when_only_decoupling_changes(session, monkeypatch):
+    calls = _count_computations(monkeypatch)
+    svc.get_correlations(session, "run", n_boot=N_BOOT)
+    table = ActivityMetric.__table__
+    session.execute(table.update().where(table.c.decoupling_pct.is_not(None)).values(decoupling_pct=1.0))
+    session.commit()
+    svc.get_correlations(session, "run", n_boot=N_BOOT)
+    assert calls == ["run", "run"]
+
+
 def test_cache_is_bounded(session, monkeypatch):
     monkeypatch.setattr(svc, "CACHE_SIZE", 3)
-    monkeypatch.setattr(svc, "_sport_findings", lambda s, sport, n_boot: ([], 0))
+    monkeypatch.setattr(svc, "correlations", lambda *a, **k: [])
     for n in range(1, 8):
         svc.get_correlations(session, "run", n_boot=n)
     assert len(svc._cache) == 3

@@ -10,8 +10,7 @@ from dataclasses import dataclass, field
 
 from sqlmodel import Session
 
-from training.db import raw_kinds as ep
-from training.db import repo
+from training.db import raw_kinds as ep, repo
 from training.normalize.activities import normalize_activity
 from training.normalize.streams import normalize_streams
 from training.normalize.wellness import normalize_wellness

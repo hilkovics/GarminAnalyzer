@@ -4,8 +4,7 @@ import _db
 import streamlit as st
 from sections import diagnostics, progress_tables, settings_forms
 
-from training.services import progress as progress_service
-from training.services import settings as settings_service
+from training.services import progress as progress_service, settings as settings_service
 from training.services.errors import ServiceError
 
 st.title("Nastavenia")

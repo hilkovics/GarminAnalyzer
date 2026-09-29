@@ -32,3 +32,17 @@
   data computed before the upgrade stays stale unless a full recompute is run. Check for this whenever a new
   sync_state cursor is introduced.
 - Re-run my own scratch repro on round 2 instead of trusting the new unit test.
+
+## Phase 5 notes (2026-09-29)
+- New pattern: in-process result caches keyed by a "cheap fingerprint" (count/max/sum of ONE column per
+  table). Always check the fingerprint covers every column the cached computation reads. services/sleep.py
+  `_fingerprint` sums only ef/sleep_s/rpe/load_total -> rhr, sleep_score, deep/rem, BB, decoupling, pace,
+  if_*, tsb/atl edits leave findings stale (scratch-verified: rhr sign flip -> cached rho unchanged).
+  Also check for a second UI-layer cache (st.cache_data ttl) stacked on top.
+- Persisted-vs-live duplicates (daily_load.readiness vs get_readiness recompute): equal by construction, but
+  pre-upgrade DBs have NULL persisted values until `recompute` (same first-run gap as sync_state cursors).
+- docs/STATUS.md not updated in phase 5 diff; check STATUS every review.
+- dto.py crossed 400 lines (499) in phase 5; test_analysis_correlation.py 654 lines. Hard wall-clock
+  timing asserts (<10 s) in unit tests - flag as flaky.
+- Slovak sentence direction verified OK: phrase = higher predictor, sign of headline (partial else raw) rho
+  flips outcome word; pace_at_ref_hr_day is m/s (higher = faster).

@@ -17,7 +17,8 @@ Pure functions over pandas/numpy; no I/O.
 #   Form uses TSB[D] from §4 (already the state entering the day). Each score is clamped to 0–100.
 #   Readiness is computed for every day with at least one wellness component (RHR, Sleep or Body Battery).
 #   Form alone does not produce a score. Missing components drop out and the remaining weights are
-#   renormalized to sum 1. The value is stored unrounded; bands are applied to that unrounded value.
+#   renormalized to sum 1 (the reported weights are empty when there is no score). The value is stored
+#   unrounded; bands are applied to that unrounded value; the UI displays it truncated to an integer.
 
 Bands are read on the unrounded score: `score ≥ 70` green, `45 ≤ score < 70` yellow, `score < 45` red.
 """

@@ -13,8 +13,7 @@ from sqlalchemy import func, select
 from sqlmodel import Session
 
 from training import pipeline
-from training.db import raw_kinds as ep
-from training.db import repo
+from training.db import raw_kinds as ep, repo
 from training.db.models import Activity, ActivityMetric, Subjective, Threshold
 from training.metrics.preprocess import preprocess
 from training.services.dto import (
