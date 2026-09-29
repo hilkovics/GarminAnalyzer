@@ -1,8 +1,31 @@
 # STATUS
 
-Last updated: 2026-09-29 (phase 3 session)
+Last updated: 2026-09-29 (phase 4 session)
 
 ## Done
+
+### Phase 4 – progress without power (code complete; METRICS clarifications await approval)
+- `metrics/`, test-first by two metrics-implementers:
+  - `efficiency.py` (§5): steady state, EF, decoupling, bike variant, the 28-day `ef_trend`.
+  - `curve.py` (§6.1): 60 s aggregates, speed–HR curve, `pace_at_ref_hr_day`. It is a separate module (was
+    `efforts.py` in PLAN) so the two implementers could work in parallel.
+  - `efforts.py` (§6.2–§6.3): best efforts, `best_per_window`, threshold proposals.
+  - `predictions.py` (§7): Riegel, VDOT with bisection, reference choice. 10 km in 40:00 gives VDOT 51.94 and a
+    half marathon of 1:28:33.
+- `pipeline_progress.py` stores the §5 fields in `activity_metric` and efforts in `best_effort` (new columns
+  `distance_m` and `start_t`, migration 0003). It also writes monthly `curve_snapshot`s (never after today).
+  A run-LTHR change refreshes the curves.
+- Services, API and UI:
+  - `services/progress.py` and the `/api/progress/*` endpoints.
+  - The Progres page: EF, decoupling, curves, pace@refHR, best efforts 90 d / all, predictions, proposals.
+  - Nastavenia: "apply proposal" (source `proposal`).
+  - `training propose-thresholds`.
+- Browser check on the demo DB: the Progres page renders with no exceptions.
+- Tests: 1073 passed, 5 skipped.
+- Unverified Garmin keys (`services/garmin_values.py`):
+  - `lactate_threshold.speed_and_heart_rate.{heartRate, speed}`; the speed unit is guessed as ×10 when < 1;
+  - `max_metrics[0].generic.vo2MaxPreciseValue`.
+  Check both against real fixtures.
 
 ### Phase 3 – services, API and Streamlit UI v1 (code complete; check against your real DB pending)
 - `services/dto.py` holds the fixed DTO contract (PLAN §5), written by the orchestrator first, so that two
@@ -322,7 +345,7 @@ Last updated: 2026-09-29 (phase 3 session)
 - If page N of an activity list fails, pages 1..N−1 of that call are not stored raw. The whole call is retried on
   the next run, so nothing is lost.
 - Open METRICS.md points to decide before the phase that uses them:
-  - §0.6 HR-lag direction: now written into METRICS as a phase-4 proposal (awaiting approval).
+  - METRICS §0.6 and §5–§7 phase-4 clarifications (HR-lag direction, walking handling, effort distance, …) await approval.
   - §10.4 rule 1 "whichever the template has fewer of" needs a deterministic tie-break.
   - §10.6 Z1 IF 0.50 is not the table midpoint (0.30–0.55). Confirm that it is intended.
 
