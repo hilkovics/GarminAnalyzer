@@ -322,7 +322,7 @@ Last updated: 2026-09-29 (phase 3 session)
 - If page N of an activity list fails, pages 1..N−1 of that call are not stored raw. The whole call is retried on
   the next run, so nothing is lost.
 - Open METRICS.md points to decide before the phase that uses them:
-  - §0.6 HR-lag direction. Proposal: pair speed(t) with HR(t + 30 s).
+  - §0.6 HR-lag direction: now written into METRICS as a phase-4 proposal (awaiting approval).
   - §10.4 rule 1 "whichever the template has fewer of" needs a deterministic tie-break.
   - §10.6 Z1 IF 0.50 is not the table midpoint (0.30–0.55). Confirm that it is intended.
 
