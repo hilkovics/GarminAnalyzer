@@ -82,9 +82,22 @@ def test_aggregates_slow_samples_excluded():
 
 
 def test_aggregates_are_over_kept_samples():
-    # A 100 s pause is skipped: 1030 s with the pause → 930 kept → 5 blocks.
+    # A 100 s pause at [700, 800) is skipped: 930 kept. Samples with a lagged partner after the warm-up
+    # (METRICS §0.6 by time): t = 600..669 and 800..999 (t = 670..699 have the pause in (t, t + 30]) →
+    # 270 samples → 4 blocks (it was 5 with the positional lag, which bridged the pause).
     out = aggregates_60s(run(with_pause(constant(1030, hr=150.0, speed=3.0), 700, 100)))
-    assert len(out) == 5
+    assert len(out) == 4
+    assert (out["gap_speed"] == 3.0).all() and (out["hr"] == 150.0).all()
+
+
+def test_aggregates_samples_without_partner_leave_the_set():
+    # 10 s pause at [700, 710), HR 190 for 30 s after it. t = 670..699 have no partner and are removed
+    # (not NaN) – the set is 600..669 + 710..1009 = 370 samples → 6 blocks. 190 bpm is paired only with
+    # t ≥ 710 whose t + 30 lies in [710, 740), i.e. none (t + 30 ≥ 740) → every block is 150 bpm.
+    df = with_segment(constant(1040, hr=150.0, speed=3.0), 710, 30, hr=190.0)
+    out = aggregates_60s(run(with_pause(df, 700, 10)))
+    assert len(out) == 6
+    assert (out["hr"] == 150.0).all()
 
 
 def test_aggregates_empty_and_short():

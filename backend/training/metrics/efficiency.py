@@ -27,8 +27,9 @@ Bike: only samples with `|grade| ≤ 0.01`, speed `≥ 4 m/s`, after 600 s, no s
 (Clarified: a stop is a pause – a gap in `t` between consecutive kept samples – or a slow sample (bike
 `< 2.0 m/s`); every sample within 30 s (by `t`) of a stop is excluded. Uses `speed`, not GAP; lag as §5.2.)
 
-# METRICS §0.6
-`hr_lagged[i] = hr[i + 30]` over the kept samples in time order; the last 30 samples have no partner.
+# METRICS §0.6 (revised)
+Pair by time: `hr_lagged(t) = hr(t + 30)` if the kept sample at t + 30 exists, else NaN; a pause inside
+(t, t + 30] gives no partner (see `preprocess.lag_hr`). Samples without a partner leave the EF set.
 
 Interpretation (see the module tests): a pause's "stop" instants are its missing whole seconds
 `t_a + 1 .. t_b − 1`, and "within 30 s" is inclusive (`|Δt| ≤ 30`). So a slow sample excludes 61 samples
@@ -113,7 +114,7 @@ def ef_samples(prep: Preprocessed, *, sport: str) -> pd.DataFrame:
     if sport == "other" or n == 0:
         return empty
     t = s["t"].to_numpy(dtype=np.int64)
-    hr_lag = lag_hr(s["hr"].to_numpy(dtype=float), HR_LAG_S)
+    hr_lag = lag_hr(t, s["hr"].to_numpy(dtype=float), HR_LAG_S)
     speed = s["gap_speed" if sport == "run" else "speed"].to_numpy(dtype=float)
     keep = np.arange(n) >= WARMUP_S
     keep &= ~s["is_slow"].to_numpy(dtype=bool) & ~np.isnan(speed) & ~np.isnan(hr_lag)

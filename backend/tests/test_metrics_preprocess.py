@@ -6,7 +6,13 @@ import pytest
 
 from tests.synthetic import constant, hilly, stream, with_hr_dropout, with_pause
 from training.metrics.gap import minetti_cost
-from training.metrics.preprocess import SAMPLE_COLUMNS, Preprocessed, lag_hr, preprocess
+from training.metrics.preprocess import (
+    SAMPLE_COLUMNS,
+    Preprocessed,
+    has_lag_partner,
+    lag_hr,
+    preprocess,
+)
 from training.normalize.streams import empty_streams
 
 # ---------------------------------------------------------------- shape, §0.2 kept samples
@@ -291,28 +297,77 @@ def test_gap_clamp_does_not_touch_non_runs():
     np.testing.assert_array_equal(pre.samples["gap_speed"].to_numpy(), 3.0)
 
 
-# ---------------------------------------------------------------- §0.6 HR lag helper
+# ---------------------------------------------------------------- §0.6 HR lag helper (by time)
+# METRICS §0.6 (revised): `hr_lagged(t) = hr(t + 30)` if the kept sample at t + 30 exists, else NaN;
+# a pause inside (t, t + 30] gives no partner.
 
 
 def test_lag_hr_pairs_speed_t_with_hr_t_plus_lag():
+    # No pause: identical to the former index shift.
+    t = np.arange(5)
     hr = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-    np.testing.assert_array_equal(lag_hr(hr, 2), [3.0, 4.0, 5.0, np.nan, np.nan])
-    np.testing.assert_array_equal(lag_hr(hr, 0), hr)
-    np.testing.assert_array_equal(lag_hr(hr, 7), [np.nan] * 5)
+    np.testing.assert_array_equal(lag_hr(t, hr, 2), [3.0, 4.0, 5.0, np.nan, np.nan])
+    np.testing.assert_array_equal(lag_hr(t, hr, 0), hr)
+    np.testing.assert_array_equal(lag_hr(t, hr, 7), [np.nan] * 5)
 
 
 def test_lag_hr_default_30_s():
     hr = np.arange(100, dtype=float)
-    out = lag_hr(hr)
+    out = lag_hr(np.arange(100) + 1000, hr)  # t need not start at 0
     assert out[0] == 30.0 and out[69] == 99.0
     assert np.isnan(out[70:]).all()
 
 
 def test_lag_hr_negative_shifts_forward():
-    np.testing.assert_array_equal(lag_hr(np.array([1.0, 2.0, 3.0]), -1), [np.nan, 1.0, 2.0])
+    np.testing.assert_array_equal(lag_hr(np.arange(3), np.array([1.0, 2.0, 3.0]), -1), [np.nan, 1.0, 2.0])
 
 
 def test_lag_hr_does_not_modify_input():
     hr = np.array([1.0, 2.0, 3.0])
-    lag_hr(hr, 1)
+    lag_hr(np.arange(3), hr, 1)
     np.testing.assert_array_equal(hr, [1.0, 2.0, 3.0])
+
+
+def test_lag_hr_10s_pause_inside_the_window_gives_no_partner():
+    # Kept t = 0..99 without the paused seconds 50..59; hr = 100 + t.
+    t = np.concatenate([np.arange(50), np.arange(60, 100)])
+    hr = 100.0 + t
+    out = pd.Series(lag_hr(t, hr), index=t)
+    partner = pd.Series(has_lag_partner(t), index=t)
+    # t = 0..19: (t, t + 30] is fully kept → hr(t + 30).
+    np.testing.assert_array_equal(out.loc[0:19], 130.0 + np.arange(20))
+    # t = 20..49: the pause lies in (t, t + 30] → NaN, also for t = 30..49 where the kept sample t + 30
+    # (60..79) exists – the recovered HR after the stop is never paired with the speed before it.
+    assert out.loc[20:49].isna().all() and not partner.loc[20:49].any()
+    # After the pause: t = 60..69 pair with 90..99; the last 30 kept samples have no partner.
+    np.testing.assert_array_equal(out.loc[60:69], 190.0 + np.arange(10))
+    assert out.loc[70:99].isna().all()
+    assert partner.sum() == 30 and partner.loc[0:19].all() and partner.loc[60:69].all()
+
+
+def test_lag_hr_long_pause_never_bridged():
+    # Positionally, t = 49 would pair with the 30th kept sample later (t = 179) – by time it has none.
+    t = np.concatenate([np.arange(50), np.arange(150, 250)])
+    out = pd.Series(lag_hr(t, 100.0 + t), index=t)
+    assert out.loc[0:19].notna().all()
+    assert out.loc[20:49].isna().all()
+    assert out.loc[150] == 280.0
+
+
+def test_lag_hr_invalid_partner_hr_stays_nan():
+    t = np.arange(40)
+    hr = np.full(40, 150.0)
+    hr[35] = np.nan
+    out = lag_hr(t, hr)
+    assert np.isnan(out[5]) and out[4] == 150.0
+    assert has_lag_partner(t)[5]  # the partner exists; only its HR is missing
+
+
+def test_lag_hr_input_checks():
+    with pytest.raises(ValueError):
+        lag_hr(np.arange(3), np.arange(4, dtype=float))
+    with pytest.raises(ValueError):
+        lag_hr(np.array([0, 2, 1]), np.arange(3, dtype=float))  # t must be strictly increasing
+    with pytest.raises(ValueError):
+        has_lag_partner(np.array([0, 1, 1]))
+    assert lag_hr(np.array([], dtype=np.int64), np.array([])).size == 0

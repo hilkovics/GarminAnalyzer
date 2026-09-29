@@ -14,13 +14,15 @@ aggregates per bin. `pace_at_ref_hr` = value in the bin containing `ref_hr = 0.8
 - `pace_at_ref_hr_day` (§9) = median gap_speed of that activity's own 60 s aggregates with mean HR in
   `[ref_hr − 5, ref_hr + 5]`; needs ≥ 20 such aggregates, else null.)
 
-# METRICS §0.6
-`hr_lagged[i] = hr[i + 30]` over the kept samples in time order; the last 30 samples have no partner.
+# METRICS §0.6 (revised)
+Pair by time: `hr_lagged(t) = hr(t + 30)` if the kept sample at t + 30 exists, else NaN; a pause inside
+(t, t + 30] gives no partner (see `preprocess.has_lag_partner` / `lag_hr`).
 
 Interpretation: the parenthesis "(after the first 600 s, lagged pairs, not slow)" is read as the sample set
-that is cut into blocks – kept samples from position 600 on, lagged, with slow samples removed, and without
-the last 30 kept samples (no lagged partner). That set is cut into consecutive 60-sample blocks from its
-first sample (last partial block dropped); a block with any NaN gap_speed / lagged HR is dropped.
+that is cut into blocks – kept samples from position 600 on that have a lagged partner (so the 30 samples
+before a pause and the last 30 kept samples are removed, not NaN), with slow samples removed. That set is
+cut into consecutive 60-sample blocks from its first sample (last partial block dropped); a block with any
+NaN gap_speed / lagged HR (e.g. a partner whose HR is invalid) is dropped.
 Pooling over the 28-day window (concatenating the runs' aggregates) is the caller's job.
 
 Pure functions, no I/O.
@@ -32,7 +34,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
-from training.metrics.preprocess import HR_LAG_S, Preprocessed, lag_hr
+from training.metrics.preprocess import HR_LAG_S, Preprocessed, has_lag_partner, lag_hr
 
 AGGREGATE_S = 60  # §6.1 block length (samples)
 BIN_BPM = 5  # §6.1 bin width
@@ -66,9 +68,10 @@ def aggregates_60s(prep: Preprocessed) -> pd.DataFrame:
     if n <= WARMUP_S:
         return empty
     gap = s["gap_speed"].to_numpy(dtype=float)
-    hr_lag = lag_hr(s["hr"].to_numpy(dtype=float), HR_LAG_S)
+    t = s["t"].to_numpy(dtype=np.int64)
+    hr_lag = lag_hr(t, s["hr"].to_numpy(dtype=float), HR_LAG_S)
     pos = np.arange(n)
-    in_set = (pos >= WARMUP_S) & (pos < n - HR_LAG_S) & ~s["is_slow"].to_numpy(dtype=bool)
+    in_set = (pos >= WARMUP_S) & has_lag_partner(t, HR_LAG_S) & ~s["is_slow"].to_numpy(dtype=bool)
     gap, hr_lag = gap[in_set], hr_lag[in_set]
     n_blocks = len(gap) // AGGREGATE_S
     if n_blocks == 0:

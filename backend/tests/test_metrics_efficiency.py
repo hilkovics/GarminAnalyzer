@@ -1,10 +1,8 @@
 """Steady state, EF, aerobic decoupling – METRICS §5.1–§5.4 (with the §0.6 HR lag)."""
 
-from datetime import date, timedelta
 from functools import partial
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from tests.synthetic import (
@@ -22,7 +20,6 @@ from training.metrics.efficiency import (
     EfficiencyResult,
     decoupling_band,
     ef_samples,
-    ef_trend,
     efficiency,
     is_steady_state,
 )
@@ -163,13 +160,27 @@ def test_ef_sample_set_bounds():
     assert samples["t"].tolist() == list(range(600, 2400))
 
 
-def test_lag_is_positional_over_kept_samples():
-    # Pause at [1500, 1600): kept sample t = 1499 pairs with the 30th kept sample later, t = 1629.
+def test_lag_is_by_time_and_never_bridges_a_pause():
+    # Pause at [1500, 1600). By time, t = 1470..1499 have no partner (the pause lies in (t, t + 30]);
+    # positionally t = 1499 used to pair with t = 1629 (160 bpm), which now pairs with nothing.
     df = constant(2530, hr=150.0)
     df.loc[df["t"] == 1629, "hr"] = 160.0
     samples = ef_samples(run(with_pause(df, 1500, 100)), sport="run").set_index("t")
-    assert samples.loc[1499, "hr"] == 160.0
-    assert samples.loc[1498, "hr"] == 150.0
+    assert samples.index.intersection(range(1470, 1500)).empty
+    assert samples.loc[1469, "hr"] == 150.0 and samples.loc[1600, "hr"] == 150.0
+    assert (samples["hr"] == 150.0).all()
+
+
+def test_ef_10s_pause_recovered_hr_not_paired():
+    # 10 s pause at [1500, 1510), HR 180 for 30 s after it. The kept samples t = 1480..1499 have a kept
+    # sample at t + 30 (1510..1529, 180 bpm) but the pause lies in between → no partner. EF set: 1830
+    # after the warm-up − 30 before the pause − the last 30 = 1770, all at 3.0 m/s / 150 bpm.
+    df = with_segment(constant(2440, hr=150.0, speed=3.0), 1510, 30, hr=180.0)
+    res = efficiency(run(with_pause(df, 1500, 10)), sport="run", lthr=200.0)
+    assert res.steady_state is True
+    assert res.n_samples == 1770
+    assert res.ef == pytest.approx(1.2, rel=1e-12)
+    assert res.decoupling_pct == pytest.approx(0.0, abs=1e-9)
 
 
 def test_ef_samples_drop_slow_and_invalid_pairs():
@@ -354,47 +365,3 @@ def test_bike_excludes_30s_around_pause():
 def test_bike_not_steady_gives_no_ef():
     res = efficiency(bike(constant(2430, hr=140.0, speed=8.0)), sport="bike", lthr=None)
     assert res.steady_state is False and res.ef is None and res.n_samples == 1800
-
-
-# ---------------------------------------------------------------- §5.2 trend
-
-
-def _points(rows: list[tuple[date, float | None, bool]]) -> pd.DataFrame:
-    return pd.DataFrame(rows, columns=["local_date", "ef", "steady_state"])
-
-
-def test_ef_trend_window_edges():
-    d = date(2026, 9, 29)
-    points = _points(
-        [
-            (d - timedelta(days=28), 9.0, True),  # out
-            (d - timedelta(days=27), 1.0, True),  # in
-            (d, 2.0, True),  # in
-            (d + timedelta(days=1), 9.0, True),  # future → out
-        ]
-    )
-    out = ef_trend(points, [d])
-    assert out.index.tolist() == [d]
-    assert out[d] == pytest.approx(1.5)
-
-
-def test_ef_trend_ignores_non_steady_and_null_and_gives_nan():
-    d = date(2026, 9, 29)
-    points = _points([(d, 5.0, False), (d, None, True), (d - timedelta(days=1), 1.3, True)])
-    out = ef_trend(points, [d - timedelta(days=2), d - timedelta(days=1), d])
-    assert np.isnan(out.iloc[0])
-    assert out.iloc[1] == pytest.approx(1.3)
-    assert out.iloc[2] == pytest.approx(1.3)
-
-
-def test_ef_trend_median_odd_and_timestamps():
-    d = date(2026, 3, 1)
-    points = _points([(d, 1.0, True), (d, 3.0, True), (d - timedelta(days=5), 1.1, True)])
-    points["local_date"] = pd.to_datetime(points["local_date"])  # datetime64 input works too
-    assert ef_trend(points, [d])[d] == pytest.approx(1.1)
-
-
-def test_ef_trend_empty():
-    out = ef_trend(_points([]), [date(2026, 1, 1)])
-    assert len(out) == 1 and np.isnan(out.iloc[0])
-    assert ef_trend(_points([]), []).empty
