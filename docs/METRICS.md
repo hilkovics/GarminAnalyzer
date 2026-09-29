@@ -37,7 +37,7 @@ Garmin training load / training effect / VO2max estimates. **No power data.**
    `Δdist = dist[i+5] − dist[i−5]` (cumulative distance). NaN if either value is missing or `Δdist < 5 m`.
 6. HR lag: for any pairing of HR with pace/speed at sample level (§5, §6), shift HR **back** by 30 s.
    *Clarified 2026-09-29 (phase 4, proposed; revised after review):* pair **by time**, not by index:
-   `hr_lagged(t) = hr(t + 30)` if the kept sample at `t + 30` exists, else NaN – speed at second t is paired
+   `hr_lagged(t) = hr(t + 30)` if every second of (t, t + 30] is a kept sample (no pause in between), else NaN – speed at second t is paired
    with the HR measured 30 s later (HR responds late). A pause inside (t, t + 30] therefore gives no partner,
    so speed before a stop is never paired with the recovered HR after it.
 
