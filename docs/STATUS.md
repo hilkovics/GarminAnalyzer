@@ -1,8 +1,41 @@
 # STATUS
 
-Last updated: 2026-09-29 (phase 6 session)
+Last updated: 2026-09-29 (phase 7 session)
 
 ## Done
+
+### Phase 7 – push to Garmin, morning message, AI report (code complete; needs a real-account check)
+- **Garmin push** (METRICS §10.8, clarifications proposed):
+  - `coach/garmin_push.py` converts a §10.5 workout into the JSON the garminconnect 0.3 builders emit (HR
+    zones as `zoneNumber`, repeats, unique `stepOrder`).
+  - `training/push.py`:
+    - First push: upload once, save the id immediately, schedule once.
+    - Re-push: update in place; nothing is sent when the payload and date are unchanged (cron-safe).
+    - A date change moves the calendar entry.
+    - A regeneration keeps the Garmin id; a regeneration to rest deletes the workout.
+    - A workout deleted in Garmin is uploaded again.
+    - Pending markers stop a lost response from creating a duplicate.
+  - Entry points: `POST /api/plan/{id}/push`, `POST /api/plan/today/push`, `training push-today
+    [--dry-run]`, and the Plán page buttons ("Poslať / Aktualizovať v Garmin", "Odstrániť z Garmin").
+- **Telegram morning message** (optional, `TRAINING_TELEGRAM_TOKEN` / `TRAINING_TELEGRAM_CHAT_ID`):
+  - Code: `services/notify.py`, `training telegram-morning [--dry-run]`, `scripts/telegram_morning.py`.
+  - It never fails and never logs the token. The CLI log filter (`training/log_redaction.py`) also redacts
+    the token from urllib3 DEBUG lines (review blocker).
+- **Weekly AI report** (optional, `TRAINING_ANTHROPIC_API_KEY`, `uv sync --extra ai`):
+  - `coach/llm.py` builds the prompt from DTOs only and calls `claude-opus-5-5` with server-side fallbacks.
+    Refusals and cut-off answers are errors; the model that actually answered is recorded.
+  - `services/report.py` writes `docs/reports/YYYY-Www.md`, named after the week that just ended. The files
+    are gitignored because they hold health data.
+  - Entry points: `training weekly-report [--dry-run]`, `/api/reports/latest`, `/api/reports/weekly`, and a
+    Dashboard expander. The LLM only explains the plan and never changes it.
+- **Demo** (dry runs on the demo DB): `push-today --dry-run` prints the cycling "Sweet spot 2×20 min"
+  payload; `telegram-morning --dry-run` gives the 6-line message; `weekly-report --dry-run` prints the
+  prompt. All pages load in the browser without exceptions.
+- **Spec review:** 2 blockers fixed and tested – the token in urllib3 DEBUG logs, and a regeneration to rest
+  that could not be removed from Garmin. Also fixed: duplicate risks (upload/schedule markers, schedule sent
+  once), 404 recovery, unchanged re-push, the missing `ai` extra, the served model, `max_tokens`, the week
+  label, the 502 declaration, and rollback.
+- **Tests:** 1778 passed, 5 skipped. ruff clean.
 
 ### Phase 6 – coach: season, rules, plan (code complete; METRICS §10 clarifications await approval)
 - `coach/` (pure, deterministic, no LLM; test-first by three metrics-implementers):
@@ -368,9 +401,25 @@ Last updated: 2026-09-29 (phase 6 session)
 9. **You, locally – phase 6 check:** set your goal on the Plán page (or `PUT /api/plan/goal`), your
    run:bike split (`training athlete`) and your preferred days, then run `uv run training sync` and check
    today's plan and its reason. Set your Garmin HR zones to METRICS §1 before phase 7 pushes workouts.
-10. **Phase 7** – push workouts to Garmin, morning report, AI report.
+10. **You, locally – phase 7 acceptance:**
+    1. Run `uv run training push-today --dry-run`, then `uv run training push-today`.
+    2. Check that the workout appears in the Garmin Connect calendar and reaches the watch.
+    3. Run `push-today` again: it must say `unchanged`, with no duplicate in Garmin.
+    4. Optional: set `TRAINING_TELEGRAM_TOKEN` / `TRAINING_TELEGRAM_CHAT_ID` and run
+       `uv run training telegram-morning`.
+    5. Optional: set `TRAINING_ANTHROPIC_API_KEY` and run `uv sync --extra ai` and
+       `uv run training weekly-report`.
+11. **Approve** the METRICS §10.8 "(phase 7, proposed)" clarification.
+12. **Phase 8** – automation: `training morning` (sync → plan → push → telegram), cron/Docker, logs.
 
 ## Known issues / open questions
+- Phase 7 (unverified Garmin keys – check on the first real push):
+  - The schedule response's id key (`workoutScheduleId` is assumed).
+  - The calendar item keys `itemType` / `date` / `workoutId` / `id`, used to recover a lost schedule
+    response and to move a date without a stored schedule id.
+  - If they differ, a date change could leave the old calendar entry. A warning is logged when no schedule
+    id is found.
+  - Log redaction is installed by the CLI; the API/Streamlit processes don't send Telegram messages.
 - Phase 6:
   - The §10.7 ranges cap a default run week at about 420 points; a larger weekly target (Build with
     CTL > ≈ 39) is not reachable, and every workout then sits at its maximum. Options are wider ranges

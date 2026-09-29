@@ -192,6 +192,14 @@ def _today_buttons(decision: DailyDecisionDTO) -> None:
     today = _db.today()
     closed = workout.status in ("done", "skipped")
     cols = st.columns(3)
+    in_garmin = workout.garmin_workout_id is not None
+    if workout.sport == "rest" and in_garmin and not closed:  # a regeneration to rest (METRICS §10.8)
+        st.caption("Pôvodný tréning je ešte v Garmin Connect kalendári.")
+        if cols[0].button("Odstrániť z Garmin", key="plan_push"):
+            _call(
+                lambda s: plan_push.push_planned(s, workout.id, settings=get_settings()),
+                "Odstránené z Garmin.",
+            )
     if workout.sport != "rest":
         if closed:
             if cols[0].button("Späť na plánované", key="plan_undo"):
@@ -201,7 +209,9 @@ def _today_buttons(decision: DailyDecisionDTO) -> None:
                 _call(lambda s: plan_service.set_status(s, workout.id, "done", today=today), "Hotovo.")
             if cols[1].button("Vynechať", key="plan_skip"):
                 _call(lambda s: plan_service.set_status(s, workout.id, "skipped", today=today), "Vynechané.")
-            label = "Aktualizovať v Garmin" if workout.status == "pushed" else "Poslať do Garmin"
+            label = "Aktualizovať v Garmin" if in_garmin else "Poslať do Garmin"
+            if in_garmin and workout.status == "planned":
+                st.caption("Plán sa zmenil – v Garmin je ešte predchádzajúca verzia, aktualizuj ju.")
             if cols[2].button(label, key="plan_push"):
                 _call(
                     lambda s: plan_push.push_planned(s, workout.id, settings=get_settings()),

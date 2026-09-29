@@ -299,7 +299,19 @@ class GarminClient:
         return self.call("delete_workout", workout_id)
 
     def schedule_workout(self, workout_id: int, day: dt.date) -> Any:
-        return self.call("schedule_workout", workout_id, day.isoformat())
+        """POST a calendar entry; one attempt only – a retried POST could schedule it twice."""
+        return self.call("schedule_workout", workout_id, day.isoformat(), _attempts=1)
+
+    def workouts(self, limit: int = 100) -> list[dict[str, Any]]:
+        """The newest workouts of the account (to recover an upload whose response was lost)."""
+        result = self.call("get_workouts", 0, limit)
+        return result if isinstance(result, list) else []
+
+    def calendar(self, year: int, month: int) -> list[dict[str, Any]]:
+        """`calendarItems` of a month (1–12), to find a workout's scheduled entry."""
+        result = self.call("get_scheduled_workouts", year, month)
+        items = result.get("calendarItems") if isinstance(result, dict) else None
+        return items if isinstance(items, list) else []
 
     def unschedule_workout(self, schedule_id: int) -> Any:
         return self.call("unschedule_workout", schedule_id)

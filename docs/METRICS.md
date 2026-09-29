@@ -493,5 +493,10 @@ rather than duplicates. Zone numbers refer to the user's Garmin Connect HR zones
 - Re-push: a planned workout that already has a `garmin_workout_id` is updated in place (PUT keeps the id and
   its calendar entry); it is scheduled again only when its date changed (the old schedule is removed first).
   A regenerated plan inherits the Garmin ids of the row it replaces, so it updates rather than duplicates; a
-  regeneration to rest deletes the Garmin workout. Uploads are never retried automatically (a retried POST
-  could create a duplicate); updates and schedules use the normal backoff.
+  regeneration to rest deletes the Garmin workout (the Plán page offers "Odstrániť z Garmin" for it).
+- Duplicates: the two POSTs (upload, schedule) are sent once, never retried automatically. Before each, a
+  pending marker is stored; if a response is lost, the next push looks the workout up by its unique name
+  (it carries the date) or the calendar entry by workout id + date instead of posting again.
+- A re-push with an unchanged payload and date sends nothing (safe for the daily cron). A workout deleted
+  in Garmin Connect (404 on update) is uploaded again; a 404 on delete counts as deleted. Skipping a pushed
+  workout leaves it in the Garmin calendar (delete it there if wanted).

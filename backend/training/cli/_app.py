@@ -5,6 +5,8 @@ import logging
 import typer
 from rich.console import Console
 
+from training import log_redaction
+
 app = typer.Typer(
     help="Personal training analytics (Garmin Connect → metrics → coach).",
     no_args_is_help=True,
@@ -20,6 +22,8 @@ def main(verbose: bool = typer.Option(False, "--verbose", "-v", help="Debug logg
         level=logging.DEBUG if verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    # garminconnect/urllib3 debug output can include request details; keep it quiet unless asked.
+    # garminconnect/urllib3 debug output can include request details; keep it quiet unless asked, and
+    # redact credentials (e.g. the Telegram token in a request URL) from every line either way.
     for name in ("garminconnect", "urllib3", "curl_cffi", "alembic"):
         logging.getLogger(name).setLevel(logging.DEBUG if verbose else logging.WARNING)
+    log_redaction.install()

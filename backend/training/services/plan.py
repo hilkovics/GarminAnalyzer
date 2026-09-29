@@ -141,6 +141,7 @@ def _planned_dto(session: Session, row: PlannedWorkout, today: dt.date) -> Plann
         status=row.status,
         missed=row.status in PENDING and row.date < today,
         provisional=planning.is_provisional(row),
+        garmin_workout_id=row.garmin_workout_id,
         estimated_load=row.estimated_load,
         duration_s=total_duration_s(workout),
         reason=row.reason,

@@ -12,6 +12,7 @@ import requests
 from sqlmodel import Session
 
 from training import planning, push
+from training.coach.garmin_push import PushError
 from training.config import Settings
 from training.garmin.client import (
     GarminClient,
@@ -40,12 +41,21 @@ def _dto(result: push.PushResult) -> PushResultDTO:
     )
 
 
-def _run(fn, settings: Settings, dry_run: bool):
-    """Build the Garmin client (unless dry run) and map every failure to a service error."""
+def _run(fn, session: Session, settings: Settings, dry_run: bool):
+    """Build the Garmin client (unless dry run) and run `fn`; roll back on any failure."""
     try:
         client = None if dry_run else GarminClient.from_settings(settings)
         return fn(client)
-    except planning.PlanError as exc:
+    except Exception:
+        session.rollback()  # a failed write must not poison the session for the caller
+        raise
+
+
+def _mapped(fn, session: Session, settings: Settings, dry_run: bool):
+    """`_run` with every failure mapped to a service error (fixed messages, no Garmin exception text)."""
+    try:
+        return _run(fn, session, settings, dry_run)
+    except (planning.PlanError, PushError) as exc:
         raise InvalidInputError(str(exc)) from exc
     except LookupError as exc:
         raise NotFoundError(str(exc)) from exc
@@ -69,18 +79,16 @@ def _run(fn, settings: Settings, dry_run: bool):
 def push_planned(
     session: Session, planned_id: int, *, settings: Settings, dry_run: bool = False
 ) -> PushResultDTO:
-    return _run(
-        lambda client: _dto(push.push_planned(session, client, planned_id, dry_run=dry_run)),
-        settings,
-        dry_run,
-    )
+    def run(client):
+        return _dto(push.push_planned(session, client, planned_id, dry_run=dry_run))
+
+    return _mapped(run, session, settings, dry_run)
 
 
 def push_day(
     session: Session, day: dt.date, *, settings: Settings, dry_run: bool = False
 ) -> list[PushResultDTO]:
-    return _run(
-        lambda client: [_dto(r) for r in push.push_day(session, client, day, dry_run=dry_run)],
-        settings,
-        dry_run,
-    )
+    def run(client):
+        return [_dto(r) for r in push.push_day(session, client, day, dry_run=dry_run)]
+
+    return _mapped(run, session, settings, dry_run)

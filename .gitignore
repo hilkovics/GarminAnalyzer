@@ -34,3 +34,6 @@ frontend/dist/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# weekly AI reports hold personal health data – stored locally, not committed
+docs/reports/*.md

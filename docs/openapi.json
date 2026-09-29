@@ -571,6 +571,16 @@
                 }
               }
             }
+          },
+          "502": {
+            "description": "Garmin Connect failed or rejected the login.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
           }
         }
       }
@@ -891,6 +901,16 @@
           },
           "422": {
             "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Garmin Connect failed or rejected the login.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3262,6 +3282,18 @@
             "title": "Provisional",
             "description": "decided before the day's sync; the sync's nightly step decides it again",
             "default": false
+          },
+          "garmin_workout_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Garmin Workout Id",
+            "description": "set once pushed (§10.8); kept by a regeneration so a re-push updates it"
           },
           "estimated_load": {
             "anyOf": [

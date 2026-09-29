@@ -352,6 +352,7 @@ A planned workout (METRICS §10.5); `sport = "rest"` is a rest day with no steps
 | `status` | string | "planned" \| "pushed" \| "done" \| "skipped" |
 | `missed` | boolean | planned/pushed and its date is before today |
 | `provisional` (optional) | boolean | decided before the day's sync; the sync's nightly step decides it again |
+| `garmin_workout_id` (optional) | integer \| null | set once pushed (§10.8); kept by a regeneration so a re-push updates it |
 | `estimated_load` | number \| null | §10.6, TSS-equivalent points |
 | `duration_s` | integer | total planned seconds, repeats multiplied |
 | `reason` | string \| null | one-line Slovak reason of the decision |

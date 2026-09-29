@@ -85,6 +85,9 @@ class PlannedWorkoutDTO(BaseModel):
     provisional: bool = Field(
         default=False, description="decided before the day's sync; the sync's nightly step decides it again"
     )
+    garmin_workout_id: int | None = Field(
+        default=None, description="set once pushed (§10.8); kept by a regeneration so a re-push updates it"
+    )
     estimated_load: float | None = Field(description="§10.6, TSS-equivalent points")
     duration_s: int = Field(description="total planned seconds, repeats multiplied")
     reason: str | None = Field(description="one-line Slovak reason of the decision")

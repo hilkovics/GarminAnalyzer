@@ -369,3 +369,22 @@ def test_push_button_calls_the_push_service(seeded, monkeypatch):
     at = run_page("plan")
     button(at, "Poslať do Garmin").click().run()
     assert not at.exception and not at.error and len(calls) == 1
+
+
+def test_a_pushed_plan_regenerated_to_rest_offers_the_garmin_delete(seeded, monkeypatch):
+    """Review phase 7 B2: a regeneration to rest must be removable from Garmin from the page."""
+    from training.coach.workout import rest_workout, to_structure
+    from training.services import plan_push
+
+    run_page("plan")  # decides today
+    with Session(seeded) as session:
+        row = session.execute(select(PlannedWorkout)).scalars().first()
+        row.sport, row.name, row.structure = "rest", "Voľno", to_structure(rest_workout())
+        row.garmin_workout_id = 1234
+        session.add(row)
+        session.commit()
+    calls = []
+    monkeypatch.setattr(plan_push, "push_planned", lambda s, pid, settings: calls.append(pid))
+    at = run_page("plan")
+    button(at, "Odstrániť z Garmin").click().run()
+    assert not at.exception and not at.error and len(calls) == 1

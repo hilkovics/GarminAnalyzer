@@ -77,7 +77,10 @@ def _render(report: ReportDTO) -> str:
 
 def _parse(path: Path) -> ReportDTO | None:
     """The report stored in `path`; None when the header is missing or malformed."""
-    lines = path.read_text(encoding="utf-8").splitlines()
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except (OSError, UnicodeDecodeError):  # a broken file must not break the Dashboard
+        return None
     if not lines or lines[0] != FENCE or FENCE not in lines[1:]:
         return None
     end = lines.index(FENCE, 1)
@@ -98,13 +101,14 @@ def create_weekly_report(
     *,
     client_factory: Callable[[str], Any] | None = None,
 ) -> ReportDTO:
-    """Generate the report of `today`'s ISO week and store it (an existing file of the week is replaced)."""
+    """Generate the report and store it as `<week>.md` (`llm.week_label`: the week that just ended when run
+    on Sunday evening or Monday morning); an existing file of that week is replaced."""
     key = settings.anthropic_api_key.get_secret_value() if settings.anthropic_api_key else ""
     if not key:
         raise InvalidInputError("the weekly report needs TRAINING_ANTHROPIC_API_KEY")
     inputs = weekly_inputs(session, today)
     try:
-        body = llm.generate_weekly_report(
+        generated = llm.generate_weekly_report(
             inputs, api_key=key, model=settings.ai_model, client_factory=client_factory
         )
     except llm.ReportError as exc:
@@ -112,8 +116,8 @@ def create_weekly_report(
     report = ReportDTO(
         week=llm.week_label(today),
         generated_at=dt.datetime.now(dt.UTC),
-        model=settings.ai_model,
-        markdown=body,
+        model=generated.model,
+        markdown=generated.text,
     )
     settings.reports_dir.mkdir(parents=True, exist_ok=True)
     (settings.reports_dir / f"{report.week}.md").write_text(_render(report), encoding="utf-8")

@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Response
 
 from training.api.deps import ConfigDep, SessionDep, TodayDep
-from training.api.errors import INVALID, NOT_FOUND
+from training.api.errors import INVALID, NOT_FOUND, UPSTREAM
 from training.services import plan as service, plan_push
 from training.services.dto import (
     DailyDecisionDTO,
@@ -45,7 +45,7 @@ def regenerate_today(session: SessionDep, today: TodayDep, sport: str | None = N
 @router.post(
     "/today/push",
     response_model=list[PushResultDTO],
-    responses=INVALID,
+    responses={**INVALID, **UPSTREAM},
     summary="Push today's planned workout(s) to Garmin Connect; a re-push updates, never duplicates",
 )
 def push_today(
@@ -123,7 +123,7 @@ def post_plan_status(
 @router.post(
     "/{planned_id}/push",
     response_model=PushResultDTO,
-    responses={**NOT_FOUND, **INVALID},
+    responses={**NOT_FOUND, **INVALID, **UPSTREAM},
     summary="Push a planned workout to Garmin Connect and schedule it; dry_run returns the payload only",
 )
 def push_plan(

@@ -91,3 +91,27 @@
   commit (git worktree in scratchpad) to see if they really fail without the fix.
 - Stale wording again after the fix: planning module docstring ("plan today if nothing is planned yet"),
   services/plan.get_today and the /plan/today summary ("the same plan afterwards").
+
+## Phase 7 notes (2026-09-29, Garmin push / Telegram / AI report)
+- New pattern: secrets in URLs (Telegram `/bot<token>/`) leak through third-party DEBUG loggers, not our own
+  log calls. cli/_app.py sets urllib3 to DEBUG under `-v`, and urllib3.connectionpool logs the request path.
+  Scratch-reproduced with a local HTTP server. The "token never in logs" unit test only checks our logger at
+  default level. Check every secret-in-URL call against the `-v` logger levels.
+- New pattern: spec actions that only happen on the next explicit call (regeneration to rest -> delete only
+  when the rest row is pushed) but the UI hides that call (no push button on rest cards) and cron only
+  pushes today. Trace every "X causes Y in Garmin" rule to a caller that actually runs it.
+- Non-idempotent POSTs other than the obvious one: schedule_workout is also a POST (retried by backoff, and
+  re-sent after a crash before the save), so duplicate *calendar entries* are possible even when the workout
+  itself is not duplicated. Also: a response parsed after a successful POST (created["workoutId"]) and a
+  commit after it form a crash window. Suggest pending markers plus a lookup by name/schedule before re-POSTing.
+- 404 on update/delete of a remote object the user removed by hand -> stuck row, cron fails every day. Check
+  that every remote-id flow can recover from "gone".
+- Cron re-push: push_day PUTs every already-pushed row on every run (no payload hash). Harmless but not a
+  no-op. Ask for a hash skip.
+- New routes that can raise ServiceError(502) often omit UPSTREAM from `responses=` (plan push routes).
+- Optional extras (anthropic `ai`): the lazy import sits outside try/except, so a missing extra gives a raw
+  ImportError / 500. Check every optional import.
+- Report/week naming depends on the run weekday (ISO week of `today` + "next week" = today + 7). Check
+  period labels of anything cron-generated.
+- STATUS.md not updated for the third phase in a row. Generated personal reports in docs/reports are not
+  gitignored.

@@ -103,7 +103,7 @@ def test_call_shape_and_text_join(module_inputs):
     client = FakeClient(response(block("Ahoj "), block("x", "thinking"), block("svet")))
     text = llm.generate_weekly_report(
         module_inputs, api_key=KEY, model="claude-opus-5-5", client_factory=factory(client)
-    )
+    ).text
     assert text == "Ahoj svet"
     kw = client.kwargs
     assert kw["model"] == "claude-opus-5-5" and kw["max_tokens"] == 4000
@@ -236,3 +236,55 @@ def test_api_weekly_upstream_failure_is_502(engine, tmp_path, monkeypatch):
     monkeypatch.setattr(anthropic, "Anthropic", lambda api_key: FakeClient(error=err))
     reply = make_client(engine, settings=settings(tmp_path)).post("/api/reports/weekly")
     assert reply.status_code == 502 and KEY not in reply.text
+
+
+# --- review phase 7 follow-ups ---------------------------------------------------------------------------
+
+
+def test_the_answering_model_is_recorded(module_inputs):
+    answer = response(block("Text."))
+    answer.model = "claude-opus-4-8"  # a server-side fallback answered
+    generated = llm.generate_weekly_report(
+        module_inputs, api_key=KEY, model="claude-opus-5-5", client_factory=factory(FakeClient(answer))
+    )
+    assert generated.model == "claude-opus-4-8" and generated.text == "Text."
+
+
+def test_a_cut_off_report_is_an_error(module_inputs):
+    client = FakeClient(response(block("Uplynulý týž"), stop_reason="max_tokens"))
+    with pytest.raises(llm.ReportError, match="cut off"):
+        llm.generate_weekly_report(module_inputs, api_key=KEY, model="m", client_factory=factory(client))
+
+
+def test_missing_optional_extra_is_a_report_error(module_inputs, monkeypatch):
+    import builtins
+
+    real_import = builtins.__import__
+
+    def no_anthropic(name, *args, **kwargs):
+        if name == "anthropic":
+            raise ImportError("no module")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", no_anthropic)
+    with pytest.raises(llm.ReportError, match="uv sync --extra ai"):
+        llm.generate_weekly_report(module_inputs, api_key=KEY, model="m")
+
+
+@pytest.mark.parametrize(
+    ("day", "label"),
+    [
+        (dt.date(2026, 9, 27), "2026-W39"),  # Sunday evening → the week that ends today
+        (dt.date(2026, 9, 28), "2026-W39"),  # Monday morning → the week that just ended
+        (dt.date(2026, 9, 30), "2026-W40"),
+    ],
+)
+def test_week_label_names_the_week_that_just_ended(day, label):
+    assert llm.week_label(day) == label
+
+
+def test_a_broken_report_file_is_skipped(tmp_path):
+    from training.config import Settings
+
+    (tmp_path / "2026-W40.md").write_bytes(b"\xff\xfe broken")
+    assert svc.latest_report(Settings(db_path=tmp_path / "x.db", reports_dir=tmp_path)) is None

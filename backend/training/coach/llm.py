@@ -7,6 +7,7 @@ it. Errors are reported as `ReportError` with a short message that never contain
 
 import datetime as dt
 from collections.abc import Callable
+from dataclasses import dataclass
 from typing import Any
 
 from training.services.dto import (
@@ -128,15 +129,25 @@ def build_weekly_prompt(inputs: WeeklyReportInputsDTO) -> tuple[str, str]:
 # --- API call ---------------------------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class GeneratedReport:
+    text: str
+    model: str  # the model that answered (`response.model`)
+
+
 def generate_weekly_report(
     inputs: WeeklyReportInputsDTO,
     *,
     api_key: str,
     model: str,
     client_factory: Callable[[str], Any] | None = None,
-) -> str:
-    """Ask the model for the report and return its Markdown. Raises `ReportError` (never with the key)."""
-    import anthropic
+) -> GeneratedReport:
+    """Ask the model for the report; its Markdown and the model that wrote it (a server-side fallback may
+    answer instead of `model`). Raises `ReportError` (never with the key)."""
+    try:
+        import anthropic
+    except ImportError:  # the optional extra is missing (review phase 7)
+        raise ReportError("the AI report needs the optional extra: uv sync --extra ai") from None
 
     system, user = build_weekly_prompt(inputs)
     try:
@@ -160,13 +171,16 @@ def generate_weekly_report(
         raise ReportError("cannot reach the Anthropic API (connection error)") from None
     if response.stop_reason == "refusal":
         raise ReportError("the model refused to write the report")
+    if response.stop_reason == "max_tokens":
+        raise ReportError("the report was cut off (max_tokens) – not stored")
     text = "".join(block.text for block in response.content if block.type == "text").strip()
     if not text:
         raise ReportError("the model returned no text")
-    return text
+    return GeneratedReport(text=text, model=str(getattr(response, "model", None) or model))
 
 
 def week_label(day: dt.date) -> str:
-    """ISO week label "YYYY-Www" (also the report file name)."""
-    year, week, _ = day.isocalendar()
+    """ISO week label "YYYY-Www" of the week the report looks back on: the week of `day − 1`, so a run on
+    Sunday evening or Monday morning (the intended schedule) both name the week that just ended."""
+    year, week, _ = (day - dt.timedelta(days=1)).isocalendar()
     return f"{year}-W{week:02d}"
