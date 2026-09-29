@@ -57,6 +57,11 @@ Last updated: 2026-09-29 (end of phase 0 session)
   - `find_leaks` matched substrings of keys and words ("run" matched `running`), and its findings did not say
     where the hit was.
   - The `training` CLI did not explicitly hide traceback locals. A test now checks it.
+- Spec review, round 3 (2026-09-29), found 1 Blocker, fixed: rotating the `minLat`/`maxLon` bounding-box corners
+  let the real pole be solved for, recovering the latitude exactly. Real-frame extrema and north-relative values
+  (heading, bearing, course, direction) are now dropped. Duplicate or string coordinates, `*Long` and
+  `UPPER_SNAKE` keys are hardened as well.
+  When checking real fixtures, confirm that no other bearing- or extremum-like fields exist.
 
 ## Next
 
@@ -84,8 +89,9 @@ Last updated: 2026-09-29 (end of phase 0 session)
   - the detail descriptor keys (`directHeartRate`, `directSpeed`, `directElevation`, `directLatitude`, …);
   - the shape of `get_max_metrics_range`;
   - the unit of `speed` in `get_lactate_threshold`.
-- The GPS rotation keeps a route's shape (mirrored/rotated on the globe) and its absolute altitude, and the timezone
-  name in the summaries is left as is. Matching the altitude profile against a global elevation model is
+- The GPS rotation keeps a route's shape (rotated on the globe, never mirrored) and its absolute altitude, and the
+  timezone name in the summaries is left as is. Distances are exact on a sphere, but Garmin measures on the WGS84
+  ellipsoid, so a latitude-dependent distance error of about 0.1–0.4 % remains (below the watch's own noise). Matching the altitude profile against a global elevation model is
   theoretically possible but expensive. If it matters, trim the first/last ~300 m of each activity before committing.
 - Leak guard false positives: two fractional physiological values in one object that happen to lie within 0.05°
   of your real start latitude *and* longitude (e.g. stress percentages 48.13 / 17.12) abort the run. The same

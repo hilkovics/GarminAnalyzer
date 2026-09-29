@@ -100,8 +100,7 @@ def test_record_writes_anonymized_files_and_manifest(tmp_path):
         pytest.approx(fake_lat),
         pytest.approx(fake_lon),
     ]
-    geo = details["geoPolylineDTO"]
-    assert geo["minLat"] < fake_lat < geo["maxLat"] and geo["minLon"] < fake_lon < geo["maxLon"]
+    assert set(details["geoPolylineDTO"].values()) == {None}  # real-frame bounding box dropped
     listing = json.loads((tmp_path / "activities_list.json").read_text())
     assert listing[0]["activityName"] == "anonymized"
     assert (listing[0]["startLatitude"], listing[0]["startLongitude"]) == (

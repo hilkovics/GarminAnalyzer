@@ -6,10 +6,13 @@ exactly, so distance, speed and grade fields stay consistent and reveal nothing.
 would not be safe: east–west distances scale with cos φ, so real distances give away the real latitude.
 Because a rotation mixes latitude and longitude, coordinates are transformed as (lat, lon) pairs:
 - sibling keys with the same stem in one object (`startLatitude`/`startLongitude`, `lat`/`lon`,
-  `minLat`/`minLon` + `maxLat`/`maxLon` bounding boxes, `start_lat`/`start_lon`),
+  `start_lat`/`start_lon`),
 - `activityDetailMetrics[].metrics[i]` columns paired via `metricDescriptors[].key` (e.g. `directLatitude` /
   `directLongitude`) – mapped by descriptor key, never by position.
-An unpaired coordinate value is dropped (set to null); encoded polyline strings are replaced.
+Dropped (set to null) instead of transformed, because they would leak the real frame: unpaired or duplicate
+coordinates, coordinates given as strings, real-frame extrema (`minLat`/`maxLon` bounding boxes – rotating
+the corners lets the real pole be solved for) and north-relative values (heading, bearing, course,
+direction). Encoded polyline strings are replaced.
 
 Identifiers: owner/user names, free-text descriptions, location and activity names (Garmin's default name
 contains the town) and device serials become placeholders; numeric ids (activity, parent/child activity,
@@ -27,8 +30,12 @@ from typing import Any
 Rotation = tuple[tuple[float, float, float], tuple[float, float, float], tuple[float, float, float]]
 
 _COORD_EXACT = {"lat": 0, "latitude": 0, "lon": 1, "lng": 1, "long": 1, "longitude": 1}
-_LAT_SUFFIX = re.compile(r"(?:(?<=[a-z0-9])(?:Lat|Latitude)|_(?:lat|latitude))$")
-_LON_SUFFIX = re.compile(r"(?:(?<=[a-z0-9])(?:Lon|Lng|Longitude)|_(?:lon|lng|longitude))$")
+_LAT_SUFFIX = re.compile(r"(?:(?<=[a-z0-9])(?:Lat|Latitude)|(?i:_(?:lat|latitude)))$")
+_LON_SUFFIX = re.compile(r"(?:(?<=[a-z0-9])(?:Lon|Long|Lng|Longitude)|(?i:_(?:lon|long|lng|longitude)))$")
+# Values measured against real north (a bearing reveals the rotated pole) – dropped, never transformed.
+_NORTH_RELATIVE = re.compile(r"heading|bearing|course|direction", re.IGNORECASE)
+# Extrema taken in the real frame (bounding boxes): rotating them leaks the real pole – dropped.
+_DERIVED_STEMS = frozenset({"min", "max"})
 _POLYLINE = re.compile(r"polyline", re.IGNORECASE)
 
 PII_STRING_KEYS = frozenset(
@@ -129,9 +136,11 @@ def random_rotation(
     max_abs_lat: float = 55.0,
     max_abs_lon: float = 150.0,
 ) -> Rotation:
-    """Uniformly random rotation that moves every real `point` ≥ `min_move_deg` (≈ 1100 km) away and lands
-    it at a moderate latitude, away from the antimeridian (so no track wraps around ±180°). If activities are
-    spread so widely that the placement bounds can't be met, only the minimum move is enforced."""
+    """Random rotation (uniform axis, angle 30–180°) moving every real `point` ≥ `min_move_deg` (≈ 1100 km).
+
+    Moved points land at a moderate latitude, away from the antimeridian (so no track wraps around ±180°).
+    If activities are spread so widely that these bounds can't be met, only the minimum move is enforced.
+    """
     rng = rng or random.SystemRandom()
     pts = list(points)
     for attempt in range(20_000):
@@ -176,25 +185,17 @@ def _is_number(value: Any) -> bool:
 # --- transformation --------------------------------------------------------------------------------------
 
 
-def _rotate_pairs(out: dict[str, Any], coord_keys: dict[str, dict[int, str]], rot: Rotation) -> None:
-    """Rotate paired coordinate fields of one object in place; drop unpaired ones."""
-    rotated: dict[str, tuple[float, float]] = {}
+def _rotate_pairs(out: dict[str, Any], coord_keys: dict[str, dict[int, list[str]]], rot: Rotation) -> None:
+    """Rotate paired coordinate fields of one object in place; null everything that can't be paired safely."""
     for stem, axes in coord_keys.items():
-        lat_key, lon_key = axes.get(0), axes.get(1)
-        lat = out.get(lat_key) if lat_key else None
-        lon = out.get(lon_key) if lon_key else None
-        if _is_number(lat) and _is_number(lon):
-            rotated[stem] = rotate_point(rot, lat, lon)
-            out[lat_key], out[lon_key] = rotated[stem]
+        lat_keys, lon_keys = axes.get(0, []), axes.get(1, [])
+        lat = out.get(lat_keys[0]) if len(lat_keys) == 1 else None
+        lon = out.get(lon_keys[0]) if len(lon_keys) == 1 else None
+        if stem not in _DERIVED_STEMS and _is_number(lat) and _is_number(lon):
+            out[lat_keys[0]], out[lon_keys[0]] = rotate_point(rot, lat, lon)
         else:
-            for key in axes.values():
-                if _is_number(out.get(key)):
-                    out[key] = None
-    if "min" in rotated and "max" in rotated:  # bounding box: recompute from both rotated corners
-        (a_lat, a_lon), (b_lat, b_lon) = rotated["min"], rotated["max"]
-        axes_min, axes_max = coord_keys["min"], coord_keys["max"]
-        out[axes_min[0]], out[axes_max[0]] = min(a_lat, b_lat), max(a_lat, b_lat)
-        out[axes_min[1]], out[axes_max[1]] = min(a_lon, b_lon), max(a_lon, b_lon)
+            for key in lat_keys + lon_keys:
+                out[key] = None
 
 
 def _rotate_detail_metrics(obj: dict[str, Any], rot: Rotation) -> None:
@@ -204,15 +205,21 @@ def _rotate_detail_metrics(obj: dict[str, Any], rot: Rotation) -> None:
     if not isinstance(descriptors, list) or not isinstance(rows, list):
         return
     columns: dict[str, dict[int, int]] = {}
+    drop: list[int] = []
     for d in descriptors:
         if isinstance(d, dict) and isinstance(d.get("key"), str) and isinstance(d.get("metricsIndex"), int):
             found = _coord_key(d["key"])
             if found:
                 columns.setdefault(found[1], {})[found[0]] = d["metricsIndex"]
+            elif _NORTH_RELATIVE.search(d["key"]):
+                drop.append(d["metricsIndex"])
     for row in rows:
         metrics = row.get("metrics") if isinstance(row, dict) else None
         if not isinstance(metrics, list):
             continue
+        for i in drop:
+            if i < len(metrics):
+                metrics[i] = None
         for axes in columns.values():
             i_lat, i_lon = axes.get(0), axes.get(1)
             lat = metrics[i_lat] if i_lat is not None and i_lat < len(metrics) else None
@@ -241,7 +248,7 @@ def _walk(obj: Any, rot: Rotation, ids: IdMap) -> Any:
     if not isinstance(obj, dict):
         return obj
     out: dict[str, Any] = {}
-    coord_keys: dict[str, dict[int, str]] = {}
+    coord_keys: dict[str, dict[int, list[str]]] = {}
     for key, value in obj.items():
         new_key = str(ids(int(key))) if isinstance(key, str) and _DIGIT_KEY.match(key) else key
         folded = key.casefold() if isinstance(key, str) else ""
@@ -254,9 +261,11 @@ def _walk(obj: Any, rot: Rotation, ids: IdMap) -> Any:
             out[new_key] = _map_id(value, ids)
         elif _POLYLINE.search(folded) and isinstance(value, str):
             out[new_key] = PLACEHOLDER
-        elif coord is not None and (_is_number(value) or value is None):
-            out[new_key] = value
-            coord_keys.setdefault(coord[1], {})[coord[0]] = new_key
+        elif coord is not None and not isinstance(value, dict | list):
+            out[new_key] = value if _is_number(value) else None  # strings under coordinate keys are dropped
+            coord_keys.setdefault(coord[1], {}).setdefault(coord[0], []).append(new_key)
+        elif _NORTH_RELATIVE.search(folded) and _is_number(value):
+            out[new_key] = None
         else:
             out[new_key] = _walk(value, rot, ids)
     _rotate_pairs(out, coord_keys, rot)

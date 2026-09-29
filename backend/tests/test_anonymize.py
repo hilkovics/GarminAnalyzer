@@ -49,6 +49,9 @@ def haversine_m(a: tuple[float, float], b: tuple[float, float]) -> float:
         ("minLon", 1),
         ("maxLon", 1),
         ("start_lon", 1),
+        ("START_LAT", 0),
+        ("START_LON", 1),
+        ("startLong", 1),
         ("isLatest", None),
         ("flat", None),
         ("latestSpo2", None),
@@ -107,10 +110,8 @@ def test_realistic_details_payload_rotated_as_pairs():
     assert (geo["startPoint"]["lat"], geo["startPoint"]["lon"]) == (pytest.approx(lat), pytest.approx(lon))
     assert geo["polyline"][0]["altitude"] == 150.0
     assert geo["polyline"][0]["distanceFromPreviousPoint"] == 3.2
-    corners = [rot(47.9, 16.9), rot(48.2, 17.2)]
-    assert geo["minLat"] == pytest.approx(min(c[0] for c in corners))
-    assert geo["maxLon"] == pytest.approx(max(c[1] for c in corners))
-    assert geo["minLat"] <= geo["maxLat"] and geo["minLon"] <= geo["maxLon"]
+    # real-frame extrema would let the real pole be solved for (review round 3) – dropped, not rotated
+    assert (geo["minLat"], geo["maxLat"], geo["minLon"], geo["maxLon"]) == (None, None, None, None)
     assert (out["startLatitude"], out["startLongitude"]) == (pytest.approx(lat), pytest.approx(lon))
     assert out["orphanLatitude"] is None
     assert out["encodedPolyline"] == PLACEHOLDER
@@ -186,3 +187,32 @@ def test_find_leaks_avoids_substring_and_integer_false_positives():
     }
     # a short display name must not match inside other words or keys; integers are not coordinates
     assert find_leaks(payload, strings=["run", "tom", "2345678"], points=[(48.0, 17.0)]) == []
+
+
+def test_unsafe_coordinate_shapes_are_dropped():
+    payload = {
+        "lat": 48.0,
+        "latitude": 48.0,  # duplicate axis for the same stem
+        "lon": 17.0,
+        "endLatitude": "48.1",  # numeric string
+        "endLongitude": 17.1,
+        "heading": 123.4,
+        "windDirection": 270,
+        "directionCompassPoint": "W",
+    }
+    out = anonymize(payload, ROT)
+    assert (out["lat"], out["latitude"], out["lon"]) == (None, None, None)
+    assert (out["endLatitude"], out["endLongitude"]) == (None, None)
+    assert out["heading"] is None and out["windDirection"] is None
+    assert out["directionCompassPoint"] == "W"
+
+
+def test_north_relative_detail_columns_are_dropped():
+    payload = {
+        "metricDescriptors": [
+            {"metricsIndex": 0, "key": "directHeartRate"},
+            {"metricsIndex": 1, "key": "directBearing"},
+        ],
+        "activityDetailMetrics": [{"metrics": [140.0, 87.5]}],
+    }
+    assert anonymize(payload, ROT)["activityDetailMetrics"][0]["metrics"] == [140.0, None]
