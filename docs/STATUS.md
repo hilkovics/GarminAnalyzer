@@ -222,14 +222,6 @@ Last updated: 2026-09-29 (phase 2 session)
 
 ## Known issues / open questions
 
-- **Open for the user (phase 2):**
-  - **Activity with no valid HR at all** (e.g. a ride without the strap). §2.1 says samples without HR contribute
-    0, so it currently gets hrTSS = 0 and `load_primary = 0` (flagged low_confidence). That is literal but
-    misleading for the PMC. Proposal: hrTSS/TRIMP are null when `hr_coverage == 0`, so the day counts as
-    "unknown" rather than a rest day. This needs a METRICS §2.1 change first.
-  - **GAP is not clamped.** At the +30 % grade clamp, GAP is about 3.5 × speed, so a GPS or altitude glitch
-    that survives the median can inflate rTSS. Proposal: clamp `gap_speed` to the §0.4 run speed limit
-    (0–7 m/s). This needs a METRICS §3 change first.
 - Phase 2 interpretation choices, all literal to METRICS:
   - An empty stream gives hrTSS 0 with IF_hr null.
   - When `lthr ≤ rest_hr`, TRIMP_norm is null.
@@ -282,6 +274,12 @@ Last updated: 2026-09-29 (phase 2 session)
   - §10.6 Z1 IF 0.50 is not the table midpoint (0.30–0.55). Confirm that it is intended.
 
 ## Decisions
+
+- 2026-09-29 **The user approved two METRICS changes (§2.1, §3)**, implemented test-first by the metrics-implementer.
+  - An activity without any valid HR sample has null hrTSS / IF_hr / TRIMP / TRIMP_norm, and so a null load
+    unless rTSS applies. It still adds 0 to the PMC; `time_in_hr_zone` stays all zeros.
+  - `gap_speed` is clamped to 0–7 m/s. A run entirely at +30 % grade is now capped at rTSS ≈ 544 per hour
+    instead of ≈ 1221.
 
 - 2026-09-29 **Metric orchestration lives in `training/pipeline.py`, not `metrics/pipeline.py`** (PLAN §6 phase 2),
   so that `metrics/` stays pure (CLAUDE.md). The CLI became a package `training/cli/` (auth, ingest, metrics)
