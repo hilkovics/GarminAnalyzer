@@ -46,8 +46,13 @@ Last updated: 2026-09-29 (phase 2 session)
     the typed rows and cleared only after `update_after_sync` has computed them. It also picks up any
     activity without an `activity_metric` row.
   Warnings fixed:
-  - the PMC series now ends on `today` for every CLI entry point, and `readiness` is kept;
-  - a wellness change on day W recomputes activities on W..W+27, the RHR median window for TRIMP.
+  - the PMC series now ends at the latest of the data, the last sync dates and an explicit `end`, and
+    `readiness` is kept. Every CLI command also passes today. Round 2 found that `recompute` did not; that
+    is fixed, and the default no longer depends on the caller;
+  - a wellness change on day W recomputes activities on W..W+27, the RHR median window for TRIMP (edges tested);
+  - an activity whose metric computation fails keeps its marker and is retried;
+  - the `sync_state` keys moved to `db/state_keys.py`, so the offline pipeline no longer imports the fetch
+    layer.
   Nits fixed:
   - hrTSS/rTSS divergence is measured against the smaller value;
   - `load_sanity` tests constancy exactly;
@@ -56,7 +61,7 @@ Last updated: 2026-09-29 (phase 2 session)
   - `training athlete` without options no longer creates an empty row;
   - the full divergent-id list is printed;
   - streams are loaded through table columns (faster).
-- Tests: 475 passed, 5 skipped.
+- Tests: 483 passed, 5 skipped (spec review round 2: no blockers left).
 
 ### Phase 1 – database, sync and backfill (code complete; local acceptance steps pending, see Next)
 - SQLModel models for every table in PLAN §4 (`db/models.py`) and the initial Alembic migration

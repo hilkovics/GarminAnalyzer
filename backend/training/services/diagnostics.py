@@ -8,7 +8,8 @@ from sqlmodel import Session
 
 from training.db import repo
 from training.db.models import Activity, ActivityMetric
-from training.garmin.sync import (
+from training.db.state_keys import (
+    BACKFILL_CURSOR,
     FAILED_ACTIVITIES,
     FAILED_WELLNESS,
     LAST_ACTIVITY_SYNC,
@@ -63,7 +64,7 @@ def get_diagnostics(session: Session) -> DiagnosticsDTO:
     return DiagnosticsDTO(
         last_activity_sync=repo.get_state_date(session, LAST_ACTIVITY_SYNC),
         last_wellness_date=repo.get_state_date(session, LAST_WELLNESS_DATE),
-        backfill_cursor=repo.get_state_date(session, "backfill_cursor"),
+        backfill_cursor=repo.get_state_date(session, BACKFILL_CURSOR),
         pending_activities=state_len(PENDING_ACTIVITIES),
         pending_wellness_days=state_len(PENDING_WELLNESS),
         failed_activities=[int(k) for k in state_keys(FAILED_ACTIVITIES)],

@@ -119,3 +119,24 @@ def test_athlete_without_options_creates_nothing(env):
     ]
     bike_pace = runner.invoke(cli.app, args)
     assert bike_pace.exit_code != 0
+
+
+def test_recompute_command_keeps_today_and_readiness(env, monkeypatch):
+    """Review phase 2 round 2: exercise the real CLI path, not the pipeline with an explicit end."""
+    import datetime as dt
+
+    from sqlmodel import Session
+
+    from training.db.models import DailyLoad
+    from training.db.session import get_engine
+
+    api = FakeGarmin([make_activity(9, dt.date.today() - dt.timedelta(days=3))])
+    monkeypatch.setattr(garmin_client, "connect", lambda tokens_dir: api)
+    assert runner.invoke(cli.app, ["sync"]).exit_code == 0
+    engine = get_engine(get_settings())
+    with Session(engine) as s:
+        s.get(DailyLoad, dt.date.today()).readiness = 77.0
+        s.commit()
+    assert runner.invoke(cli.app, ["recompute"]).exit_code == 0
+    with Session(engine) as s:
+        assert s.get(DailyLoad, dt.date.today()).readiness == 77.0

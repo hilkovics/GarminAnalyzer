@@ -15,6 +15,7 @@ from collections.abc import Callable
 from sqlmodel import Session
 
 from training.db import repo
+from training.db.state_keys import BACKFILL_CURSOR
 from training.garmin import endpoints as ep
 from training.garmin.client import GarminClient
 from training.garmin.sync import (
@@ -26,8 +27,6 @@ from training.garmin.sync import (
 )
 
 log = logging.getLogger(__name__)
-
-BACKFILL_CURSOR = "backfill_cursor"
 
 
 def month_start(day: dt.date) -> dt.date:

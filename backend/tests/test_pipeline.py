@@ -214,3 +214,68 @@ def test_old_wellness_change_recomputes_the_following_28_days(session):
     result = pipeline.update_after_sync(session, [], today=dt.date(2026, 5, 2))
     assert result.metrics_computed == 1  # only the activity inside 2026-03-10 … 2026-04-06
     assert metric(session, inside).trimp_norm != before_inside
+
+
+def test_series_ends_at_last_sync_without_explicit_end(session):
+    """Review phase 2 round 2, blocker: any entry point (no `end`) keeps rest days up to the last sync."""
+    pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 1, 1), lthr=LTHR)
+    add_activity(session, 1, dt.date(2026, 9, 1))
+    repo.set_state(session, "last_activity_sync", "2026-09-10")
+    session.commit()
+    pipeline.recompute(session, renormalize=False)
+    last = session.exec(select(DailyLoad).order_by(DailyLoad.date.desc())).scalars().first()
+    assert last.date == dt.date(2026, 9, 10)
+
+
+def test_real_ctrl_c_mid_backfill_is_caught_up(session):
+    from training.garmin.backfill import backfill
+    from training.garmin.client import GarminClient
+
+    from .test_sync import TODAY, FakeGarmin, make_activity
+
+    pipeline.set_threshold(session, sport="run", valid_from=dt.date(2026, 1, 1), lthr=150.0)
+    api = FakeGarmin([make_activity(2001, dt.date(2026, 8, 5)), make_activity(2002, dt.date(2026, 9, 2))])
+    client = GarminClient(api, rate_limit_s=0, sleep=lambda s: None)
+    api.fail = {"get_sleep_data": KeyboardInterrupt}  # dies inside the August month, after its activities
+    with pytest.raises(KeyboardInterrupt):
+        backfill(session, client, 2, TODAY)
+    session.rollback()
+    api.fail = {}
+    backfill(session, client, 2, TODAY)
+    pipeline.update_after_sync(session, [], today=TODAY)
+    ids = {r.activity_id for r in session.exec(select(ActivityMetric)).scalars()}
+    assert len(ids) == 2
+
+
+def test_failed_metric_keeps_its_marker(session, monkeypatch):
+    pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 1, 1), lthr=LTHR)
+    add_activity(session, 1, dt.date(2026, 9, 1))
+    add_activity(session, 2, dt.date(2026, 9, 2))
+    pipeline.recompute(session, renormalize=False)
+    repo.set_state_json(session, "metrics_dirty_activities", [1, 2])
+    session.commit()
+    real = pipeline.compute_activity_metrics
+    broken_id = session.execute(select(Activity.id).where(Activity.garmin_id == 2)).scalar_one()
+
+    def flaky(s, activity_id):
+        if activity_id == broken_id:
+            raise RuntimeError("boom")
+        return real(s, activity_id)
+
+    monkeypatch.setattr(pipeline, "compute_activity_metrics", flaky)
+    result = pipeline.update_after_sync(session, [], today=dt.date(2026, 9, 3))
+    assert len(result.errors) == 1
+    assert repo.get_state_json(session, "metrics_dirty_activities") == [2]
+
+
+@pytest.mark.parametrize(("offset", "recomputed"), [(-1, False), (0, True), (27, True), (28, False)])
+def test_wellness_window_edges(session, offset, recomputed):
+    """Dirty wellness day W → activities on W..W+27 (inverse of rest_hr_for's day−27..day)."""
+    w = dt.date(2026, 3, 10)
+    pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 1, 1), lthr=LTHR)
+    add_activity(session, 1, w + dt.timedelta(days=offset))
+    pipeline.recompute(session, renormalize=False)
+    repo.set_state_json(session, "metrics_dirty_wellness_days", [w.isoformat()])
+    session.commit()
+    result = pipeline.update_after_sync(session, [], today=w + dt.timedelta(days=40))
+    assert result.metrics_computed == (1 if recomputed else 0)

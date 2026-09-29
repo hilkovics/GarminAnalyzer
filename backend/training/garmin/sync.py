@@ -17,6 +17,16 @@ import requests
 from sqlmodel import Session
 
 from training.db import rebuild, repo
+from training.db.state_keys import (
+    FAILED_ACTIVITIES,
+    FAILED_WELLNESS,
+    LAST_ACTIVITY_SYNC,
+    LAST_WELLNESS_DATE,
+    METRICS_DIRTY_ACTIVITIES,
+    METRICS_DIRTY_WELLNESS,
+    PENDING_ACTIVITIES,
+    PENDING_WELLNESS,
+)
 from training.garmin import endpoints as ep
 from training.garmin.client import (
     GarminClient,
@@ -30,17 +40,7 @@ from training.garmin.client import (
 
 log = logging.getLogger(__name__)
 
-LAST_ACTIVITY_SYNC = "last_activity_sync"
-LAST_WELLNESS_DATE = "last_wellness_date"
-PENDING_ACTIVITIES = "pending_activities"  # {garmin_id: {"item": list item, "attempts": n}}
-PENDING_WELLNESS = "pending_wellness_days"  # {date: {"attempts": n}}
-FAILED_ACTIVITIES = "failed_activities"  # moved here after MAX_ATTEMPTS runs; `sync --retry-failed`
-FAILED_WELLNESS = "failed_wellness_days"
 MAX_ATTEMPTS = 5
-# "Metrics needed" markers, written in the same transaction as the typed rows and cleared by
-# training.pipeline.update_after_sync – so an interrupted run never leaves rows without metrics.
-METRICS_DIRTY_ACTIVITIES = "metrics_dirty_activities"  # [garmin_id, …]
-METRICS_DIRTY_WELLNESS = "metrics_dirty_wellness_days"  # [date, …] (RHR feeds TRIMP, METRICS §2.2)
 ACTIVITY_OVERLAP_DAYS = 2
 FIRST_SYNC_DAYS = 14
 

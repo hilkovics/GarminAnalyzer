@@ -47,7 +47,7 @@ def recompute(
     """Recompute everything from stored raw JSON: typed tables → metrics → PMC. No network."""
     with _db_session() as session:
         result = pipeline.recompute(
-            session, since=since.date() if since else None, renormalize=not metrics_only
+            session, since=since.date() if since else None, renormalize=not metrics_only, end=dt.date.today()
         )
     console.print(
         f"Re-normalized {result.rebuilt_activities} activities · metrics for {result.metrics_computed} · "

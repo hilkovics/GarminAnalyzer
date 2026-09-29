@@ -30,7 +30,12 @@ from training.db.models import (
     Threshold,
 )
 from training.db.rebuild import rebuild_all
-from training.garmin.sync import METRICS_DIRTY_ACTIVITIES, METRICS_DIRTY_WELLNESS
+from training.db.state_keys import (
+    LAST_ACTIVITY_SYNC,
+    LAST_WELLNESS_DATE,
+    METRICS_DIRTY_ACTIVITIES,
+    METRICS_DIRTY_WELLNESS,
+)
 from training.metrics.activity import AthleteParams, ThresholdParams, activity_metrics
 from training.metrics.pmc import daily_load_series, pmc
 from training.metrics.zones import default_zones
@@ -163,7 +168,9 @@ def activity_ids(
     return list(session.execute(stmt).scalars())
 
 
-def compute_metrics_for(session: Session, ids: Iterable[int], result: RecomputeResult) -> None:
+def compute_metrics_for(session: Session, ids: Iterable[int], result: RecomputeResult) -> list[int]:
+    """Compute metrics per activity (commit each); returns the ids whose computation failed."""
+    failed: list[int] = []
     for activity_id in ids:
         try:
             compute_activity_metrics(session, activity_id)
@@ -173,13 +180,19 @@ def compute_metrics_for(session: Session, ids: Iterable[int], result: RecomputeR
             session.rollback()
             log.exception("metrics for activity %s failed", activity_id)
             result.errors.append(f"metrics activity {activity_id}: {type(exc).__name__}")
+            failed.append(activity_id)
+    return failed
 
 
 # --- daily load / PMC ----------------------------------------------------------------------------------
 
 
 def series_bounds(session: Session, end: dt.date | None = None) -> tuple[dt.date, dt.date] | None:
-    """First synced day (earliest activity or wellness date) … `end` (default: latest data date)."""
+    """First synced day (earliest activity or wellness date) … last day.
+
+    The last day is the latest of: the data, the last sync dates in sync_state (so rest days up to the last
+    sync are part of the series whichever entry point runs), and `end` if given. No wall clock is used.
+    """
     dates: list[dt.date] = []
     for column in (Activity.local_date, DailyWellness.date):
         lo = session.execute(select(column).order_by(column).limit(1)).scalar()
@@ -187,8 +200,12 @@ def series_bounds(session: Session, end: dt.date | None = None) -> tuple[dt.date
         dates += [d for d in (lo, hi) if d is not None]
     if not dates:
         return None
-    last = max(max(dates), end) if end else max(dates)
-    return min(dates), last
+    ends = [max(dates)] + [
+        d for d in (repo.get_state_date(session, k) for k in (LAST_ACTIVITY_SYNC, LAST_WELLNESS_DATE)) if d
+    ]
+    if end is not None:
+        ends.append(end)
+    return min(dates), max(ends)
 
 
 def compute_daily_load(session: Session, end: dt.date | None = None) -> int:
@@ -247,9 +264,23 @@ def recompute(
         rebuilt = rebuild_all(session)
         result.rebuilt_activities = rebuilt.activities
         result.errors.extend(rebuilt.errors)
-    compute_metrics_for(session, activity_ids(session, since=since), result)
+    failed = compute_metrics_for(session, activity_ids(session, since=since), result)
+    if since is None:  # everything was recomputed, so pending markers are satisfied
+        _reset_markers(session, failed)
     result.daily_load_days = compute_daily_load(session, end)
     return result
+
+
+def _reset_markers(session: Session, failed_activity_ids: list[int]) -> None:
+    """Clear the "metrics needed" markers, keeping activities whose computation failed (retried next run)."""
+    garmin_ids = []
+    if failed_activity_ids:
+        garmin_ids = sorted(
+            session.execute(select(Activity.garmin_id).where(Activity.id.in_(failed_activity_ids))).scalars()
+        )
+    repo.set_state_json(session, METRICS_DIRTY_ACTIVITIES, garmin_ids)
+    repo.set_state_json(session, METRICS_DIRTY_WELLNESS, [])
+    session.commit()
 
 
 def update_after_sync(session: Session, garmin_ids: Iterable[int] = (), *, today: dt.date) -> RecomputeResult:
@@ -284,10 +315,8 @@ def update_after_sync(session: Session, garmin_ids: Iterable[int] = (), *, today
                 )
             ).scalars()
         )
-    compute_metrics_for(session, sorted(ids), result)
-    repo.set_state_json(session, METRICS_DIRTY_ACTIVITIES, [])
-    repo.set_state_json(session, METRICS_DIRTY_WELLNESS, [])
-    session.commit()
+    failed = compute_metrics_for(session, sorted(ids), result)
+    _reset_markers(session, failed)
     result.daily_load_days = compute_daily_load(session, today)
     return result
 
