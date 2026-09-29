@@ -156,6 +156,15 @@ EXPECTED_ROUTES = {
     ("get", "/api/progress/best-efforts"),
     ("get", "/api/progress/predictions"),
     ("get", "/api/progress/threshold-proposals"),
+    ("get", "/api/plan/today"),
+    ("post", "/api/plan/today/regenerate"),
+    ("get", "/api/plan/week"),
+    ("get", "/api/plan/season"),
+    ("get", "/api/plan/goal"),
+    ("put", "/api/plan/goal"),
+    ("delete", "/api/plan/goal"),
+    ("get", "/api/plan/{planned_id}"),
+    ("post", "/api/plan/{planned_id}/status"),
     ("get", "/api/wellness/daily"),
     ("get", "/api/wellness/readiness/today"),
     ("get", "/api/wellness/readiness/{day}"),
@@ -195,6 +204,13 @@ def test_openapi_documents_every_endpoint_with_its_dto():
         "WellnessDTO",
         "ReadinessDTO",
         "CorrelationsDTO",
+        "DailyDecisionDTO",
+        "WeekPlanDTO",
+        "SeasonDTO",
+        "GoalDTO",
+        "GoalIn",
+        "PlannedWorkoutDTO",
+        "StatusIn",
     ]
     for name in dtos:
         assert name in schemas, name
@@ -230,7 +246,9 @@ def test_export_openapi_command_writes_both_files(tmp_path):
     result = CliRunner().invoke(cli.app, ["export-openapi", "--out-dir", str(tmp_path / "out")])
     assert result.exit_code == 0, result.output
     spec = json.loads((tmp_path / "out" / "openapi.json").read_text())
-    assert spec["info"]["title"] == "Training analytics" and len(spec["paths"]) == len(EXPECTED_ROUTES)
+    assert spec["info"]["title"] == "Training analytics" and len(spec["paths"]) == len(
+        {p for _, p in EXPECTED_ROUTES}
+    )
     assert (tmp_path / "out" / "API.md").read_text().startswith("# API")
 
 

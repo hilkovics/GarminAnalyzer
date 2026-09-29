@@ -9,6 +9,21 @@ import datetime as dt
 
 from pydantic import BaseModel, Field
 
+# phase-6 DTOs live in dto_plan.py
+from training.services.dto_plan import (
+    DailyDecisionDTO as DailyDecisionDTO,
+    GoalDTO as GoalDTO,
+    GoalIn as GoalIn,
+    PlannedWorkoutDTO as PlannedWorkoutDTO,
+    PreferredDayDTO as PreferredDayDTO,
+    SeasonDTO as SeasonDTO,
+    SeasonWeekDTO as SeasonWeekDTO,
+    StatusIn as StatusIn,
+    WeekDayDTO as WeekDayDTO,
+    WeekPlanDTO as WeekPlanDTO,
+    WorkoutStepDTO as WorkoutStepDTO,
+)
+
 # phase-5 DTOs live in dto_wellness.py (file size); re-exported so callers keep importing from here
 from training.services.dto_wellness import (
     BaselineDTO as BaselineDTO,
@@ -54,6 +69,10 @@ class AthleteDTO(BaseModel):
     rest_hr_current: float | None = Field(description="bpm, the value used today (override or median)")
     weight_kg: float | None
     run_bike_split: float | None = Field(description="share of weekly load for running (0–1)")
+    preferred_days: dict[str, PreferredDayDTO] = Field(
+        default_factory=dict,
+        description="role per weekday mon…sun (METRICS §10.3), defaults filled in; empty without athlete",
+    )
 
 
 class AthleteIn(BaseModel):
@@ -65,6 +84,10 @@ class AthleteIn(BaseModel):
     rest_hr_override: float | None = Field(default=None, gt=0)
     weight_kg: float | None = Field(default=None, gt=0)
     run_bike_split: float | None = Field(default=None, ge=0, le=1)
+    preferred_days: dict[str, PreferredDayDTO] | None = Field(
+        default=None,
+        description="weekday (mon…sun) → role [+ sport]; missing days take the default, {} resets all",
+    )
     clear_rest_hr_override: bool = Field(
         default=False, description="true → remove the manual rest HR (back to the 28-day Garmin median)"
     )

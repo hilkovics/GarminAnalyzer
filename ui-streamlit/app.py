@@ -8,7 +8,7 @@ Structure (no business logic anywhere – pages call `training.services` and ren
 - `components/`   Plotly figure builders and formatters: DTO in, figure/string out, no Streamlit import
 - `_db.py`        DB session helper (`st.cache_resource` engine) and "today"
 
-Run with `uv run streamlit run ui-streamlit/app.py`. Plán is a placeholder until phase 6.
+Run with `uv run streamlit run ui-streamlit/app.py`. Plán (phase 6) shows the coach plan.
 """
 
 import streamlit as st

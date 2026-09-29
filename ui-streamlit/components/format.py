@@ -183,3 +183,20 @@ def fmt_rho(rho: float | None, low: float | None = None, high: float | None = No
     if _valid(low) and _valid(high):
         text += f" [95 % CI {low:+.{digits}f}; {high:+.{digits}f}]"
     return text
+
+
+def parse_time_hms(text: str) -> float | None:
+    """Parse a target time "h:mm:ss" (or "m:ss") into seconds; blank → None. Raises ValueError (Slovak)."""
+    raw = (text or "").strip()
+    if not raw:
+        return None
+    parts = [p.strip() for p in raw.split(":")]
+    if len(parts) not in (2, 3) or not all(p.isascii() and p.isdigit() for p in parts):
+        raise ValueError("Cieľový čas zadaj ako h:mm:ss, napr. 0:40:00.")
+    *head, minutes, secs = (int(p) for p in parts)
+    if minutes >= 60 or secs >= 60:
+        raise ValueError("Minúty a sekundy musia byť v rozsahu 0–59.")
+    total = (head[0] if head else 0) * 3600 + minutes * 60 + secs
+    if total <= 0:
+        raise ValueError("Cieľový čas musí byť kladný.")
+    return float(total)

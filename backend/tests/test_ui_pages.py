@@ -1,10 +1,11 @@
-"""AppTest runs of Dashboard, Fitness, the placeholders and app.py with monkeypatched services (no DB)."""
+"""AppTest runs of Dashboard, Fitness and app.py with monkeypatched services (no DB)."""
 
 import datetime as dt
 
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from tests.test_ui_plan import patch_plan
 from tests.test_ui_progres_samples import (
     sample_curves,
     sample_efforts,
@@ -245,15 +246,7 @@ def test_fitness_shows_service_error_message(monkeypatch):
     assert at.error[0].value == "PMC zlyhalo"
 
 
-# --- placeholders and navigation ----------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(("page", "title", "phase"), [("plan", "Plán", 6)])
-def test_placeholder_pages(page, title, phase):
-    at = run_page(page)
-    assert not at.exception
-    assert at.title[0].value == title
-    assert at.info[0].value == f"Pribudne vo fáze {phase}."
+# --- navigation ----------------------------------------------------------------------------
 
 
 def test_app_navigation_runs_the_default_page(monkeypatch):
@@ -298,6 +291,7 @@ def test_app_navigation_reaches_every_page(monkeypatch):
             sports=[], findings=[], insufficient=[], min_n=30, caveat="Caveat.", n_days={}
         ),
     )
+    patch_plan(monkeypatch)
     at = AppTest.from_file(str(UI_DIR / "app.py"), default_timeout=20).run()
     for page, title in {
         "views/aktivity.py": "Aktivity",

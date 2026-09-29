@@ -22,6 +22,15 @@ docs at `/docs`).
 | GET | `/api/fitness/pmc` | `from`?, `to`? | `PmcDTO` | Daily CTL/ATL/TSB/ACWR/monotony/ramp series with flags |
 | GET | `/api/fitness/weekly` | `weeks`? | `WeeklyDTO[]` | ISO-week volume, zone time and polarization per sport |
 | GET | `/api/fitness/dashboard` | – | `DashboardDTO` | This week vs the last 4, PMC mini, sync health |
+| GET | `/api/plan/today` | – | `DailyDecisionDTO` | Today's planned workout; decided on the first call, the same plan afterwards |
+| POST | `/api/plan/today/regenerate` | `sport`? | `DailyDecisionDTO` | Decide today again, optionally for another sport (run \| bike); a done workout stays |
+| GET | `/api/plan/week` | `date`? | `WeekPlanDTO` | The ISO week containing `date` (default today): targets, planned vs done per day |
+| GET | `/api/plan/season` | – | `SeasonDTO` | Season plan: this week and the projected weeks up to the race (phases, targets) |
+| GET | `/api/plan/goal` | – | `GoalDTO \| null` | The active goal, or null |
+| PUT | `/api/plan/goal` | body: `GoalIn` | `GoalDTO` | Set the goal race (replaces the active goal) |
+| DELETE | `/api/plan/goal` | – | – | Clear the goal (the season falls back to the no-goal cycle) |
+| GET | `/api/plan/{planned_id}` | `planned_id` | `PlannedWorkoutDTO` | One planned workout with its steps |
+| POST | `/api/plan/{planned_id}/status` | `planned_id`, body: `StatusIn` | `PlannedWorkoutDTO` | Mark a planned workout done, skipped, or back to planned |
 | GET | `/api/progress/ef` | `sport`?, `days`?, `metric`? | `SeriesDTO` | EF / decoupling / pace at reference HR per activity with the 28-day median trend |
 | GET | `/api/progress/speed-hr-curve` | `months`? | `CurveDTO[]` | Month-end speed-HR curve snapshots of the last N months, oldest first |
 | GET | `/api/progress/best-efforts` | `sport`?, `range`? | `BestEffortsDTO` | Best effort per (kind, window) over the last 90 days or all time |
@@ -103,6 +112,7 @@ docs at `/docs`).
 | `rest_hr_current` | number \| null | bpm, the value used today (override or median) |
 | `weight_kg` | number \| null |  |
 | `run_bike_split` | number \| null | share of weekly load for running (0–1) |
+| `preferred_days` (optional) | map<string, PreferredDayDTO> | role per weekday mon…sun (METRICS §10.3), defaults filled in; empty without athlete |
 
 ### AthleteIn
 
@@ -116,6 +126,7 @@ PUT /settings/athlete body; null fields are left unchanged.
 | `rest_hr_override` (optional) | number \| null |  |
 | `weight_kg` (optional) | number \| null |  |
 | `run_bike_split` (optional) | number \| null |  |
+| `preferred_days` (optional) | map<string, PreferredDayDTO> \| null | weekday (mon…sun) → role [+ sport]; missing days take the default, {} resets all |
 | `clear_rest_hr_override` (optional) | boolean | true → remove the manual rest HR (back to the 28-day Garmin median) |
 
 ### BaselineDTO
@@ -212,6 +223,22 @@ GET /progress/speed-hr-curve – one month-end snapshot (§6.1).
 | `ref_hr` | number \| null | 0.80 · LTHR valid at the window end, bpm |
 | `pace_at_ref_hr` | number \| null | m/s |
 
+### DailyDecisionDTO
+
+GET /plan/today – the day's planned workout with the inputs the decision used (METRICS §10.4).
+
+| Field | Type | Description |
+|---|---|---|
+| `date` | date |  |
+| `workout` | PlannedWorkoutDTO |  |
+| `reason` | string \| null |  |
+| `rule` | integer \| null | §10.4 rule that decided (1–4); null when an existing plan was kept |
+| `readiness` | number \| null | persisted readiness of the day, 0–100 |
+| `readiness_band` | string \| null | "green" \| "yellow" \| "red" |
+| `acwr` | number \| null | ACWR[D−1], the last complete day (rule input) |
+| `tsb` | number \| null | TSB[D] (rule input) |
+| `created` | boolean | true: decided just now; false: an existing plan was returned |
+
 ### DashboardDTO
 
 | Field | Type | Description |
@@ -250,6 +277,29 @@ GET /progress/speed-hr-curve – one month-end snapshot (§6.1).
 |---|---|---|
 | `detail` | string |  |
 
+### GoalDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer |  |
+| `race_date` | date |  |
+| `distance_m` | number \| null | metres |
+| `target_time_s` | number \| null | seconds |
+| `sport` | string | "run" \| "bike" |
+| `active` | boolean |  |
+
+### GoalIn
+
+PUT /plan/goal body: the race the season is built towards. Replaces the active goal.
+
+| Field | Type | Description |
+|---|---|---|
+| `race_date` | date | not in the past |
+| `distance_m` (optional) | number \| null | metres, e.g. 10000 |
+| `target_time_s` (optional) | number \| null | seconds |
+| `sport` (optional) | string | "run" \| "bike" |
+| `active` (optional) | boolean | false stores the goal without using it (all others off) |
+
 ### LapDTO
 
 | Field | Type | Description |
@@ -282,6 +332,28 @@ METRICS §2.5: Pearson r between load_primary and Garmin training load.
 | `r` | number \| null | Pearson correlation coefficient, null if n < 3 |
 | `n` | integer | activities with both values |
 | `status` | string | "good" (r > 0.8) \| "fair" \| "warning" (r < 0.7) \| "insufficient" |
+
+### PlannedWorkoutDTO
+
+A planned workout (METRICS §10.5); `sport = "rest"` is a rest day with no steps.
+
+| Field | Type | Description |
+|---|---|---|
+| `id` | integer |  |
+| `date` | date |  |
+| `sport` | string | "run" \| "bike" \| "rest" |
+| `name` | string |  |
+| `key` | string | §10.7 library key, empty when unknown |
+| `slot` | string \| null | weekday role filled: "easy" \| "long" \| "q1" \| "q2" |
+| `status` | string | "planned" \| "pushed" \| "done" \| "skipped" |
+| `missed` | boolean | planned/pushed and its date is before today |
+| `estimated_load` | number \| null | §10.6, TSS-equivalent points |
+| `duration_s` | integer | total planned seconds, repeats multiplied |
+| `reason` | string \| null | one-line Slovak reason of the decision |
+| `completed_activity_id` | integer \| null |  |
+| `actual_load` | number \| null | load of the completed activity (its primary load) |
+| `steps` | WorkoutStepDTO[] |  |
+| `structure` | object | the raw §10.5 JSON |
 
 ### PmcDTO
 
@@ -339,6 +411,15 @@ GET /progress/predictions (§7).
 | `stale` | boolean | reference older than 60 days |
 | `predictions` | PredictionDTO[] |  |
 
+### PreferredDayDTO
+
+A weekday of the template: role and an optional explicit sport (METRICS §10.3).
+
+| Field | Type | Description |
+|---|---|---|
+| `role` | string | "rest" \| "easy" \| "long" \| "q1" \| "q2" |
+| `sport` (optional) | string \| null | "run" \| "bike" \| null = decided by the coach |
+
 ### ProposalDTO
 
 GET /progress/threshold-proposals (§6.3) – never auto-applied.
@@ -390,6 +471,34 @@ GET /wellness/readiness/{date} – readiness of one day (METRICS §8).
 | `source` | string | "race" \| "effort" |
 | `vdot` | number |  |
 
+### SeasonDTO
+
+GET /plan/season – this week and the projected weeks after it (up to the race week + 1).
+
+| Field | Type | Description |
+|---|---|---|
+| `today` | date |  |
+| `goal` | GoalDTO \| null |  |
+| `current_phase` | string |  |
+| `weeks` | SeasonWeekDTO[] |  |
+
+### SeasonWeekDTO
+
+One ISO week of the season plan (METRICS §10.1–§10.2). Loads are TSS-equivalent points.
+
+| Field | Type | Description |
+|---|---|---|
+| `monday` | date |  |
+| `phase` | string | "base" \| "build" \| "peak" \| "taper" |
+| `recovery` | boolean |  |
+| `days_to_race` | integer \| null | days from this Monday to the race; null without a goal |
+| `ctl_start` | number | CTL of the day before the Monday (projected for future weeks) |
+| `target_load` | number |  |
+| `run_target` | number |  |
+| `bike_target` | number |  |
+| `is_current` | boolean | the week containing today |
+| `is_race_week` | boolean | the week containing the goal's race date |
+
 ### SeriesDTO
 
 GET /progress/ef (EF / decoupling / pace_at_ref_hr_day per activity + trend).
@@ -421,6 +530,14 @@ GET /progress/ef (EF / decoupling / pace_at_ref_hr_day per activity + trend).
 | `current` | map<string, ThresholdDTO \| null> | {"run": …, "bike": …} valid today |
 | `hr_zones` | map<string, ZoneBoundDTO[]> | per sport, absolute bpm bounds of today's zones |
 | `pace_zones` | ZoneBoundDTO[] \| null | run pace zones in m/s for today's threshold |
+
+### StatusIn
+
+POST /plan/{id}/status body.
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | string | "done" \| "skipped" \| "planned" (undo) |
 
 ### StreamsDTO
 
@@ -500,6 +617,33 @@ PUT /settings/thresholds body.
 | `date` | date |  |
 | `value` | number \| null | 28-day rolling median (METRICS §5.2) |
 
+### WeekDayDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `date` | date |  |
+| `weekday` | string | "mon" … "sun" |
+| `role` | string | template role: "rest" \| "easy" \| "long" \| "q1" \| "q2" |
+| `planned` | PlannedWorkoutDTO \| null |  |
+| `actual_load` | number | load_total of the day (all activities) |
+| `activities` | integer | number of activities on the day |
+
+### WeekPlanDTO
+
+GET /plan/week – the ISO week containing the requested date: targets, planned vs done per day.
+
+| Field | Type | Description |
+|---|---|---|
+| `monday` | date |  |
+| `phase` | string |  |
+| `recovery` | boolean |  |
+| `target_load` | number |  |
+| `run_target` | number |  |
+| `bike_target` | number |  |
+| `done_load` | number | Σ load_total of the week's days |
+| `remaining_load` | number | max(0, target_load − done_load) |
+| `days` | WeekDayDTO[] | Monday … Sunday |
+
 ### WeeklyDTO
 
 | Field | Type | Description |
@@ -560,6 +704,21 @@ One wellness row: the night that ends on the morning of `date`, RHR / Body Batte
 | `sleep_debt_7_s` | number \| null | 7-night sleep debt, seconds (METRICS §9); negative = surplus; null with < 5 valid nights |
 | `readiness` | number \| null | persisted daily_load.readiness, unrounded, 0–100 |
 | `readiness_band` | string \| null | "green" \| "yellow" \| "red" |
+
+### WorkoutStepDTO
+
+One plain step of a workout, flattened for display; steps of a repeat share `group` and `repeat`.
+
+| Field | Type | Description |
+|---|---|---|
+| `type` | string | "warmup" \| "work" \| "recovery" \| "cooldown" \| "steady" |
+| `duration_s` | integer | seconds of one round (not multiplied by `repeat`) |
+| `target_kind` | string | "hr_zone" \| "pace_range" \| "open" |
+| `zone` | integer | 1–5: HR zone, pace zone, or the effort zone of an open step |
+| `low_mps` (optional) | number \| null | pace_range lower speed bound, m/s |
+| `high_mps` (optional) | number \| null | pace_range upper speed bound, m/s |
+| `repeat` | integer \| null | repeat count when the step is inside a repeat, else null |
+| `group` | integer \| null | index of the repeat block (0, 1, …), else null |
 
 ### ZoneBoundDTO
 

@@ -11,11 +11,13 @@ from sqlalchemy import select
 from sqlmodel import Session
 
 from training import pipeline
+from training.coach import template
 from training.db.models import Athlete, Threshold
 from training.metrics.preprocess import HR_MAX, HR_MIN, MAX_SPEED
 from training.services.dto import (
     AthleteDTO,
     AthleteIn,
+    PreferredDayDTO,
     SettingsDTO,
     ThresholdDTO,
     ThresholdIn,
@@ -80,18 +82,20 @@ def add_threshold(session: Session, data: ThresholdIn, *, today: dt.date) -> Thr
 
 def update_athlete(session: Session, data: AthleteIn, *, today: dt.date) -> AthleteDTO:
     """Update the given (non-null) athlete fields; TRIMP-relevant changes recompute all metrics."""
-    fields = data.model_dump(exclude={"clear_rest_hr_override"})
+    fields = data.model_dump(exclude={"clear_rest_hr_override", "preferred_days"})
     given = {k: v for k, v in fields.items() if v is not None}
+    set_days = data.preferred_days is not None  # {} resets to the default template (stored as NULL)
+    preferred = _validated_preferred_days(data.preferred_days)
     if data.clear_rest_hr_override and data.rest_hr_override is not None:
         raise InvalidInputError("rest_hr_override and clear_rest_hr_override are mutually exclusive")
-    if not given and not data.clear_rest_hr_override:
+    if not given and not set_days and not data.clear_rest_hr_override:
         raise InvalidInputError("no athlete field given")
     if data.sex is not None and data.sex not in SEXES:
         raise InvalidInputError(f"sex must be one of {', '.join(SEXES)}")
     if data.birth_year is not None and not 1900 <= data.birth_year <= today.year:
         raise InvalidInputError(f"birth_year must be between 1900 and {today.year}")
     athlete = pipeline.get_athlete(session)
-    if athlete is None and not given:
+    if athlete is None and not given and not set_days:
         raise InvalidInputError("no athlete settings to clear yet")
     athlete = athlete or Athlete()
     before = {k: getattr(athlete, k) for k in METRIC_FIELDS}
@@ -99,6 +103,8 @@ def update_athlete(session: Session, data: AthleteIn, *, today: dt.date) -> Athl
         setattr(athlete, key, value)
     if data.clear_rest_hr_override:
         athlete.rest_hr_override = None
+    if set_days:
+        athlete.preferred_days = preferred
     session.add(athlete)
     session.commit()  # one atomic write
     if any(getattr(athlete, k) != before[k] for k in METRIC_FIELDS):  # only real TRIMP-relevant changes
@@ -106,6 +112,17 @@ def update_athlete(session: Session, data: AthleteIn, *, today: dt.date) -> Athl
     dto = _athlete_dto(session, today)
     assert dto is not None
     return dto
+
+
+def _validated_preferred_days(days: dict[str, PreferredDayDTO] | None) -> dict | None:
+    """Canonical `Athlete.preferred_days` JSON (all 7 weekdays; role, or role + sport); None = default."""
+    if not days:
+        return None
+    try:
+        slots = template.parse_preferred_days({k: v.model_dump() for k, v in days.items()})
+    except ValueError as exc:
+        raise InvalidInputError(str(exc)) from exc
+    return {d: s.role if s.sport is None else {"role": s.role, "sport": s.sport} for d, s in slots.items()}
 
 
 def _athlete_dto(session: Session, today: dt.date) -> AthleteDTO | None:
@@ -120,4 +137,8 @@ def _athlete_dto(session: Session, today: dt.date) -> AthleteDTO | None:
         rest_hr_current=pipeline.rest_hr_for(session, athlete, today),
         weight_kg=athlete.weight_kg,
         run_bike_split=athlete.run_bike_split,
+        preferred_days={
+            d: PreferredDayDTO(role=s.role, sport=s.sport)
+            for d, s in template.parse_preferred_days(athlete.preferred_days).items()
+        },
     )
