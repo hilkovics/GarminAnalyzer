@@ -12,3 +12,4 @@ FAILED_WELLNESS = "failed_wellness_days"
 # training.pipeline.update_after_sync – so an interrupted run never leaves rows without metrics.
 METRICS_DIRTY_ACTIVITIES = "metrics_dirty_activities"  # [garmin_id, …]
 METRICS_DIRTY_WELLNESS = "metrics_dirty_wellness_days"  # [date, …] (RHR feeds TRIMP, METRICS §2.2)
+CURVES_REFRESHED_UNTIL = "curves_refreshed_until"  # last date the speed–HR snapshots were computed for

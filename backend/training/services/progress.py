@@ -347,6 +347,10 @@ def apply_proposal(session: Session, *, sport: str, field: str, today: dt.date) 
     )
     if proposal is None:
         raise InvalidInputError(f"no {field} proposal for {sport} (not enough data)")
+    if not proposal.propose:
+        raise InvalidInputError(
+            f"the {field} estimate for {sport} is within the §6.3 tolerance – nothing to apply"
+        )
     current = pipeline.resolve_threshold(session, sport, today)
     lthr = proposal.estimate if field == "lthr" else (current.lthr if current else None)
     speed = (

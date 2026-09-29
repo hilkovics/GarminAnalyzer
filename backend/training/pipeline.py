@@ -282,13 +282,8 @@ def _dates_since(session: Session, since: dt.date) -> list[dt.date]:
 
 
 def _refresh_curves(session: Session, end: dt.date | None, days: list[dt.date] | None) -> int:
-    """Speed–HR curve snapshots (§6.1): all months if `days` is None, else the months they touch."""
     bounds = series_bounds(session, end)
-    if bounds is None:
-        return 0
-    last = bounds[1]
-    months = None if days is None else pipeline_progress.months_touched([*days, last])
-    return pipeline_progress.compute_curve_snapshots(session, last, months)
+    return pipeline_progress.refresh_curves(session, bounds[1], days) if bounds else 0
 
 
 def _reset_markers(session: Session, failed_activity_ids: list[int]) -> None:
@@ -378,7 +373,12 @@ def set_threshold(
     compute_metrics_for(session, activity_ids(session, since=valid_from, sports=sports), result)
     result.daily_load_days = compute_daily_load(session, end)
     if sport == "run":  # the curve's reference HR uses the run LTHR valid at each window end
-        result.curve_months = _refresh_curves(session, end, [valid_from, *_dates_since(session, valid_from)])
+        bounds = series_bounds(
+            session, end
+        )  # every month from valid_from on: ref_hr changes even without runs
+        if bounds:
+            months = pipeline_progress.curve_months(valid_from, bounds[1])
+            result.curve_months = pipeline_progress.compute_curve_snapshots(session, bounds[1], months)
     return result
 
 

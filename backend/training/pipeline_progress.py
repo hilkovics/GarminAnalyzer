@@ -110,7 +110,11 @@ def compute_curve_snapshots(session: Session, today: dt.date, months: Iterable[s
 
     def aggregates(activity_id: int) -> pd.DataFrame:
         if activity_id not in cache:
-            cache[activity_id] = aggregates_60s(preprocess(load_streams(session, activity_id), "run"))
+            try:
+                cache[activity_id] = aggregates_60s(preprocess(load_streams(session, activity_id), "run"))
+            except Exception:  # one broken run must not fail every sync's curve step
+                log.exception("speed–HR aggregates for activity %s failed – skipped", activity_id)
+                cache[activity_id] = pd.DataFrame(columns=["gap_speed", "hr"])
         return cache[activity_id]
 
     written = 0
@@ -128,6 +132,27 @@ def compute_curve_snapshots(session: Session, today: dt.date, months: Iterable[s
             stmt.on_conflict_do_update(index_elements=["month", "sport"], set_={"curve": stmt.excluded.curve})
         )
         written += 1
+    session.commit()
+    return written
+
+
+def refresh_curves(session: Session, last: dt.date, days: list[dt.date] | None) -> int:
+    """Refresh curve snapshots up to `last`.
+
+    All months if `days` is None; else the months `days` touch plus every month since the previous
+    refresh – a month's window keeps moving until the month ends, even without new runs (review
+    phase 4). The refresh date is kept in sync_state.
+    """
+    from training.db import repo
+    from training.db.state_keys import CURVES_REFRESHED_UNTIL
+
+    if days is None:
+        months = None
+    else:
+        previous = repo.get_state_date(session, CURVES_REFRESHED_UNTIL) or last
+        months = months_touched(days) | set(curve_months(min(previous, last), last))
+    written = compute_curve_snapshots(session, last, months)
+    repo.set_state(session, CURVES_REFRESHED_UNTIL, last.isoformat())
     session.commit()
     return written
 

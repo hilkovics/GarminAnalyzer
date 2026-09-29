@@ -355,7 +355,21 @@ def test_apply_lthr_proposal_keeps_the_current_pace(session):
     assert old.lthr == 170.0 and old.source == "manual"
 
 
+def _slow_run_threshold(session, speed=3.2):
+    for row in session.execute(select(Threshold).where(Threshold.sport == "run")).scalars():
+        row.threshold_speed = speed  # far from the 3.5 m/s estimate → a real proposal
+        session.add(row)
+    session.commit()
+
+
+def test_apply_refuses_an_estimate_within_tolerance(session):
+    """Review phase 4 nit: only estimates with propose=True can be applied."""
+    with pytest.raises(InvalidInputError, match="tolerance"):
+        svc.apply_proposal(session, sport="run", field="threshold_speed", today=TODAY)
+
+
 def test_apply_speed_proposal_keeps_the_current_lthr(session):
+    _slow_run_threshold(session)
     dto = svc.apply_proposal(session, sport="run", field="threshold_speed", today=TODAY)
     assert (dto.source, dto.lthr) == ("proposal", 170.0)
     assert dto.threshold_speed == pytest.approx(3.5, abs=0.01)
@@ -374,6 +388,7 @@ def test_apply_unknown_proposal_is_invalid(session, empty_session):
 
 
 def test_apply_speed_proposal_needs_an_lthr(session):
+    _slow_run_threshold(session)
     for row in session.execute(select(Threshold).where(Threshold.sport == "run")).scalars():
         row.lthr = None
         session.add(row)
