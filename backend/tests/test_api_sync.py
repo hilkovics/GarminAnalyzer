@@ -151,6 +151,11 @@ EXPECTED_ROUTES = {
     ("get", "/api/fitness/pmc"),
     ("get", "/api/fitness/weekly"),
     ("get", "/api/fitness/dashboard"),
+    ("get", "/api/progress/ef"),
+    ("get", "/api/progress/speed-hr-curve"),
+    ("get", "/api/progress/best-efforts"),
+    ("get", "/api/progress/predictions"),
+    ("get", "/api/progress/threshold-proposals"),
     ("get", "/api/settings"),
     ("put", "/api/settings/thresholds"),
     ("put", "/api/settings/athlete"),
@@ -178,6 +183,11 @@ def test_openapi_documents_every_endpoint_with_its_dto():
         "DiagnosticsDTO",
         "SyncResultDTO",
         "SubjectiveDTO",
+        "SeriesDTO",
+        "CurveDTO",
+        "BestEffortsDTO",
+        "PredictionsDTO",
+        "ProposalDTO",
     ]
     for name in dtos:
         assert name in schemas, name

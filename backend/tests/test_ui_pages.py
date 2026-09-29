@@ -5,6 +5,13 @@ import datetime as dt
 import pytest
 from streamlit.testing.v1 import AppTest
 
+from tests.test_ui_progres_samples import (
+    sample_curves,
+    sample_efforts,
+    sample_predictions,
+    sample_proposals,
+    sample_series,
+)
 from tests.test_ui_samples import (
     sample_dashboard,
     sample_diagnostics,
@@ -235,9 +242,7 @@ def test_fitness_shows_service_error_message(monkeypatch):
 # --- placeholders and navigation ----------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize(
-    ("page", "title", "phase"), [("progres", "Progres", 4), ("spanok", "Spánok", 5), ("plan", "Plán", 6)]
-)
+@pytest.mark.parametrize(("page", "title", "phase"), [("spanok", "Spánok", 5), ("plan", "Plán", 6)])
 def test_placeholder_pages(page, title, phase):
     at = run_page(page)
     assert not at.exception
@@ -265,6 +270,17 @@ def test_app_navigation_reaches_every_page(monkeypatch):
     patch_service(monkeypatch, "settings", get_settings=lambda session, *, today: sample_settings())
     patch_service(monkeypatch, "diagnostics", get_diagnostics=lambda session: sample_diagnostics())
     patch_service(monkeypatch, "sync", run_sync=lambda session, **kwargs: sample_sync_result())
+    patch_service(
+        monkeypatch,
+        "progress",
+        get_ef_series=lambda session, *, metric="ef", sport="run", **kwargs: sample_series(
+            metric, sport=sport
+        ),
+        get_speed_hr_curves=lambda session, **kwargs: sample_curves(),
+        get_best_efforts=lambda session, *, range="90d", sport="run", **kwargs: sample_efforts(range, sport),
+        get_predictions=lambda session, **kwargs: sample_predictions(),
+        get_threshold_proposals=lambda session, **kwargs: sample_proposals(),
+    )
     at = AppTest.from_file(str(UI_DIR / "app.py"), default_timeout=20).run()
     for page, title in {
         "views/aktivity.py": "Aktivity",

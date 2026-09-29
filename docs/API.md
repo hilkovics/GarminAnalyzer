@@ -22,6 +22,11 @@ docs at `/docs`).
 | GET | `/api/fitness/pmc` | `from`?, `to`? | `PmcDTO` | Daily CTL/ATL/TSB/ACWR/monotony/ramp series with flags |
 | GET | `/api/fitness/weekly` | `weeks`? | `WeeklyDTO[]` | ISO-week volume, zone time and polarization per sport |
 | GET | `/api/fitness/dashboard` | – | `DashboardDTO` | This week vs the last 4, PMC mini, sync health |
+| GET | `/api/progress/ef` | `sport`?, `days`?, `metric`? | `SeriesDTO` | EF / decoupling / pace at reference HR per activity with the 28-day median trend |
+| GET | `/api/progress/speed-hr-curve` | `months`? | `CurveDTO[]` | Month-end speed-HR curve snapshots of the last N months, oldest first |
+| GET | `/api/progress/best-efforts` | `sport`?, `range`? | `BestEffortsDTO` | Best effort per (kind, window) over the last 90 days or all time |
+| GET | `/api/progress/predictions` | – | `PredictionsDTO` | Riegel and Daniels race predictions from the best recent reference |
+| GET | `/api/progress/threshold-proposals` | – | `ProposalDTO[]` | LTHR / threshold-speed proposals (never applied automatically) |
 | GET | `/api/settings` | – | `SettingsDTO` | Athlete, threshold history, today's zone bounds |
 | PUT | `/api/settings/thresholds` | body: `ThresholdIn` | `ThresholdDTO` | Add or replace a threshold from a date; recomputes only activities from that date on |
 | PUT | `/api/settings/athlete` | body: `AthleteIn` | `AthleteDTO` | Update athlete fields (null = unchanged); TRIMP inputs recompute all metrics |
@@ -108,6 +113,47 @@ PUT /settings/athlete body; null fields are left unchanged.
 | `weight_kg` (optional) | number \| null |  |
 | `run_bike_split` (optional) | number \| null |  |
 | `clear_rest_hr_override` (optional) | boolean | true → remove the manual rest HR (back to the 28-day Garmin median) |
+
+### BestEffortDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `kind` | string | "gap_speed" \| "speed" \| "hr" |
+| `window_s` | integer |  |
+| `value` | number | m/s or bpm |
+| `local_date` | date |  |
+| `activity_id` | integer |  |
+| `distance_m` | number \| null |  |
+
+### BestEffortsDTO
+
+GET /progress/best-efforts?sport&range=90d|all (§6.2).
+
+| Field | Type | Description |
+|---|---|---|
+| `sport` | string |  |
+| `range` | string | "90d" \| "all" |
+| `efforts` | BestEffortDTO[] | best per (kind, window_s) |
+
+### CurveBinDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `hr_bin` | integer | lower edge of the 5 bpm bin |
+| `gap_speed` | number | median GAP speed in the bin, m/s |
+| `count` | integer |  |
+
+### CurveDTO
+
+GET /progress/speed-hr-curve – one month-end snapshot (§6.1).
+
+| Field | Type | Description |
+|---|---|---|
+| `month` | string | "YYYY-MM" |
+| `sport` | string |  |
+| `bins` | CurveBinDTO[] |  |
+| `ref_hr` | number \| null | 0.80 · LTHR valid at the window end, bpm |
+| `pace_at_ref_hr` | number \| null | m/s |
 
 ### DashboardDTO
 
@@ -216,6 +262,75 @@ METRICS §2.5: Pearson r between load_primary and Garmin training load.
 | `mid` | number | share Z3 |
 | `high` | number | share Z4–Z5 |
 
+### PredictionDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | string | "5k" \| "10k" \| "half" \| "marathon" |
+| `distance_m` | number |  |
+| `riegel_s` | number |  |
+| `daniels_s` | number |  |
+| `extrapolated` | boolean | reference distance < 1/4 of the target |
+
+### PredictionsDTO
+
+GET /progress/predictions (§7).
+
+| Field | Type | Description |
+|---|---|---|
+| `reference` | ReferenceDTO \| null |  |
+| `stale` | boolean | reference older than 60 days |
+| `predictions` | PredictionDTO[] |  |
+
+### ProposalDTO
+
+GET /progress/threshold-proposals (§6.3) – never auto-applied.
+
+| Field | Type | Description |
+|---|---|---|
+| `sport` | string |  |
+| `field` | string | "threshold_speed" (m/s) \| "lthr" (bpm) |
+| `current` | number \| null |  |
+| `estimate` | number |  |
+| `change` | number \| null | relative (speed) or bpm (lthr) difference; null without current |
+| `propose` | boolean |  |
+| `basis` | string |  |
+| `garmin_lthr` | number \| null | Garmin's own lactate-threshold HR, bpm (if available) |
+| `garmin_lt_speed` | number \| null | Garmin's lactate-threshold speed, m/s (if available) |
+| `garmin_vo2max` | number \| null |  |
+
+### ReferenceDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `distance_m` | number |  |
+| `time_s` | number |  |
+| `local_date` | date |  |
+| `source` | string | "race" \| "effort" |
+| `vdot` | number |  |
+
+### SeriesDTO
+
+GET /progress/ef (EF / decoupling / pace_at_ref_hr_day per activity + trend).
+
+| Field | Type | Description |
+|---|---|---|
+| `metric` | string | "ef" \| "decoupling_pct" \| "pace_at_ref_hr_day" |
+| `sport` | string |  |
+| `unit` | string | "m/min/bpm" \| "%" \| "m/s" |
+| `points` | SeriesPointDTO[] | date ascending; EF/decoupling only for steady-state runs |
+| `trend` | TrendPointDTO[] | daily 28-day median over steady-state activities |
+| `caveat` | string \| null | e.g. bike EF: terrain/wind dependent – trend only (§5.4) |
+
+### SeriesPointDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `activity_id` | integer |  |
+| `local_date` | date |  |
+| `value` | number \| null | metric value of that activity (EF: m/min per bpm; pace metric: m/s) |
+| `steady_state` | boolean \| null |  |
+
 ### SettingsDTO
 
 | Field | Type | Description |
@@ -295,6 +410,14 @@ PUT /settings/thresholds body.
 | `valid_from` | date |  |
 | `lthr` | number | bpm |
 | `threshold_speed` (optional) | number \| null | m/s, run only |
+| `source` (optional) | string | "manual" \| "proposal" (applied §6.3 proposal) |
+
+### TrendPointDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `date` | date |  |
+| `value` | number \| null | 28-day rolling median (METRICS §5.2) |
 
 ### WeeklyDTO
 
