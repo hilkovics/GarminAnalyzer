@@ -359,6 +359,11 @@ Method:
 ### 10.1 Season phases (from goal race date `R`)
 `weeks_to_R > 12` → **Base**; `12 ≥ weeks > 3` → **Build**; `3 ≥ weeks > 1` → **Peak**; last 7–10 days → **Taper**.
 No goal → perpetual Base/Build alternating 3 weeks build + 1 recovery.
+*Clarified 2026-09-29 (phase 6, proposed):* phases are per ISO week (Mon–Sun). `d` = days from the week's
+Monday to `R` (the active goal with the earliest `race_date ≥ Monday`): `d > 84` Base, `21 < d ≤ 84` Build,
+`10 < d ≤ 21` Peak, `0 ≤ d ≤ 10` Taper ("last 7–10 days" rounded to whole weeks, so the taper is 5–11 days
+long). Weeks after `R` (and without any goal): the no-goal cycle, phase "Base", anchored on
+`k = (Monday − 2024-01-01).days // 7`; `k % 4 == 3` is the recovery week.
 
 ### 10.2 Weekly targets
 `weekly_target_load = 7 · (CTL_now + 6 · ramp)` with `ramp` (target CTL increase per week) = 4 (Base),
@@ -367,12 +372,34 @@ Run:bike split from settings (e.g. 60:40). Cap weekly `ramp_rate` (§4) at 6.
 Derivation: with the 42-day constant, a constant daily load `L` changes CTL by ≈ `7 · (L − CTL) / 42 =
 (L − CTL) / 6` per week, so raising CTL by `ramp` per week needs `L ≈ CTL + 6 · ramp`.
 *(Changed 2026-09-29: the previous `7 · (CTL_now + ramp)` only raised CTL by ≈ ramp/6 per week.)*
+*Clarified 2026-09-29 (phase 6, proposed):*
+- `CTL_now` = CTL of the day before the week's Monday (0 if unknown). For future weeks (season timeline,
+  simulation) CTL is projected by assuming each week's target is met as a constant daily load `T / 7`.
+- Taper target = 0.5 × the target of the last week before the taper (not compounding over two taper weeks).
+- Recovery week with a goal: Base/Build weeks with `d // 7 ≥ 4` and `(d // 7) % 4 == 0`; Peak and Taper
+  weeks are never recovery weeks. Without a goal see §10.1.
+- Ramp cap: with a constant daily load, CTL after 7 days rises by `(L − CTL)·(1 − (41/42)^7)`; the target is
+  capped at `7 · (CTL_now + 6 / (1 − (41/42)^7))` so the projected weekly ramp never exceeds 6.
+- Split: `run_share` = athlete `run_bike_split`; if null, the run share of `load_total` over the last 28
+  days; 1.0 if there is no load. Run target = `T · run_share`, bike = the rest.
 
 ### 10.3 Weekly templates (sessions to place Mon–Sun; user picks fixed days in settings)
 - Base: 1 × long (run or bike), 1 × tempo/hills, 3–4 × easy, 1 rest.
 - Build: 1 × long, 1 × threshold intervals, 1 × VO2/hard hills, 2–3 × easy, 1 rest.
 - Peak: 1 × long (shorter), 1 × race-pace session, 1 × short intervals, easy, 2 rest.
 - Taper: 1 × short race-pace, strides, easy; volume −50 %, keep 2 short intense touches.
+*Clarified 2026-09-29 (phase 6, proposed):* a week has a **role per weekday**: `rest`, `easy`, `long`, `q1`,
+`q2`. Athlete `preferred_days` (`{"mon": "rest" | {"role": "long", "sport": "bike"}, …}`) overrides the
+default `mon rest, tue q1, wed easy, thu q2, fri easy, sat long, sun easy`. Per phase:
+- Base: `q2` → easy. Build: as is. Peak: the easy day right before `long` (else the last easy day) → rest.
+  Taper: `long` → easy.
+- Slot → workout (§10.7): run – Base `q1` rotates tempo / hill repeats / progression by `k % 3`; Build `q1`
+  threshold intervals, `q2` VO2 intervals (even `k`) or hill repeats (odd `k`); Peak `q1` race-pace, `q2`
+  short intervals; Taper `q1` short race-pace, `q2` strides; `easy` easy run; `long` long run (Peak: shorter
+  range). Bike – `easy` endurance, `long` long ride, Base `q1` sweet spot, Build `q1` over-unders, `q2` bike
+  VO2 intervals, Peak `q1` race-pace, `q2` short intervals, Taper `q1` short race-pace, `q2` spin-ups.
+- Sport: explicit `preferred_days` sport; else `q1`/`q2`/`long` use the goal sport (run without a goal);
+  `easy` uses the sport with the larger remaining weekly target (run on a tie).
 
 ### 10.4 Daily decision (run every morning after sync)
 Inputs: readiness (§8), `ACWR`, `TSB`, `monotony`, sessions already completed this week, template.
@@ -382,6 +409,25 @@ Inputs: readiness (§8), `ACWR`, `TSB`, `monotony`, sessions already completed t
    yesterday, pick easy/long instead.
 4. Scale duration so that `estimated_load` (§10.6) fills the remaining `weekly_target_load` across remaining sessions.
 5. Output: structured workout (§10.5) + one-line reason string (deterministic, template-based).
+*Clarified 2026-09-29 (phase 6, proposed):*
+- Inputs for day `D`: `readiness[D]`, `TSB[D]` (already pre-day), `ACWR[D−1]` and `monotony[D−1]` (the last
+  complete day). A null input never triggers its condition (the reason says the value is missing).
+- Rule 1: **rest** if the week's rest quota is not yet used (days `Mon … D−1` without any activity < the
+  template's rest days), else **40 min Z1** (recovery, today's sport). This replaces "whichever the template
+  has fewer of", which had no deterministic reading.
+- Rule 2: "session type" = the §10.7 workout key. If today's workout key was done (a `done` planned workout)
+  in `D−7 … D−1`, take the first key of this week's remaining non-rest slots (order long, q1, q2, easy) that
+  was not; if none, keep today's.
+- Rule 3: today's role gives the slot (rest → rest). If today is `easy` and an earlier `q1`/`q2`/`long` slot
+  of this week is unfulfilled (no `done` planned workout of that slot), take the earliest of them. A quality
+  (`q1`/`q2`) choice becomes `easy` if yesterday had a done quality workout or an activity with IF ≥ 0.85
+  (`if_pace` for rTSS, else `if_hr`).
+- Rule 4: `remaining = weekly_target − Σ load_total[Mon … D−1]` (≥ 0); session weights long 2.0, q1/q2
+  1.25, easy 1.0 over today's and the remaining non-rest days of the week; today's target =
+  `remaining · w_today / Σ w`. Each workout has one integer parameter (minutes in 5-min steps, or reps) with
+  the §10.7 range; the value whose `estimated_load` is closest to the target wins (ties → the smaller).
+- Rest output = a planned workout with `sport = "rest"`, no steps, `estimated_load = 0`. Reasons are Slovak,
+  built from fixed templates with the triggering values.
 
 ### 10.5 Workout structure (JSON, sport-agnostic)
 ```json
@@ -397,6 +443,9 @@ Targets: `hr_zone` (1–5), `pace_range` (run, from §1 pace zones), `open`. Bik
 ### 10.6 Estimated load of a planned workout
 `estimated_load = Σ_steps duration_s · IF_zone² / 36`, with `IF_zone` = zone midpoint IF from §2.1 table
 (Z1 0.50, Z2 0.65, Z3 0.83, Z4 0.98, Z5 1.10).
+*Clarified 2026-09-29 (phase 6, proposed):* repeats multiply their inner steps. Z1 0.50 is kept as written
+(not the table midpoint 0.43: recovery work sits in the upper half of Z1, r ≈ 0.61). `open` steps carry an
+`effort_zone` (1–5) used only here; `pace_range` steps carry their pace zone and use the same zone IF.
 
 ### 10.7 Workout library (initial)
 Run: easy (Z2 40–75 min), long (Z2 90–150 min, last 20 min Z3 in Build), tempo (20–40 min Z4 continuous),
@@ -404,6 +453,20 @@ threshold intervals (4–6 × 6 min Z4 / 2 min Z1), VO2 intervals (5–8 × 3 mi
 (8–12 × 60–90 s hard / jog down), progression run (Z2 → Z3 → Z4 last 10 min), strides (easy + 6 × 20 s fast).
 Bike: recovery spin (Z1 45 min), endurance (Z2 90–180 min), sweet spot (2–3 × 20 min high-Z3 / 5 min Z1),
 over-unders (3 × 12 min alternating 2 min Z4 / 1 min Z3), long ride (Z2 with 3 × 10 min Z3).
+*Clarified 2026-09-29 (phase 6, proposed):* quality sessions have warm-up 15 min Z2 and cool-down 10 min Z1.
+Parameter (range, step):
+- run: easy total 40–75 min; long total 90–150 (Peak 75–110; Build: last 20 min Z3); tempo main 20–40 min Z4;
+  threshold 4–6 reps; VO2 5–8 reps; hill repeats 8–12 × (75 s open effort 5 / 120 s Z1); progression total
+  45–75 min (last 20 min: 10 Z3 + 10 Z4); strides: easy 30–50 min Z2 + 6 × (20 s open effort 5 / 60 s Z1);
+  race-pace 3–5 × (8 min at race zone / 3 min Z1), short race-pace 2–3 reps; short intervals 8–12 ×
+  (1 min Z5 / 1 min Z1); recovery 40 min Z1 (rule 1, fixed).
+- bike: recovery spin 45 min Z1 (fixed); endurance 90–180 min; long ride 120–240 min (Z2, 3 × 10 min Z3
+  spread over the middle); sweet spot 2–3 × (20 min Z3 / 5 min Z1); over-unders 3 × [4 × (2 min Z4 / 1 min
+  Z3)] with 5 min Z1 between sets (fixed); bike VO2 5–8 × (3 min Z5 / 3 min Z1); race-pace / short race-pace /
+  short intervals as run; spin-ups: endurance 60–90 min + 6 × (20 s open effort 5 / 60 s Z1); rule-1
+  recovery 40 min Z1.
+- Race zone from the goal: run ≤ 5 km Z5, ≤ 21.1 km Z4, longer Z3; bike Z4 if `target_time_s ≤ 2 h`, else
+  Z3; no goal → Z4.
 
 ### 10.8 Push to Garmin
 Map §10.5 to the `garminconnect` workout builder (running/cycling workouts with HR-zone targets), upload,
