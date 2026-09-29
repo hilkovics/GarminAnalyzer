@@ -110,8 +110,8 @@ def main(
                 continue  # rest day / skipped session / lighter recovery week
             sport, kind = plan
             garmin_id += 1
-            # demo only: a short night raises HR at the same speed (≈ 1 % per hour below 7.2 h)
-            hr_factor = 1 - 0.01 * (sleep_s / 3600 - 7.2)
+            # demo only: a short night raises HR at the same speed (≈ 3 % per hour below 7.2 h)
+            hr_factor = 1 - 0.03 * (sleep_s / 3600 - 7.2)
             frame = stream(rng, sport, kind, hilly=rng.random() < 0.4, hr_factor=hr_factor)
             aid = repo.upsert_activity(
                 session,
