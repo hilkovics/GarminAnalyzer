@@ -1,0 +1,17 @@
+{
+ "_synthetic": true,
+ "userProfileId": 900000001,
+ "statisticsStartDate": "2026-09-28",
+ "statisticsEndDate": "2026-09-28",
+ "allMetrics": {
+  "metricsMap": {
+   "WELLNESS_RESTING_HEART_RATE": [
+    {
+     "value": 47.0,
+     "calendarDate": "2026-09-28"
+    }
+   ]
+  }
+ },
+ "groupedMetrics": null
+}

@@ -1,0 +1,87 @@
+{
+ "_synthetic": true,
+ "activityId": 900000101,
+ "activityUUID": {
+  "uuid": "00000000-0000-4000-8000-000000000101"
+ },
+ "activityName": "anonymized",
+ "userProfileId": 900000001,
+ "isMultiSportParent": false,
+ "activityTypeDTO": {
+  "typeId": 1,
+  "typeKey": "running",
+  "parentTypeId": 17,
+  "isHidden": false,
+  "restricted": false,
+  "trimmable": true
+ },
+ "eventTypeDTO": {
+  "typeId": 9,
+  "typeKey": "uncategorized",
+  "sortOrder": 10
+ },
+ "accessControlRuleDTO": {
+  "typeId": 2,
+  "typeKey": "private"
+ },
+ "timeZoneUnitDTO": {
+  "unitId": 124,
+  "unitKey": "Europe/Bratislava",
+  "factor": 0.0,
+  "timeZone": "Europe/Bratislava"
+ },
+ "metadataDTO": {
+  "isOriginal": true,
+  "deviceApplicationInstallationId": 900000003,
+  "hasPolyline": true,
+  "hasChartData": true,
+  "hasHrTimeInZones": true,
+  "lapCount": 10,
+  "manualActivity": false,
+  "autoCalcCalories": false,
+  "elevationCorrected": false,
+  "deviceMetaDataDTO": {
+   "deviceId": 900000002
+  }
+ },
+ "summaryDTO": {
+  "startTimeLocal": "2026-09-20T07:00:00.0",
+  "startTimeGMT": "2026-09-20T05:00:00.0",
+  "startLatitude": 10.0,
+  "startLongitude": 20.0,
+  "distance": 10012.3,
+  "duration": 3021.4,
+  "movingDuration": 2998.0,
+  "elapsedDuration": 3102.7,
+  "elevationGain": 84.0,
+  "elevationLoss": 81.0,
+  "maxElevation": 212.4,
+  "minElevation": 148.2,
+  "averageSpeed": 3.314,
+  "averageMovingSpeed": 3.34,
+  "maxSpeed": 4.61,
+  "calories": 712.0,
+  "bmrCalories": 68.0,
+  "averageHR": 148.0,
+  "maxHR": 171.0,
+  "minHR": 98.0,
+  "averageRunCadence": 171.4,
+  "maxRunCadence": 186.0,
+  "averageTemperature": 14.2,
+  "maxTemperature": 16.0,
+  "minTemperature": 13.0,
+  "trainingEffect": 3.2,
+  "anaerobicTrainingEffect": 1.1,
+  "aerobicTrainingEffectMessage": "IMPROVING_AEROBIC_BASE_8",
+  "anaerobicTrainingEffectMessage": "NO_ANAEROBIC_BENEFIT_0",
+  "trainingEffectLabel": "AEROBIC_BASE",
+  "activityTrainingLoad": 118.6,
+  "moderateIntensityMinutes": 30,
+  "vigorousIntensityMinutes": 20,
+  "steps": 8612,
+  "avgStrideLength": 116.2,
+  "averageVerticalOscillation": 9.1,
+  "averageGroundContactTime": 251.0
+ },
+ "locationName": "anonymized"
+}
