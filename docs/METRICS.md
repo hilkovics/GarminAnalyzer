@@ -412,10 +412,10 @@ Inputs: readiness (§8), `ACWR`, `TSB`, `monotony`, sessions already completed t
 *Clarified 2026-09-29 (phase 6, proposed):*
 - Inputs for day `D`: `readiness[D]`, `TSB[D]` (already pre-day), `ACWR[D−1]` and `monotony[D−1]` (the last
   complete day). A null input never triggers its condition (the reason says the value is missing).
-- Rule 1: **rest** if the week's rest quota is not yet used (days `Mon … D−1` without any activity < the
+- Rule 1: on a template rest day → rest. Otherwise **rest** if the week's rest quota is not yet used (days `Mon … D−1` without any activity < the
   template's rest days), else **40 min Z1** (recovery, today's sport). This replaces "whichever the template
   has fewer of", which had no deterministic reading.
-- Rule 2: "session type" = the §10.7 workout key. If today's workout key was done (a `done` planned workout)
+- Rule 2: "session type" = the §10.7 (sport, workout key) pair. If today's type was done (a `done` planned workout)
   in `D−7 … D−1`, take the first key of this week's remaining non-rest slots (order long, q1, q2, easy) that
   was not; if none, keep today's.
 - Rule 3: today's role gives the slot (rest → rest). If today is `easy` and an earlier `q1`/`q2`/`long` slot

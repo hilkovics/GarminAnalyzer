@@ -112,12 +112,14 @@ def test_season_weeks_projection(session):
     session.add(Goal(race_date=TODAY + dt.timedelta(days=16 * 7), distance_m=21097.5, sport="run"))
     session.commit()
     weeks = planning.season_weeks(session, TODAY, 17)
-    assert [w.phase for w in weeks][0] == "base" and weeks[-2].phase == "taper"
+    assert weeks[0].phase == "base" and weeks[-2].phase == "taper"
     assert all(w.target_load >= 0 for w in weeks)
 
 
 def test_rest_rows_are_never_matched(session):
-    session.add(PlannedWorkout(date=TODAY, sport="rest", name="Voľno", structure={"sport": "rest", "name": "Voľno"}))
+    session.add(
+        PlannedWorkout(date=TODAY, sport="rest", name="Voľno", structure={"sport": "rest", "name": "Voľno"})
+    )
     session.commit()
     add_activity(session, RUN_ID + 98, TODAY, sport="run")
     planning.match_completed(session, TODAY)
