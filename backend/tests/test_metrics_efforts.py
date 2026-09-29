@@ -7,7 +7,9 @@ mean of `gap_speed` (run) or `speed` (bike, W ≥ 300 only) over a contiguous wi
 Curves: best per W over trailing 90 days and all-time.
 Clarified 2026-09-29 (phase 4, proposed): "contiguous" = consecutive kept samples whose `t` increases by
 exactly 1 (no pause, no gap); every sample in the window must have a valid value (a NaN breaks the window).
-The effort's distance is the cumulative-distance difference across the window (null if unavailable).
+The effort's distance is `distance[last] − distance[first − 1]` when the sample before the window is
+contiguous (t = t_first − 1), else `(distance[last] − distance[first]) · W / (W − 1)` – so W seconds of
+travel are counted, not W − 1 (stored with the effort; null if unavailable).
 HR efforts for all sports. Trailing 90 days = `local_date` in [today − 89, today].
 """
 
@@ -133,21 +135,63 @@ def test_run_uses_gap_speed_not_speed():
     assert eff[("gap_speed", 600)].value == pytest.approx(3.5)
 
 
-def test_distance_is_cumulative_difference_across_window():
-    # distance[i] = 4.0 · i + 7 (arbitrary offset); window of 300 samples starting at 1000.
+def test_distance_mid_activity_counts_w_seconds():
+    # 300 s at 4 m/s mid-activity; distance = cumsum(speed): d[1299] − d[999] = Σ speed[1000..1299].
+    eff = by_key(best_efforts(fast_block_run(), "run"))
+    e = eff[("gap_speed", 300)]
+    assert e.start_t == 1000
+    assert e.distance_m == pytest.approx(1200.0)
+
+
+def test_distance_uses_previous_contiguous_sample():
+    # distance[i] = 10 · i + 7 (arbitrary offset); window of 300 samples starting at 1000, prev t = 999.
     gap = np.full(3600, 3.0)
     gap[1000:1300] = 4.0
     dist = np.arange(3600) * 10.0 + 7.0
     eff = by_key(best_efforts(prep_from(n=3600, speed=gap, distance=dist), "run"))
     e = eff[("gap_speed", 300)]
-    assert e.distance_m == pytest.approx(dist[1299] - dist[1000])  # = 2990 m
-    assert e.distance_m == pytest.approx(2990.0)
+    assert e.distance_m == pytest.approx(dist[1299] - dist[999])  # = 3000 m
+    assert e.distance_m == pytest.approx(3000.0)
 
 
-def test_distance_from_speed_integration():
-    # default distance = cumsum(speed): d[1299] − d[1000] = Σ speed[1001..1299] = 299 · 4.
-    eff = by_key(best_efforts(fast_block_run(), "run"))
-    assert eff[("gap_speed", 300)].distance_m == pytest.approx(299 * 4.0)
+def test_distance_window_at_first_kept_sample_is_scaled():
+    # no sample before the window → (d[299] − d[0]) · 300 / 299 = 299 · 4 · 300 / 299 = 1200.
+    eff = by_key(best_efforts(prep_from(n=600, speed=4.0), "run"))
+    e = eff[("gap_speed", 300)]
+    assert e.start_t == 0
+    assert e.distance_m == pytest.approx(1200.0)
+    # non-linear distance so the scaling is visible: d[0] = 0, d[i] = 5 + 4 · i for i ≥ 1
+    dist = np.arange(600) * 4.0 + 5.0
+    dist[0] = 0.0
+    eff = by_key(best_efforts(prep_from(n=600, speed=4.0, distance=dist), "run"))
+    assert eff[("gap_speed", 300)].distance_m == pytest.approx((dist[299] - dist[0]) * 300 / 299)
+    assert eff[("gap_speed", 60)].distance_m == pytest.approx((dist[59] - dist[0]) * 60 / 59)
+
+
+def test_distance_after_pause_is_scaled():
+    # 350 samples at 3 m/s, a 10 s pause (t jumps 349 → 360) with a 1000 m GPS jump, then 350 at 5 m/s.
+    t = np.concatenate([np.arange(350), np.arange(360, 710)])
+    speed = np.concatenate([np.full(350, 3.0), np.full(350, 5.0)])
+    dist = np.cumsum(speed)
+    dist[350:] += 1000.0
+    eff = by_key(best_efforts(prep_from(t, speed=speed, distance=dist), "run"))
+    e = eff[("gap_speed", 300)]
+    assert e.start_t == 360  # sample index 350; the previous kept sample has t = 349 ≠ 359
+    assert e.distance_m == pytest.approx((dist[649] - dist[350]) * 300 / 299)
+    assert e.distance_m == pytest.approx(1500.0)
+
+
+def test_distance_prev_sample_contiguous_in_t_but_value_nan():
+    # gap NaN at index 99 breaks the value window, but t[99] = t_first − 1 → distance[first − 1] is used.
+    gap = np.full(400, 4.0)
+    gap[99] = np.nan
+    dist = np.arange(400) * 4.0
+    dist[99] -= 100.0
+    eff = by_key(best_efforts(prep_from(n=400, speed=4.0, gap=gap, distance=dist), "run"))
+    e = eff[("gap_speed", 300)]
+    assert e.start_t == 100
+    assert e.distance_m == pytest.approx(dist[399] - dist[99])  # = 1300 m (scaled would be 1200 m)
+    assert e.distance_m == pytest.approx(1300.0)
 
 
 def test_distance_none_when_unavailable():
@@ -162,6 +206,18 @@ def test_distance_none_when_an_end_is_nan():
     eff = by_key(best_efforts(prep_from(n=600, speed=3.0, distance=dist), "run"))
     assert eff[("gap_speed", 600)].distance_m is None
     assert eff[("gap_speed", 300)].distance_m is not None  # the first 300-window is fine
+
+
+def test_distance_none_when_previous_contiguous_distance_is_nan():
+    # previous sample is contiguous → distance[first − 1] is the formula's operand; NaN → null
+    gap = np.full(3600, 3.0)
+    gap[1000:1300] = 4.0
+    dist = np.cumsum(gap)
+    dist[999] = np.nan
+    eff = by_key(best_efforts(prep_from(n=3600, speed=gap, distance=dist), "run"))
+    e = eff[("gap_speed", 300)]
+    assert e.start_t == 1000
+    assert e.distance_m is None
 
 
 def test_pause_breaks_window():
@@ -240,7 +296,7 @@ def test_bike_uses_speed_and_skips_windows_below_300():
     assert 60 not in speed_windows
     assert all(k in {"speed", "hr"} for (k, _) in eff)
     assert eff[("speed", 300)].value == pytest.approx(8.0)
-    assert eff[("speed", 300)].distance_m == pytest.approx(299 * 8.0)
+    assert eff[("speed", 300)].distance_m == pytest.approx(300 * 8.0)  # window at t = 0: scaled
 
 
 def test_other_has_only_hr_efforts():

@@ -6,8 +6,10 @@ mean of `gap_speed` (run) or `speed` (bike, W ≥ 300 only) over a contiguous wi
 (no pause inside). Also **HR best efforts**: max rolling-mean HR over `{1200, 1800, 3600} s`.
 Curves: best per W over trailing 90 days and all-time.
 (Clarified 2026-09-29, phase 4: "contiguous" = consecutive kept samples whose `t` increases by exactly 1;
-every sample in the window must have a valid value (a NaN breaks the window). The effort's distance is the
-cumulative-distance difference across the window, null if unavailable. HR efforts for all sports.
+every sample in the window must have a valid value (a NaN breaks the window). The effort's distance is
+`distance[last] − distance[first − 1]` when the sample before the window is contiguous (t = t_first − 1),
+else `(distance[last] − distance[first]) · W / (W − 1)` – so W seconds of travel are counted, not W − 1
+(stored with the effort; null if unavailable). HR efforts for all sports.
 Trailing 90 days = `local_date` in [today − 89, today].)
 
 # METRICS §6.3
@@ -21,8 +23,9 @@ of the window. No qualifying data → no proposal. Without a current threshold t
 proposed. Proposals round: speed to 0.01 m/s, LTHR to whole bpm.)
 
 Interpretation choices (literal where the text is silent):
-- The effort distance is `distance[last] − distance[first]` of the window's samples (W − 1 seconds of
-  travel under the §0.4 convention); `start_t` is `t` of the first sample. Ties → the earliest position.
+- Effort distance: "contiguous" previous sample is decided by `t` alone (a NaN value at first − 1 does not
+  switch to the scaled form); a NaN operand of the chosen formula → null. `start_t` is `t` of the first
+  sample. Ties → the earliest position.
 - HR best efforts use raw HR (no §0.6 lag: nothing is paired with speed). Walking samples count (§6.2 does
   not exclude them).
 - `best_per_window` and the proposals ignore rows dated after `today`; ties → the earliest `local_date`.
@@ -126,13 +129,23 @@ def _window_bests(
         means = (csum[ends + 1] - csum[ends + 1 - w]) / w
         end = int(ends[int(np.argmax(means))])
         start = end - w + 1
-        dist: float | None = None
-        if distance is not None:
-            d = float(distance[end] - distance[start])
-            dist = None if math.isnan(d) else d
+        dist = None if distance is None else _effort_distance(t, distance, start, end, w)
         value = float(np.mean(values[start : end + 1]))
         out.append(Effort(kind=kind, window_s=w, value=value, distance_m=dist, start_t=int(t[start])))
     return out
+
+
+def _effort_distance(t: np.ndarray, distance: np.ndarray, start: int, end: int, w: int) -> float | None:
+    """METRICS §6.2 (clarified): distance of W seconds of travel for the window `[start, end]`.
+
+    `distance[last] − distance[first − 1]` if the previous kept sample has `t == t_first − 1`,
+    else `(distance[last] − distance[first]) · W / (W − 1)`. None if the operands are unavailable.
+    """
+    if start > 0 and t[start - 1] == t[start] - 1:
+        d = float(distance[end] - distance[start - 1])
+    else:
+        d = float(distance[end] - distance[start]) * w / (w - 1)
+    return None if math.isnan(d) else d
 
 
 def _run_lengths(t: np.ndarray, values: np.ndarray) -> np.ndarray:
