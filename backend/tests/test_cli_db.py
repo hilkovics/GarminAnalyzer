@@ -74,3 +74,24 @@ def test_sync_retry_failed_and_queue_stats(env, monkeypatch):
     assert "Retrying 0 previously failed items" in result.output
     stats = runner.invoke(cli.app, ["db-stats"])
     assert "pending_activities: 0" in stats.output and "failed_wellness_days: 0" in stats.output
+
+
+def test_threshold_athlete_recompute_diagnostics_commands(env):
+    r = runner.invoke(cli.app, ["threshold", "add", "--sport", "run", "--lthr", "168", "--pace", "4:10",
+                                "--valid-from", "2026-01-01"])  # fmt: skip
+    assert r.exit_code == 0, r.output
+    assert "pace 4:10/km" in r.output
+    listing = runner.invoke(cli.app, ["threshold", "list"])
+    assert "168" in listing.output and "4:10/km" in listing.output
+    assert runner.invoke(cli.app, ["athlete", "--sex", "male", "--max-hr", "192"]).exit_code == 0
+    assert runner.invoke(cli.app, ["recompute"]).exit_code == 0
+    diag = runner.invoke(cli.app, ["diagnostics"])
+    assert diag.exit_code == 0, diag.output
+    assert "insufficient" in diag.output
+
+
+def test_pace_conversion_is_presentation_only():
+    from training.cli.metrics import format_pace, parse_pace
+
+    assert parse_pace("4:00") == pytest.approx(1000 / 240)
+    assert format_pace(parse_pace("4:05")) == "4:05/km"

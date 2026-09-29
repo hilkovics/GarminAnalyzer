@@ -50,6 +50,7 @@ class SyncResult:
     activities_failed: int = 0  # gave up after MAX_ATTEMPTS runs – see db-stats / `sync --retry-failed`
     wellness_days: int = 0
     errors: list[str] = field(default_factory=list)
+    affected: set[int] = field(default_factory=set)  # garmin ids whose typed rows changed (metrics to redo)
 
     def merge(self, other: "SyncResult") -> None:
         self.activities_new += other.activities_new
@@ -59,6 +60,7 @@ class SyncResult:
         self.activities_failed += other.activities_failed
         self.wellness_days += other.wellness_days
         self.errors.extend(other.errors)
+        self.affected |= other.affected
 
 
 def raw_sink_for(session: Session) -> RawSink:
@@ -219,6 +221,7 @@ class Ingestor:
         finish()
         try:
             rebuild.rebuild_activity(self.session, garmin_id)
+            result.affected.add(garmin_id)
         except LookupError:  # nothing usable fetched yet
             pass
         except Exception as exc:  # raw data is safe; a normalizer bug is not fixed by re-fetching

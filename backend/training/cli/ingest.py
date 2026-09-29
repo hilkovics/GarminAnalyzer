@@ -1,20 +1,17 @@
-"""`training` command line (Typer). Commands are thin wrappers; logic lives in the core packages.
-
-Phase 0: `login`, `whoami`. Phase 1: `sync`, `backfill`, `db-stats`. Later phases add recompute, api, …
-"""
+"""`training sync` / `training backfill` / `training db-stats` (+ metric update after ingest)."""
 
 import datetime as dt
-import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 
 import requests
 import typer
-from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 from sqlmodel import Session
 
+from training import pipeline
+from training.cli._app import app, console, err
 from training.config import get_settings
 from training.db import repo
 from training.db.session import get_engine
@@ -30,83 +27,6 @@ from training.garmin.sync import (
     raw_sink_for,
 )
 from training.garmin.sync import sync as run_sync
-
-app = typer.Typer(
-    help="Personal training analytics (Garmin Connect → metrics → coach).",
-    no_args_is_help=True,
-    pretty_exceptions_show_locals=False,  # never render locals (the password) in a traceback
-)
-console = Console(soft_wrap=True)
-err = Console(stderr=True, soft_wrap=True)
-
-
-@app.callback()
-def main(verbose: bool = typer.Option(False, "--verbose", "-v", help="Debug logging.")) -> None:
-    logging.basicConfig(
-        level=logging.DEBUG if verbose else logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-    # garminconnect/urllib3 debug output can include request details; keep it quiet unless asked.
-    for name in ("garminconnect", "urllib3", "curl_cffi"):
-        logging.getLogger(name).setLevel(logging.DEBUG if verbose else logging.WARNING)
-
-
-def _prompt_mfa() -> str:
-    return typer.prompt("MFA code").strip()
-
-
-@app.command()
-def login(
-    email: str | None = typer.Option(None, "--email", help="Garmin account e-mail (prompted if omitted)."),
-    force: bool = typer.Option(False, "--force", help="Discard stored tokens and log in again."),
-) -> None:
-    """Interactive Garmin Connect login (with MFA prompt). Stores tokens only – never the password."""
-    settings = get_settings()
-    tokens_dir = settings.tokens_dir
-    if not force and garmin_client.token_file(tokens_dir).exists():
-        try:
-            api = garmin_client.connect(tokens_dir)
-            console.print(f"[green]Already logged in[/] as {api.get_full_name() or api.display_name}.")
-            console.print(f"Tokens: {garmin_client.token_file(tokens_dir)} (use --force to log in again)")
-            return
-        except garmin_client.GarminConnectAuthenticationError:
-            console.print("[yellow]Stored tokens are no longer valid – logging in again.[/]")
-
-    email = email or typer.prompt("Garmin e-mail")
-    password = typer.prompt("Garmin password", hide_input=True)
-    try:
-        api = garmin_client.login_interactive(email, password, _prompt_mfa, tokens_dir, force=force)
-    except garmin_client.GarminConnectAuthenticationError as exc:
-        err.print(f"[red]Login failed:[/] {escape(str(exc))}")
-        raise typer.Exit(1) from None
-    except garmin_client.GarminConnectTooManyRequestsError:
-        err.print("[red]Garmin is rate-limiting logins (429).[/] Wait a while and try again.")
-        raise typer.Exit(1) from None
-    except garmin_client.GarminConnectConnectionError as exc:
-        err.print(f"[red]Could not reach Garmin Connect:[/] {type(exc).__name__}")
-        raise typer.Exit(1) from None
-    except (OSError, ValueError) as exc:
-        err.print(f"[red]Could not store tokens in {escape(str(tokens_dir))}:[/] {type(exc).__name__}")
-        raise typer.Exit(1) from None
-    finally:
-        del password
-    console.print(f"[green]Logged in[/] as {api.get_full_name() or api.display_name}.")
-    console.print(f"Tokens stored in {garmin_client.token_file(tokens_dir)}")
-
-
-@app.command()
-def whoami() -> None:
-    """Verify the stored tokens by fetching the Garmin profile."""
-    settings = get_settings()
-    try:
-        api = garmin_client.connect(settings.tokens_dir)
-    except garmin_client.GarminConnectAuthenticationError as exc:
-        err.print(f"[red]Not logged in:[/] {escape(str(exc))}")
-        raise typer.Exit(1) from None
-    except garmin_client.GarminConnectConnectionError as exc:
-        err.print(f"[red]Could not reach Garmin Connect:[/] {type(exc).__name__}")
-        raise typer.Exit(1) from None
-    console.print(api.get_full_name() or api.display_name)
 
 
 @contextmanager
@@ -169,6 +89,16 @@ def _report(result: SyncResult) -> None:
             console.print(f"  … and {len(result.errors) - 10} more")
 
 
+def _after_ingest(session: Session, result: SyncResult) -> None:
+    """Recompute metrics for what the sync/backfill changed (PLAN phase 2 step 5)."""
+    done = pipeline.update_after_sync(
+        session, result.affected, wellness_changed=result.wellness_days > 0, today=dt.date.today()
+    )
+    console.print(f"Metrics: {done.metrics_computed} activities, PMC {done.daily_load_days} days")
+    for line in done.errors[:5]:
+        console.print(f"  [yellow]- {escape(line)}[/]")
+
+
 @app.command()
 def sync(
     retry_failed: bool = typer.Option(
@@ -179,7 +109,9 @@ def sync(
     with _garmin_session() as (session, client):
         if retry_failed:
             console.print(f"Retrying {Ingestor(session, client).retry_failed()} previously failed items.")
-        _report(run_sync(session, client, dt.date.today()))
+        result = run_sync(session, client, dt.date.today())
+        _report(result)
+        _after_ingest(session, result)
 
 
 @app.command()
@@ -200,6 +132,7 @@ def backfill(
             on_month=lambda cursor: console.print(f"  month done, next: {cursor:%Y-%m}"),
         )
         _report(result)
+        _after_ingest(session, result)
 
 
 @app.command("db-stats")
@@ -232,7 +165,3 @@ def db_stats() -> None:
         console.print(f"{key}: {n}")
     if failed_ids:
         console.print(f"failed activity ids: {', '.join(failed_ids[:20])}")
-
-
-if __name__ == "__main__":
-    app()

@@ -1,0 +1,161 @@
+"""training.pipeline: DB ↔ metrics wiring, historical thresholds, PMC persistence, diagnostics. Offline."""
+
+import datetime as dt
+
+import numpy as np
+import pandas as pd
+import pytest
+from sqlalchemy import select
+
+from training import pipeline
+from training.db import repo
+from training.db.models import Activity, ActivityMetric, DailyLoad
+from training.services.diagnostics import get_diagnostics
+
+UTC = dt.UTC
+LTHR = 170.0
+
+
+def add_activity(
+    session,
+    garmin_id: int,
+    day: dt.date,
+    *,
+    sport: str = "bike",
+    hr: float = LTHR,
+    seconds: int = 3600,
+    garmin_load: float | None = None,
+    is_indoor: bool = False,
+) -> int:
+    """Constant-HR activity with a full 1 Hz stream (all samples moving)."""
+    aid = repo.upsert_activity(
+        session,
+        {
+            "garmin_id": garmin_id,
+            "sport": sport,
+            "sub_sport": {"bike": "road_biking", "run": "running", "other": "hiking"}[sport],
+            "start_utc": dt.datetime.combine(day, dt.time(6), tzinfo=UTC),
+            "local_date": day,
+            "duration_s": float(seconds),
+            "is_race": False,
+            "is_indoor": is_indoor,
+            "garmin_training_load": garmin_load,
+        },
+    )
+    t = np.arange(seconds)
+    repo.replace_streams(
+        session,
+        aid,
+        pd.DataFrame(
+            {
+                "t": t,
+                "hr": np.full(seconds, hr),
+                "speed": np.full(seconds, 8.0 if sport == "bike" else 3.0),
+                "alt": np.full(seconds, 150.0),
+                "distance": t * (8.0 if sport == "bike" else 3.0),
+                "moving": np.ones(seconds, dtype=bool),
+            }
+        ),
+    )
+    session.commit()
+    return aid
+
+
+def metric(session, aid: int) -> ActivityMetric:
+    session.expire_all()
+    return session.get(ActivityMetric, aid)
+
+
+def test_one_hour_at_lthr_is_100_points_and_pmc_is_persisted(session):
+    pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 1, 1), lthr=LTHR)
+    aid = add_activity(session, 1, dt.date(2026, 9, 1))
+    result = pipeline.recompute(session, renormalize=False, end=dt.date(2026, 9, 10))
+    assert result.errors == [] and result.metrics_computed == 1
+    m = metric(session, aid)
+    assert m.load_method == "hrtss"
+    assert m.load_primary == pytest.approx(100.0, abs=1e-6)
+    assert m.threshold_id_used is not None
+    days = session.exec(select(DailyLoad).order_by(DailyLoad.date)).scalars().all()
+    assert [d.date for d in days] == [dt.date(2026, 9, 1) + dt.timedelta(days=i) for i in range(10)]
+    assert days[0].load_total == pytest.approx(100.0) and days[1].load_total == 0.0
+    assert days[0].ctl == pytest.approx(100 / 42) and days[0].tsb == 0.0
+
+
+def test_thresholds_are_resolved_by_activity_date(session):
+    """CLAUDE.md rule 7 / PLAN phase 3 acceptance: a new LTHR changes only activities from its date."""
+    pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 1, 1), lthr=LTHR)
+    early = add_activity(session, 1, dt.date(2026, 3, 1))
+    late = add_activity(session, 2, dt.date(2026, 6, 1))
+    pipeline.recompute(session, renormalize=False)
+    early_before = metric(session, early).load_primary
+
+    result = pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 5, 1), lthr=LTHR + 10)
+    assert result.metrics_computed == 1  # only the activity on/after 2026-05-01
+    assert metric(session, early).load_primary == early_before
+    assert metric(session, late).load_primary < early_before  # same HR, higher LTHR → less load
+
+
+def test_other_sport_uses_run_threshold_and_missing_threshold_gives_null_load(session):
+    hike = add_activity(session, 3, dt.date(2026, 4, 1), sport="other")
+    pipeline.recompute(session, renormalize=False)
+    assert metric(session, hike).load_primary is None and metric(session, hike).threshold_id_used is None
+    pipeline.set_threshold(session, sport="run", valid_from=dt.date(2026, 1, 1), lthr=LTHR)
+    assert metric(session, hike).load_primary == pytest.approx(100.0, abs=1e-6)
+
+
+def test_rest_hr_is_28_day_median_unless_overridden(session):
+    day = dt.date(2026, 5, 28)
+    for i, rhr in enumerate([50, 52, 48, 70]):  # the 70 is 30 days before → outside the window
+        d = day - dt.timedelta(days=30 if rhr == 70 else i)
+        repo.upsert_wellness(session, {"date": d, "rhr": float(rhr)})
+    session.commit()
+    assert pipeline.rest_hr_for(session, None, day) == 50.0
+    athlete = pipeline.set_athlete(session, rest_hr_override=44.0)
+    assert pipeline.rest_hr_for(session, athlete, day) == 44.0
+
+
+def test_update_after_sync_and_diagnostics(session):
+    pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 1, 1), lthr=LTHR)
+    for i, (hr, garmin) in enumerate(
+        [(LTHR, 150.0), (0.9 * LTHR, 110.0), (0.8 * LTHR, 80.0), (0.7 * LTHR, 55.0)]
+    ):
+        add_activity(session, 10 + i, dt.date(2026, 9, 1 + i), hr=hr, garmin_load=garmin)
+    result = pipeline.update_after_sync(
+        session, [10, 11, 12, 13], wellness_changed=False, today=dt.date(2026, 9, 5)
+    )
+    assert result.metrics_computed == 4 and result.daily_load_days == 5
+    d = get_diagnostics(session)
+    assert d.activities == d.activities_with_metrics == 4
+    assert d.load_sanity.n == 4 and d.load_sanity.r > 0.95 and d.load_sanity.status == "good"
+    assert d.activities_without_threshold == 0
+
+
+def test_recompute_from_raw_matches_incremental(session):
+    """Full `recompute` (re-normalize raw → metrics → PMC) reproduces what sync + update produced."""
+    from training.garmin.client import GarminClient
+    from training.garmin.sync import sync
+
+    from .test_sync import TODAY, FakeGarmin, make_activity
+
+    api = FakeGarmin(
+        [make_activity(1001, TODAY - dt.timedelta(days=2)), make_activity(1002, TODAY, "road_biking")]
+    )
+    pipeline.set_threshold(
+        session, sport="run", valid_from=dt.date(2026, 1, 1), lthr=150.0, threshold_speed=3.2
+    )
+    pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 1, 1), lthr=155.0)
+    result = sync(session, GarminClient(api, rate_limit_s=0, sleep=lambda s: None), TODAY)
+    pipeline.update_after_sync(session, result.affected, wellness_changed=True, today=TODAY)
+    before = {
+        r.activity_id: (r.load_primary, r.load_method) for r in session.exec(select(ActivityMetric)).scalars()
+    }
+    pipeline.recompute(session, end=TODAY)
+    session.expire_all()
+    after = {
+        r.activity_id: (r.load_primary, r.load_method) for r in session.exec(select(ActivityMetric)).scalars()
+    }
+    assert after == before and len(after) == 2
+    assert session.execute(select(Activity.sport).order_by(Activity.garmin_id)).scalars().all() == [
+        "run",
+        "bike",
+    ]

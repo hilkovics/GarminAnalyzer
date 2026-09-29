@@ -30,6 +30,9 @@ uv run training sync                     # incremental sync (activities + wellne
 uv run training backfill --months 24     # first-run history download (resumable)
 uv run training db-stats                 # row counts per table / raw payloads per kind
 uv run training recompute                # recompute all metrics from stored raw JSON (no network)
+uv run training threshold add --sport run --lthr 170 --pace 4:10 --valid-from 2026-01-01   # historical thresholds
+uv run training athlete --sex male --max-hr 190   # TRIMP inputs (rest HR = 28-day median Garmin RHR)
+uv run training diagnostics              # sync state + load sanity check vs Garmin training load (§2.5)
 uv run training api                      # FastAPI on :8000
 uv run streamlit run ui-streamlit/app.py # Streamlit UI on :8501
 uv run pytest -q                         # tests
