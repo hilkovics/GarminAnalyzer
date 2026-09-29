@@ -453,7 +453,7 @@
         "tags": [
           "plan"
         ],
-        "summary": "Today's planned workout; decided on the first call, the same plan afterwards",
+        "summary": "Today's planned workout; decided on the first call (redecided by the sync if made before it)",
         "operationId": "get_plan_today",
         "responses": {
           "200": {
@@ -3075,6 +3075,12 @@
             "type": "boolean",
             "title": "Missed",
             "description": "planned/pushed and its date is before today"
+          },
+          "provisional": {
+            "type": "boolean",
+            "title": "Provisional",
+            "description": "decided before the day's sync; the sync's nightly step decides it again",
+            "default": false
           },
           "estimated_load": {
             "anyOf": [

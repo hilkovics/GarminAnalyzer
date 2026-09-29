@@ -155,9 +155,11 @@ def test_run_sync_plans_today(session, settings, api):
 def test_a_planning_failure_never_fails_the_sync(session, settings, api, monkeypatch):
     from training import planning
 
-    def broken(s, today):
-        s.execute(select(func.count()).select_from(Activity))
-        raise RuntimeError("coach bug")
+    def broken(s, today):  # a failed write leaves the session needing a rollback
+        from training.db.models import PlannedWorkout
+
+        s.add(PlannedWorkout(date=today, sport="run", name=None, structure={}))  # NOT NULL violation
+        s.flush()
 
     monkeypatch.setattr(planning, "nightly", broken)
     dto = svc.run_sync(session, settings=settings, today=TODAY)

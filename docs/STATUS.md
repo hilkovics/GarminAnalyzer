@@ -36,11 +36,13 @@ Last updated: 2026-09-29 (phase 6 session)
   2. A decision made before the morning sync (the page opened first) was frozen for the day. It is now
      provisional and the nightly step decides it again.
 
+  Round 2: READY. A plan is also provisional until the wellness cursor reaches the day, `provisional` is shown
+  in the DTO, and the rollback test fails without the rollback.
   Warnings fixed: stale docstrings, `_ctl_before` = exactly Monday−1, rollback after a caught planning
   failure, interpretation notes moved into METRICS §10, UI imports only services, run share per week.
 - Demo (`plan-today` on the demo DB, no goal → Base cycle, recovery week): today "Progresívny beh 60 min",
   estimated 56 points (day target 55). `--sport bike` gives "Sweet spot 2×20 min".
-- Tests: 1705 passed, 5 skipped. ruff clean.
+- Tests: 1706 passed, 5 skipped. ruff clean.
 
 ### Phase 5 – sleep, readiness, correlations (code complete; METRICS §8–§9 clarifications await approval)
 - `analysis/` (pure, test-first by two metrics-implementers):

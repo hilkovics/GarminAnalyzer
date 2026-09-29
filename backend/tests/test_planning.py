@@ -7,8 +7,10 @@ from sqlalchemy import select
 from sqlmodel import Session
 
 from training import planning
+from training.db import repo
 from training.db.models import DailyLoad, Goal, PlannedWorkout
 from training.db.session import make_engine
+from training.db.state_keys import LAST_ACTIVITY_SYNC, LAST_WELLNESS_DATE
 
 from .seeding import RUN_ID, TODAY, add_activity, seeded_db
 
@@ -17,6 +19,7 @@ from .seeding import RUN_ID, TODAY, add_activity, seeded_db
 def session(tmp_path):
     engine = make_engine(seeded_db(tmp_path))
     with Session(engine) as s:
+        _synced(s, TODAY)  # the seeded scenario as a finished sync on TODAY leaves it
         yield s
     engine.dispose()
 
@@ -26,6 +29,13 @@ def _set_day(session, day: dt.date, **values) -> None:
     for key, value in values.items():
         setattr(row, key, value)
     session.add(row)
+    session.commit()
+
+
+def _synced(session, day: dt.date, *, wellness: dt.date | None = None) -> None:
+    """Both sync cursors as a finished `training sync` on `day` leaves them."""
+    repo.set_state(session, LAST_ACTIVITY_SYNC, day.isoformat())
+    repo.set_state(session, LAST_WELLNESS_DATE, (wellness or day).isoformat())
     session.commit()
 
 
@@ -144,16 +154,11 @@ def test_taper_weeks_use_the_stored_pre_taper_week(session):
 
 def test_a_plan_decided_before_the_sync_is_redone_by_the_nightly_step(session):
     """Review phase 6 B2: opening the page before the morning sync must not freeze a stale decision."""
-    from training.db import repo
-    from training.db.state_keys import LAST_ACTIVITY_SYNC
-
-    repo.set_state(session, LAST_ACTIVITY_SYNC, (TODAY - dt.timedelta(days=1)).isoformat())
-    session.commit()
+    _synced(session, TODAY - dt.timedelta(days=1))
     early, _ = planning.plan_day(session, TODAY)  # e.g. GET /plan/today before the sync
     assert planning.is_provisional(early)
     _set_day(session, TODAY, readiness=30.0)  # the sync brings today's readiness …
-    repo.set_state(session, LAST_ACTIVITY_SYNC, TODAY.isoformat())
-    session.commit()
+    _synced(session, TODAY)
     fresh = planning.nightly(session, TODAY)  # … and then plans
     assert "30" in fresh.reason and not planning.is_provisional(fresh)
     assert len(planning.planned_for(session, TODAY)) == 1
@@ -161,13 +166,17 @@ def test_a_plan_decided_before_the_sync_is_redone_by_the_nightly_step(session):
 
 
 def test_nightly_keeps_a_user_regeneration(session):
-    from training.db import repo
-    from training.db.state_keys import LAST_ACTIVITY_SYNC
-
-    repo.set_state(session, LAST_ACTIVITY_SYNC, (TODAY - dt.timedelta(days=1)).isoformat())
-    session.commit()
+    _synced(session, TODAY - dt.timedelta(days=1))
     chosen, _ = planning.plan_day(session, TODAY, sport_override="bike")
     assert not planning.is_provisional(chosen)  # origin "user"
-    repo.set_state(session, LAST_ACTIVITY_SYNC, TODAY.isoformat())
-    session.commit()
+    _synced(session, TODAY)
     assert planning.nightly(session, TODAY).id == chosen.id
+
+
+def test_a_plan_is_provisional_until_the_wellness_sync_reached_today(session):
+    """Review phase 6 round 2 W1: the activity cursor is saved before the wellness fetch."""
+    _synced(session, TODAY, wellness=TODAY - dt.timedelta(days=1))  # e.g. a 429 during the wellness loop
+    row, _ = planning.plan_day(session, TODAY)
+    assert planning.is_provisional(row)
+    _synced(session, TODAY)
+    assert not planning.is_provisional(planning.nightly(session, TODAY))

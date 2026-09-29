@@ -82,6 +82,9 @@ class PlannedWorkoutDTO(BaseModel):
     slot: str | None = Field(description='weekday role filled: "easy" | "long" | "q1" | "q2"')
     status: str = Field(description='"planned" | "pushed" | "done" | "skipped"')
     missed: bool = Field(description="planned/pushed and its date is before today")
+    provisional: bool = Field(
+        default=False, description="decided before the day's sync; the sync's nightly step decides it again"
+    )
     estimated_load: float | None = Field(description="§10.6, TSS-equivalent points")
     duration_s: int = Field(description="total planned seconds, repeats multiplied")
     reason: str | None = Field(description="one-line Slovak reason of the decision")

@@ -140,6 +140,7 @@ def _planned_dto(session: Session, row: PlannedWorkout, today: dt.date) -> Plann
         slot=workout.slot,
         status=row.status,
         missed=row.status in PENDING and row.date < today,
+        provisional=planning.is_provisional(row),
         estimated_load=row.estimated_load,
         duration_s=total_duration_s(workout),
         reason=row.reason,
@@ -202,7 +203,8 @@ def _decision_dto(
 
 
 def get_today(session: Session, today: dt.date) -> DailyDecisionDTO:
-    """Today's plan; decided (and stored) on the first call, the same plan afterwards."""
+    """Today's plan; decided (and stored) on the first call. A plan decided before the day's sync is
+    provisional and decided again by the sync's nightly step; otherwise the same plan afterwards."""
     try:
         row, decision = planning.plan_day(session, today)
     except planning.PlanError as exc:

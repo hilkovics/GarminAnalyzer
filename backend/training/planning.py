@@ -4,7 +4,8 @@
 - `build_context` assembles the §10.4 inputs for one day; `plan_day` runs `coach.rules.decide` and persists
   the result as a `planned_workout` (one per day; kept unless regenerated).
 - `match_completed`: a planned workout is done when an activity of the same sport exists on its date.
-- `nightly` = match + plan today if nothing is planned yet (called at the end of `training sync`).
+- `nightly` = match + plan today if nothing is planned yet, or decide again an automatic plan made before
+  the day's sync (called at the end of `training sync` and `POST /sync`).
 """
 
 import datetime as dt
@@ -17,7 +18,7 @@ from training.coach import library, rules, season, template
 from training.coach.workout import estimated_load, from_structure, to_structure
 from training.db import repo
 from training.db.models import Activity, ActivityMetric, Athlete, DailyLoad, Goal, PlannedWorkout
-from training.db.state_keys import LAST_ACTIVITY_SYNC
+from training.db.state_keys import LAST_ACTIVITY_SYNC, LAST_WELLNESS_DATE
 
 log = logging.getLogger(__name__)
 
@@ -219,9 +220,14 @@ def plan_day(
 
 
 def _inputs_complete(session: Session, day: dt.date) -> bool:
-    """Whether the day's sync already ran (daily_load[D] exists and the last activity sync is ≥ D)."""
-    last_sync = repo.get_state_date(session, LAST_ACTIVITY_SYNC)
-    return _daily(session, day) is not None and last_sync is not None and last_sync >= day
+    """Whether the day's sync already ran: daily_load[D] exists and both sync cursors reached D.
+
+    The activity cursor is saved before the wellness fetch, so readiness also needs the wellness cursor.
+    """
+    if _daily(session, day) is None:
+        return False
+    cursors = [repo.get_state_date(session, key) for key in (LAST_ACTIVITY_SYNC, LAST_WELLNESS_DATE)]
+    return all(c is not None and c >= day for c in cursors)
 
 
 def is_provisional(row: PlannedWorkout) -> bool:

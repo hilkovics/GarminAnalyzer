@@ -22,7 +22,7 @@ docs at `/docs`).
 | GET | `/api/fitness/pmc` | `from`?, `to`? | `PmcDTO` | Daily CTL/ATL/TSB/ACWR/monotony/ramp series with flags |
 | GET | `/api/fitness/weekly` | `weeks`? | `WeeklyDTO[]` | ISO-week volume, zone time and polarization per sport |
 | GET | `/api/fitness/dashboard` | – | `DashboardDTO` | This week vs the last 4, PMC mini, sync health |
-| GET | `/api/plan/today` | – | `DailyDecisionDTO` | Today's planned workout; decided on the first call, the same plan afterwards |
+| GET | `/api/plan/today` | – | `DailyDecisionDTO` | Today's planned workout; decided on the first call (redecided by the sync if made before it) |
 | POST | `/api/plan/today/regenerate` | `sport`? | `DailyDecisionDTO` | Decide today again, optionally for another sport (run \| bike); a done workout stays |
 | GET | `/api/plan/week` | `date`? | `WeekPlanDTO` | The ISO week containing `date` (default today): targets, planned vs done per day |
 | GET | `/api/plan/season` | – | `SeasonDTO` | Season plan: this week and the projected weeks up to the race (phases, targets) |
@@ -347,6 +347,7 @@ A planned workout (METRICS §10.5); `sport = "rest"` is a rest day with no steps
 | `slot` | string \| null | weekday role filled: "easy" \| "long" \| "q1" \| "q2" |
 | `status` | string | "planned" \| "pushed" \| "done" \| "skipped" |
 | `missed` | boolean | planned/pushed and its date is before today |
+| `provisional` (optional) | boolean | decided before the day's sync; the sync's nightly step decides it again |
 | `estimated_load` | number \| null | §10.6, TSS-equivalent points |
 | `duration_s` | integer | total planned seconds, repeats multiplied |
 | `reason` | string \| null | one-line Slovak reason of the decision |

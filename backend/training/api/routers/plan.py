@@ -25,7 +25,7 @@ router = APIRouter(prefix="/plan", tags=["plan"])
     "/today",
     response_model=DailyDecisionDTO,
     responses=INVALID,
-    summary="Today's planned workout; decided on the first call, the same plan afterwards",
+    summary="Today's planned workout; decided on the first call (redecided by the sync if made before it)",
 )
 def get_plan_today(session: SessionDep, today: TodayDep) -> DailyDecisionDTO:
     return service.get_today(session, today)

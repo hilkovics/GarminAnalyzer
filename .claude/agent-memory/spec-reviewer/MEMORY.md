@@ -73,3 +73,21 @@
   module docstrings that quote the clarification are not updated (season.py, rules.py). Diff quoted text.
 - Sync-wrapping try/except without session.rollback() (services/sync.py, cli/ingest.py) - flag each phase.
 - STATUS.md again not updated (phase 6). test_coach_rules.py 481 lines.
+
+## Phase 6 round 2 (2026-09-29)
+- B1 verified: planning._pre_taper_target = weekly_target(CTL[pre_taper_monday − 1]) passed into season_plan;
+  scratch-checked race offsets 0/3/7/10/13 days (all taper weeks = min(0.5·ref, cap)). New B1 test fails on
+  ed6bc41 by value (real regression test).
+- B2 verified: provisional = structure.origin "auto" + provisional flag, status "planned"; nightly re-decides only
+  when ALL rows of the day are provisional. No id reuse: SQLAlchemy flushes the INSERT before the DELETE of the
+  same mapper, so the new id = max+1 (scratch: 1 -> 2 -> regen 3). The `_inputs_complete` call sits before
+  session.delete so autoflush cannot free the id first - keep an eye on new queries added between delete/add.
+- New pattern: "freshness" flags based on a sync_state cursor that is committed MID-sync
+  (LAST_ACTIVITY_SYNC is set before the wellness loop in garmin/sync.py). A 429 in wellness + a settings save
+  (services/settings -> pipeline.recompute(end=today) creates daily_load[D]) makes a pre-wellness decision look
+  complete. Check which cursor actually covers the inputs (readiness needs LAST_WELLNESS_DATE).
+- New pattern: "never fails / rollback" tests that raise a plain exception without a failed flush pass on the old
+  code too (test_a_planning_failure_never_fails_the_sync passed on ed6bc41). Run new tests against the base
+  commit (git worktree in scratchpad) to see if they really fail without the fix.
+- Stale wording again after the fix: planning module docstring ("plan today if nothing is planned yet"),
+  services/plan.get_today and the /plan/today summary ("the same plan afterwards").

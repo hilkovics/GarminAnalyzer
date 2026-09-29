@@ -434,9 +434,9 @@ Inputs: readiness (§8), `ACWR`, `TSB`, `monotony`, sessions already completed t
 - "Fulfilled" counts slots: the n-th earlier `q1` day is fulfilled when ≥ n done `q1` sessions lie in
   `Mon … D−1`; "done quality yesterday" = a done session on `D−1` with slot `q1`/`q2`. A done recovery
   fills no slot.
-- Timing: an automatic decision made before the day's sync (`daily_load[D]` missing or the last activity
-  sync < `D`, e.g. the page opened first) is provisional; the sync's nightly step decides it again. User
-  regenerations and pushed / done / skipped workouts are never replaced automatically.
+- Timing: an automatic decision made before the day's sync (`daily_load[D]` missing or the activity or
+  wellness sync cursor < `D`, e.g. the page opened first) is provisional; the sync's nightly step decides it
+  again. User regenerations and pushed / done / skipped workouts are never replaced automatically.
 
 ### 10.5 Workout structure (JSON, sport-agnostic)
 ```json
