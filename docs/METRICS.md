@@ -148,7 +148,10 @@ Series starts at the first synced day; the first 90 days are shaded "warming up"
   need their full length of series history; before that the value is NaN. `std7` is the population
   standard deviation (ddof = 0). A training day is a day with `daily_load > 0`.
 - `ramp_rate` is NaN for the first 7 days. Flags: `ramp_warning = ramp_rate > 6`, `acwr_band` per the
-  bands above (NaN → no band).
+  bands above (NaN → no band), read as half-open: `< 0.8` under, `[0.8, 1.3)` optimal, `[1.3, 1.5]` caution,
+  `> 1.5` danger. `std7 == 0` means all seven loads are equal (exact comparison, so floating-point residue of
+  a constant window never yields a huge monotony). Because the 28-day training-day count needs full history,
+  monotony and strain start on day 28.
 - `daily_load` is split into `load_run`, `load_bike` (and `other`, part of the total only). An activity with
   a null `load_primary` contributes 0.
 - Weekly aggregates: ISO week (Monday start). Duration = `duration_s` (timer time). Polarization shares use
