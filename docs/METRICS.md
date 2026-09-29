@@ -380,8 +380,8 @@ Derivation: with the 42-day constant, a constant daily load `L` changes CTL by �
   weeks are never recovery weeks. Without a goal see §10.1.
 - Ramp cap: with a constant daily load, CTL after 7 days rises by `(L − CTL)·(1 − (41/42)^7)`; the target is
   capped at `7 · (CTL_now + 6 / (1 − (41/42)^7))` so the projected weekly ramp never exceeds 6.
-- Split: `run_share` = athlete `run_bike_split`; if null, the run share of `load_total` over the last 28
-  days; 1.0 if there is no load. Run target = `T · run_share`, bike = the rest.
+- Split: `run_share` = athlete `run_bike_split`; if null, the run share of `load_run + load_bike` over the last
+  28 days ("other" load is not planned); 1.0 if there is no load. Run target = `T · run_share`, bike = the rest.
 
 ### 10.3 Weekly templates (sessions to place Mon–Sun; user picks fixed days in settings)
 - Base: 1 × long (run or bike), 1 × tempo/hills, 3–4 × easy, 1 rest.
