@@ -194,14 +194,14 @@ Last updated: 2026-09-29 (phase 1 session)
 
 ## Decisions
 
-- 2026-09-29 **Phase 2 METRICS clarifications written first**, marked "Clarified 2026-09-29 (phase 2, proposed)"
+- 2026-09-29 **Phase 2 METRICS clarifications written first**, marked "Clarified 2026-09-29 (phase 2, approved)"
   in §0.3–§0.5, §1, §2.1–§2.3, §2.5 and §4. They resolve points the spec leaves open:
   - window alignment and minimum periods;
   - population vs sample standard deviation for monotony;
   - which samples each sum runs over;
   - threshold resolution for `other`;
   - the JSON shapes.
-  **They await the user's approval.**
+  **Approved by the user on 2026-09-29.**
 
 - 2026-09-29 **METRICS.md fixes** (approved by the user):
   - §1 zone boundaries are half-open intervals, so there are no gaps at 0.835 / 0.945.
