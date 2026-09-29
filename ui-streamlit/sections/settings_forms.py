@@ -68,6 +68,11 @@ def athlete_form(athlete: AthleteDTO | None) -> None:
             value=athlete.run_bike_split * 100 if athlete and athlete.run_bike_split is not None else None,
             step=5.0,
         )
+        clear_rest = st.checkbox(
+            "Zmazať ručný pokojový tep (použiť 28-dňový medián z Garminu)",
+            value=False,
+            disabled=not (athlete and athlete.rest_hr_override is not None),
+        )
         submitted = st.form_submit_button("Uložiť atléta")
     if not submitted:
         return
@@ -76,7 +81,8 @@ def athlete_form(athlete: AthleteDTO | None) -> None:
             sex=sex,
             birth_year=int(birth_year) if birth_year is not None else None,
             max_hr=max_hr,
-            rest_hr_override=rest_hr,
+            rest_hr_override=None if clear_rest else rest_hr,
+            clear_rest_hr_override=clear_rest,
             weight_kg=weight,
             run_bike_split=split / 100 if split is not None else None,
         )

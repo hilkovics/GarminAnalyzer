@@ -1182,6 +1182,12 @@
               }
             ],
             "title": "Run Bike Split"
+          },
+          "clear_rest_hr_override": {
+            "type": "boolean",
+            "title": "Clear Rest Hr Override",
+            "description": "true → remove the manual rest HR (back to the 28-day Garmin median)",
+            "default": false
           }
         },
         "type": "object",

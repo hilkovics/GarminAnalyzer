@@ -52,6 +52,9 @@ class AthleteIn(BaseModel):
     rest_hr_override: float | None = Field(default=None, gt=0)
     weight_kg: float | None = Field(default=None, gt=0)
     run_bike_split: float | None = Field(default=None, ge=0, le=1)
+    clear_rest_hr_override: bool = Field(
+        default=False, description="true → remove the manual rest HR (back to the 28-day Garmin median)"
+    )
 
 
 class ZoneBoundDTO(BaseModel):

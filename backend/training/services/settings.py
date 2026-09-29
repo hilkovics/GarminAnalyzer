@@ -76,16 +76,22 @@ def add_threshold(session: Session, data: ThresholdIn, *, today: dt.date) -> Thr
 
 def update_athlete(session: Session, data: AthleteIn, *, today: dt.date) -> AthleteDTO:
     """Update the given (non-null) athlete fields; TRIMP-relevant changes recompute all metrics."""
-    fields = data.model_dump()
+    fields = data.model_dump(exclude={"clear_rest_hr_override"})
     given = {k: v for k, v in fields.items() if v is not None}
-    if not given:
+    if data.clear_rest_hr_override and data.rest_hr_override is not None:
+        raise InvalidInputError("rest_hr_override and clear_rest_hr_override are mutually exclusive")
+    if not given and not data.clear_rest_hr_override:
         raise InvalidInputError("no athlete field given")
     if data.sex is not None and data.sex not in SEXES:
         raise InvalidInputError(f"sex must be one of {', '.join(SEXES)}")
     if data.birth_year is not None and not 1900 <= data.birth_year <= today.year:
         raise InvalidInputError(f"birth_year must be between 1900 and {today.year}")
-    pipeline.set_athlete(session, **given)
-    if any(k in given for k in METRIC_FIELDS):
+    athlete = pipeline.set_athlete(session, **given)
+    if data.clear_rest_hr_override:
+        athlete.rest_hr_override = None
+        session.add(athlete)
+        session.commit()
+    if data.clear_rest_hr_override or any(k in given for k in METRIC_FIELDS):
         pipeline.recompute(session, renormalize=False, end=today)
     dto = _athlete_dto(session, today)
     assert dto is not None

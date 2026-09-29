@@ -18,12 +18,8 @@ st.set_page_config(page_title="Tréning", page_icon=":material/directions_run:",
 
 PAGES = [
     st.Page(
-        "views/dashboard.py",
-        title="Dashboard",
-        icon=":material/dashboard:",
-        url_path="dashboard",
-        default=True,
-    ),
+        "views/dashboard.py", title="Dashboard", icon=":material/dashboard:", default=True
+    ),  # served at /
     st.Page("views/aktivity.py", title="Aktivity", icon=":material/directions_run:", url_path="aktivity"),
     st.Page("views/fitness.py", title="Fitness", icon=":material/monitoring:", url_path="fitness"),
     st.Page("views/progres.py", title="Progres", icon=":material/trending_up:", url_path="progres"),

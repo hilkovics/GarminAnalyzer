@@ -252,3 +252,19 @@ def test_empty_update_does_not_create_an_athlete_row(empty):
     with pytest.raises(InvalidInputError):
         svc.update_athlete(empty, AthleteIn(), today=TODAY)
     assert pipeline.get_athlete(empty) is None
+
+
+def test_clear_rest_hr_override_returns_to_median(session):
+    """Settings UI gap: AthleteIn null means "unchanged", so clearing needs an explicit flag."""
+    import datetime as _dt
+
+    from training.db import repo as _repo
+    from training.services.dto import AthleteIn as _AthleteIn
+    from training.services.settings import update_athlete as _update
+
+    today = _dt.date(2026, 9, 29)
+    _repo.upsert_wellness(session, {"date": today, "rhr": 51.0})
+    session.commit()
+    assert _update(session, _AthleteIn(rest_hr_override=44.0), today=today).rest_hr_current == 44.0
+    dto = _update(session, _AthleteIn(clear_rest_hr_override=True), today=today)
+    assert dto.rest_hr_override is None and dto.rest_hr_current == 51.0

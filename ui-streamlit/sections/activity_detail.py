@@ -62,13 +62,13 @@ def _summary(detail: ActivityDetailDTO) -> None:
     if s.is_indoor:
         tags.append("indoor")
     st.caption(" · ".join(tags))
-    cols = st.columns(6)
-    cols[0].metric("Trvanie", fmt_duration_hms(s.duration_s))
-    cols[1].metric("Vzdialenosť", fmt_km(s.distance_m, 2))
-    cols[2].metric("Tempo" if s.sport != "bike" else "Rýchlosť", fmt_speed(s.avg_speed, s.sport))
-    cols[3].metric("Priem. tep", fmt_num(s.avg_hr, 0, "bpm"))
-    cols[4].metric("Max. tep", fmt_num(s.max_hr, 0, "bpm"))
-    cols[5].metric("Prevýšenie", fmt_num(s.elev_gain_m, 0, "m"))
+    top, bottom = st.columns(3), st.columns(3)  # two rows: values like "30.2 km/h" fit without truncation
+    top[0].metric("Trvanie", fmt_duration_hms(s.duration_s))
+    top[1].metric("Vzdialenosť", fmt_km(s.distance_m, 2))
+    top[2].metric("Tempo" if s.sport != "bike" else "Rýchlosť", fmt_speed(s.avg_speed, s.sport))
+    bottom[0].metric("Priem. tep", fmt_num(s.avg_hr, 0, "bpm"))
+    bottom[1].metric("Max. tep", fmt_num(s.max_hr, 0, "bpm"))
+    bottom[2].metric("Prevýšenie", fmt_num(s.elev_gain_m, 0, "m"))
     if s.low_confidence:
         st.warning(
             f"Nízka spoľahlivosť záťaže (pokrytie tepu {fmt_pct(s.hr_coverage)}). Hodnoty ber s rezervou."

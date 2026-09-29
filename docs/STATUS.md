@@ -1,8 +1,38 @@
 # STATUS
 
-Last updated: 2026-09-29 (phase 2 session)
+Last updated: 2026-09-29 (phase 3 session)
 
 ## Done
+
+### Phase 3 – services, API and Streamlit UI v1 (code complete; check against your real DB pending)
+- `services/dto.py` holds the fixed DTO contract (PLAN §5), written by the orchestrator first, so that two
+  ui-page-builder subagents could work in parallel worktrees.
+- Services (`activities`, `fitness`, `settings`, `sync`, `diagnostics`, `lttb`, `mappers`) return DTOs only.
+  - Streams are LTTB-downsampled; `gap_speed` / `grade` come from `metrics.preprocess`.
+  - The dashboard compares this week with the mean of the previous four.
+  - `run_sync` turns auth, 429 and network errors into user-facing `ServiceError`s.
+- FastAPI app (`training api`), prefix `/api`, with every endpoint of PLAN §5 used through phase 3.
+  - Errors map as NotFound → 404, InvalidInput → 422, ServiceError → 502.
+  - operationIds are function names, for the phase-9 codegen.
+  - `training export-openapi` writes `docs/openapi.json` and `docs/API.md`. A test fails if they are stale.
+- Streamlit UI (Slovak, `uv run streamlit run ui-streamlit/app.py`):
+  - `views/`: Dashboard, Aktivity (list and detail with streams chart, laps, zones, load breakdown, RPE form),
+    Fitness (PMC with the 90-day warming-up band, weekly bars), Nastavenia (athlete, threshold history and
+    form, zone preview, diagnostics, "Spustiť sync teraz").
+  - `sections/` and `components/` hold the Plotly figures: DTO in, figure out.
+  - Progres, Spánok and Plán are placeholders.
+- `scripts/seed_demo.py` builds a synthetic 150-day demo DB, so the UI and API can be tried without Garmin.
+- **Visual check:** every page and settings tab was rendered in headless Chromium against the demo DB, with no
+  exceptions. The dashboard, activity detail, PMC band, zone tables and diagnostics (r = 0.92) look right.
+  `GET /api/fitness/pmc` returns the service DTO (tested), plus 404 paths and stream downsampling (195 points
+  from 6022).
+  Fixed after the check:
+  - `/dashboard` URL → the default page is served at `/`;
+  - the speed metric was truncated;
+  - the rest-HR override couldn't be cleared (`AthleteIn.clear_rest_hr_override`).
+- Tests: 796 passed, 5 skipped. They cover services on a seeded DB, every API endpoint including 404/422, and
+  every page through AppTest with faked services.
+  They also check that PUT /settings/thresholds changes only activities from `valid_from` on.
 
 ### Phase 2 – load metrics and PMC (code complete; real-data report pending, see Next)
 - `metrics/` (pure, test-first by two metrics-implementer subagents in parallel worktrees):
@@ -218,10 +248,22 @@ Last updated: 2026-09-29 (phase 2 session)
    The output gives the number of activities, the low-confidence share, Pearson r against Garmin training load
    (expect > 0.8; below 0.7 means review your LTHR first), and the runs where hrTSS and rTSS differ by more than
    40 %. Also compare time in zones for 5 activities with Garmin Connect (PLAN §7); it should match almost exactly.
-6. **Phase 3** – services and DTOs, FastAPI read-only endpoints, Streamlit UI v1 (ui-page-builder).
+6. **You, locally – phase 3 check:** run `uv run streamlit run ui-streamlit/app.py` against your real DB, and
+   compare `GET /api/fitness/pmc` (`uv run training api`) with the Fitness page. Change an LTHR in Nastavenia
+   with a `valid_from` in the middle of your history: only later activities may change.
+7. **Phase 4** – progress without power: EF, decoupling, speed–HR curve, best efforts, threshold proposals,
+   predictions.
 
 ## Known issues / open questions
 
+- Phase 3 open points:
+  - The lap keys (`lapDTOs[].duration/distance/averageHR/maxHR/averageSpeed/elevationGain`) are unverified until
+    real fixtures exist.
+  - `sync_stale` compares dates, not hours: stale if the last sync is 2 or more calendar days old. `sync_state`
+    has no timestamps.
+  - There is no CORS middleware yet (phase 9, React).
+  - The UI computes the page count itself (`ActivityListDTO` has no `pages`).
+  - METRICS gives no monotony threshold, so Fitness shows the value without a flag.
 - Phase 2 interpretation choices, all literal to METRICS:
   - An empty stream gives hrTSS 0 with IF_hr null.
   - When `lthr ≤ rest_hr`, TRIMP_norm is null.

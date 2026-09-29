@@ -107,6 +107,7 @@ PUT /settings/athlete body; null fields are left unchanged.
 | `rest_hr_override` (optional) | number \| null |  |
 | `weight_kg` (optional) | number \| null |  |
 | `run_bike_split` (optional) | number \| null |  |
+| `clear_rest_hr_override` (optional) | boolean | true → remove the manual rest HR (back to the 28-day Garmin median) |
 
 ### DashboardDTO
 
