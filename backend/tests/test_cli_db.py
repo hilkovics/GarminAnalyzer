@@ -15,6 +15,7 @@ runner = CliRunner()
 @pytest.fixture
 def env(monkeypatch, tmp_path):
     monkeypatch.setenv("TRAINING_DB_PATH", str(tmp_path / "db" / "training.db"))
+    monkeypatch.setenv("TRAINING_RATE_LIMIT_S", "0")
     monkeypatch.setenv("TRAINING_GARMIN_TOKENS", str(tmp_path / "tokens"))
     monkeypatch.setenv("GARMINTOKENS", str(tmp_path / "tokens"))
     get_settings.cache_clear()

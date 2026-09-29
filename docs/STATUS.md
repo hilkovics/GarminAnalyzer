@@ -1,8 +1,44 @@
 # STATUS
 
-Last updated: 2026-09-29 (end of phase 0 session)
+Last updated: 2026-09-29 (phase 1 session)
 
 ## Done
+
+### Phase 1 – database, sync and backfill (code complete; local acceptance steps pending, see Next)
+- SQLModel models for every table in PLAN §4 (`db/models.py`) and the initial Alembic migration
+  (`0001_initial_schema`). A test checks that the migrated schema equals the models.
+- `db/repo.py` provides idempotent upserts:
+  - `raw_garmin` by (kind, ref_key), with a SHA-256 for change detection;
+  - `activity` by garmin_id;
+  - `activity_stream` replaced per activity;
+  - `daily_wellness` by date;
+  - `sync_state` key/value.
+- `db/rebuild.py` normalizes activities and wellness from `raw_garmin` only, so the typed tables can be rebuilt
+  offline. Sync uses the same functions.
+- `garmin/client.py` has one method per endpoint. Every response goes to raw_garmin before it is returned
+  (committed immediately). The activity list is paged through the rate-limited client (100 per page).
+  Detail requests set `maxChartSize` to the activity duration, so 1 Hz data is not downsampled.
+- `normalize/` (pure):
+  - `normalize_activity` (summary with list-item fallback);
+  - `normalize_streams` (descriptor-key mapping, 1 s grid, forward-fill ≤ 10 s, timer-based `moving`, speed from
+    distance if the speed channel is missing);
+  - `normalize_wellness` (sleep with GMT timestamps, RHR, stress, body battery via descriptors, user summary).
+- `garmin/sync.py` (incremental):
+  - activities since `last_activity_sync` − 2 days; a known activity is re-fetched only if its list item changed;
+  - wellness from `last_wellness_date` to today;
+  - training status / max metrics / lactate threshold are stored raw for today.
+  One failing endpoint is logged and the run continues.
+- `garmin/backfill.py` walks month by month backwards, with `backfill_cursor` saved after every month. Rerunning
+  resumes, a larger `--months` extends the history, and already stored days/activities are skipped.
+- CLI: `training sync`, `training backfill --months N`, `training db-stats`. 429 errors, rejected tokens and
+  Ctrl+C give a clean message ("progress is saved – run again").
+- Tests: 212 passed, 5 skipped (real-fixture conformance; they skip until fixtures are recorded).
+  - Normalizers are tested against hand-made Garmin-shaped JSON in `backend/tests/fixtures/synthetic/`.
+  - Sync is run twice and gives identical rows; a changed list item is re-fetched; failing endpoints are
+    tolerated.
+  - An interrupted backfill resumes without re-fetching finished months.
+  - `rebuild_all` from raw works without network.
+  - The CLI `sync` and `db-stats` commands are exercised against a temp DB.
 
 ### Phase 0 – repository skeleton and Garmin login (code complete; local acceptance steps pending, see Next)
 - uv project (Python 3.12) with ruff, pytest and all dependencies from PLAN.md phase 0; `uv.lock` committed.
@@ -77,8 +113,13 @@ Last updated: 2026-09-29 (end of phase 0 session)
    Then commit `backend/tests/fixtures/`.
 2. **You, in Garmin Connect:** set HR zones based on %LTHR exactly as in METRICS §1 (Z2 from 68 %, Z3 from 84 %,
    Z4 from 95 %, Z5 above 105 %).
-3. **Phase 1** – database models + migration, raw_garmin cache, normalizers (tested against the fixtures),
-   sync, backfill, `db-stats`.
+3. **You, locally, after the fixtures are committed:** run `uv run pytest -q`. `test_fixture_conformance.py`
+   then checks every guessed Garmin key against your real data (see Known issues); send Claude any failures.
+4. **You, locally – phase 1 acceptance:** run `uv run training backfill --months 24`. It takes roughly 1–2 h at
+   0.7 s per request: about 5 wellness calls per day, 4 per activity, and the list pages. Interrupt it once with
+   Ctrl+C and run it again to check that it resumes. Then run `uv run training sync` twice and
+   `uv run training db-stats`: the counts must not change on the second sync.
+5. **Phase 2** – zones, GAP, hrTSS/TRIMP/rTSS, PMC, `recompute` (test-first via the metrics-implementer).
 
 ## Known issues / open questions
 
@@ -99,8 +140,20 @@ Last updated: 2026-09-29 (end of phase 0 session)
   positive is easy to recognise; if it happens, tell Claude which path it names.
 - `get_lactate_threshold(latest=True)` makes 2 HTTP requests inside one `GarminClient.call`, so the 0.7 s spacing
   only applies around the pair.
-- `garminconnect.get_activities_by_date` pages 20 at a time without delay. Phase 1 should paginate
-  through `GarminClient.call("get_activities", start, limit)` so every page is rate-limited.
+- **Garmin keys still to verify against real fixtures.** The phase 1 normalizers use keys taken from library source
+  and Garmin's usual shapes. The conformance test checks them, and the strict checks compare moving seconds and the
+  last `sumDistance` against the summary and verify the timezone offset. The main guesses:
+  - detail descriptor keys (`directHeartRate`, `directSpeed`, `directElevation`, `directRunCadence` /
+    `directBikeCadence`, `directLatitude` / `directLongitude`, `sumDistance`, `sumDuration`, `directTimestamp`) and
+    their units. `directRunCadence` may be strides/min, not steps/min.
+  - `summaryDTO.averageBikeCadence`, `summaryDTO.vO2MaxValue` (probably list-item only), and whether
+    `summaryDTO.duration` is timer time.
+  - `dailySleepDTO.sleepScores.overall.value`, `bodyBatteryAtWakeTime`, `avgStressLevel`, and the body-battery
+    descriptor fields.
+- Weight (`daily_wellness.weight_kg`) is not fetched yet. It needs `get_body_composition`, which can be added once
+  a phase needs it.
+- Sync looks back only 2 days, as the spec says. An activity edited in Garmin Connect more than 2 days after it
+  was recorded is not picked up by `sync`; `backfill` of that month picks it up.
 - Open METRICS.md points to decide before the phase that uses them:
   - §0.6 HR-lag direction. Proposal: pair speed(t) with HR(t + 30 s).
   - §10.4 rule 1 "whichever the template has fewer of" needs a deterministic tie-break.
@@ -130,4 +183,24 @@ Last updated: 2026-09-29 (end of phase 0 session)
 - 2026-09-29 `httpx2` added as a dev dependency because Starlette's TestClient requires it. `requests`, which garminconnect
   already brings in, is now declared explicitly because `garmin/client.py` uses its exception types.
 - 2026-09-29 Fake ids in fixtures start at 900000001 and are consistent across all files of one recording.
-- To decide in phase 1: compute grade/gap_speed in `normalize/` or leave them NULL until phase 2.
+- 2026-09-29 **grade and gap_speed stay NULL in phase 1.** They are computed in phase 2 by `metrics/preprocess.py`
+  and `metrics/gap.py` (METRICS §0.5, §3). `normalize/` only applies METRICS §0.1 (1 s grid, forward-fill ≤ 10 s)
+  and §0.2 (`moving` = timer running, derived from `sumDuration`). HR validity, clamping and lag (§0.3–0.6) are
+  phase 2 preprocessing.
+- 2026-09-29 **Stream normalization rules.**
+  - A gap is the spacing between two original samples. If it is ≤ 10 s the seconds in between are forward-filled;
+    if it is > 10 s they stay NaN.
+  - Samples are bucketed per second with `floor`, and the last sample in a second wins.
+  - Moving seconds in a gap are the first round(min(Δtimer, gap)) seconds.
+  - Speed is derived from Δdistance when no speed channel exists. The grid is capped at 3 days.
+- 2026-09-29 **Timestamps are timezone-aware UTC** (SQLModel 0.0.47 `UTCDateTime` rejects naive values).
+  `local_date` is a `date` and `tz` holds the IANA name, or a "+HH:MM" offset when no name is available.
+- 2026-09-29 **Schema additions to PLAN §4:**
+  - `raw_garmin` has `payload_sha256` and is unique on (kind, ref_key);
+  - raw kinds `activity_list`, `activity_list_item` and `lactate_threshold` were added;
+  - `activity_stream` has a cumulative `distance` column (needed for grade, METRICS §0.5);
+  - `activity.moving_s` is Garmin's `movingDuration`. The metrics compute their own moving time from the stream.
+- 2026-09-29 **The activity list is paged by us** (`connectapi` on the same search endpoint, 100 per page) instead of
+  `get_activities_by_date`, which pages 20 at a time with no delay (rule 9).
+- 2026-09-29 **Backfill fetches 5 wellness endpoints per day** (sleep, user summary, RHR, stress, body battery), so the
+  raw cache is complete. Training status, max metrics and lactate threshold are stored for the sync day only.

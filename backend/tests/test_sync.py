@@ -77,14 +77,24 @@ class FakeGarmin:
         if name in self.fail:
             raise GarminConnectNotFoundError("API Error 404")
 
-    def get_activities_by_date(self, startdate, enddate=None, activitytype=None, sortorder=None):
-        self._hit("get_activities_by_date")
-        lo, hi = dt.date.fromisoformat(startdate), dt.date.fromisoformat(enddate)
-        return [
-            dict(a["item"])
-            for a in self.activities.values()
-            if lo <= dt.date.fromisoformat(a["item"]["startTimeLocal"][:10]) <= hi
-        ]
+    garmin_connect_activities = "/activitylist-service/activities/search/activities"
+    page_size: int | None = None  # override to force pagination in tests
+
+    def connectapi(self, path, **kwargs):
+        assert path == self.garmin_connect_activities
+        self._hit("activity_search")
+        params = kwargs["params"]
+        lo, hi = dt.date.fromisoformat(params["startDate"]), dt.date.fromisoformat(params["endDate"])
+        found = sorted(
+            (
+                dict(a["item"])
+                for a in self.activities.values()
+                if lo <= dt.date.fromisoformat(a["item"]["startTimeLocal"][:10]) <= hi
+            ),
+            key=lambda a: a["startTimeLocal"],
+        )
+        start, limit = int(params["start"]), self.page_size or int(params["limit"])
+        return found[start : start + limit]
 
     def get_activity(self, activity_id):
         self._hit("get_activity")
@@ -151,7 +161,7 @@ def count(session, model) -> int:
 def api():
     return FakeGarmin(
         [
-            make_activity(1001, TODAY - dt.timedelta(days=3)),
+            make_activity(1001, TODAY - dt.timedelta(days=2)),  # inside the 2-day overlap window
             make_activity(1002, TODAY - dt.timedelta(days=1), "road_biking", "Ride"),
         ]
     )
@@ -159,15 +169,23 @@ def api():
 
 def test_sync_twice_is_idempotent(session, api):
     first = sync(session, client_for(api), TODAY)
-    snapshot = {m: count(session, m) for m in (Activity, ActivityStream, DailyWellness, RawGarmin)}
+    data = (Activity, ActivityStream, DailyWellness)
+    snapshot = {m: count(session, m) for m in data}
     second = sync(session, client_for(api), TODAY)
 
     assert (first.activities_new, first.errors) == (2, [])
     assert second.activities_new == 0 and second.activities_unchanged == 2
-    assert {m: count(session, m) for m in snapshot} == snapshot
+    assert {m: count(session, m) for m in data} == snapshot
     assert snapshot[Activity] == 2 and snapshot[ActivityStream] == 120
     assert api.calls["get_activity_details"] == 2  # unchanged activities are not re-fetched
     assert repo.get_state_date(session, "last_activity_sync") == TODAY
+
+    # the first run had no state (16-day window), later runs use the 2-day overlap: from now on even the
+    # raw cache is stable – the same window is only stored once
+    raw_before = count(session, RawGarmin)
+    sync(session, client_for(api), TODAY)
+    assert count(session, RawGarmin) == raw_before
+    assert {m: count(session, m) for m in data} == snapshot
 
 
 def test_changed_list_item_is_refetched(session, api):
@@ -223,3 +241,16 @@ def test_rebuild_from_raw_is_offline_and_complete(session, api):
     result = rebuild_all(session)
     assert result.errors == []
     assert {m: count(session, m) for m in before} == before
+
+
+def test_activity_list_is_paged_through_the_rate_limited_client(session, monkeypatch):
+    from training.garmin import client as client_mod
+
+    monkeypatch.setattr(client_mod, "ACTIVITY_PAGE_SIZE", 2)
+    api = FakeGarmin([make_activity(3000 + i, TODAY - dt.timedelta(days=i % 2)) for i in range(5)])
+    stored: list = []
+    client = GarminClient(api, rate_limit_s=0, sleep=lambda s: None, raw_sink=lambda *a: stored.append(a))
+    items = client.activities_by_date(TODAY - dt.timedelta(days=1), TODAY)
+    assert len(items) == 5
+    assert api.calls["activity_search"] == 3  # pages of 2, 2, 1 – each one a separate rate-limited call
+    assert [k for k, _, _ in stored] == ["activity_list"] and len(stored[0][2]) == 5

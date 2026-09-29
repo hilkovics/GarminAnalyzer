@@ -152,6 +152,8 @@ def test_library_translates_429_to_dedicated_type():
 class SignatureCheckingApi:
     """Accepts any Garmin method, checks the call binds to the real signature, returns a marker payload."""
 
+    garmin_connect_activities = "/activitylist-service/activities/search/activities"
+
     def __init__(self) -> None:
         self.calls: list[tuple[str, tuple, dict]] = []
 

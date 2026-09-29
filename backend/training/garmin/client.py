@@ -39,6 +39,8 @@ log = logging.getLogger(__name__)
 TOKEN_FILENAME = "garmin_tokens.json"
 RawSink = Callable[[str, str, Any], None]
 MIN_MAXCHART = 2000
+ACTIVITY_PAGE_SIZE = 100
+MAX_ACTIVITY_PAGES = 200
 _STATUS_RE = re.compile(r"(?:API Error|HTTP|error \()\s*(\d{3})\b")
 
 __all__ = [
@@ -212,16 +214,31 @@ class GarminClient:
         return payload
 
     def activities_by_date(self, start: dt.date, end: dt.date) -> list[dict[str, Any]]:
-        """Activity list items with local start date in [start, end], oldest first."""
-        payload = self._fetch(
-            ep.ACTIVITY_LIST,
-            ep.date_range_ref(start, end),
-            "get_activities_by_date",
-            start.isoformat(),
-            end.isoformat(),
-            sortorder="asc",
-        )
-        return list(payload or [])
+        """Activity list items with local start date in [start, end], oldest first.
+
+        Pages through the same search endpoint `Garmin.get_activities_by_date` uses, but one `call` per page,
+        so every page gets the rate-limit spacing and backoff (the library method pages without delay).
+        All pages are stored as one raw payload.
+        """
+        items: list[dict[str, Any]] = []
+        url = self.api.garmin_connect_activities
+        for page_no in range(MAX_ACTIVITY_PAGES):
+            params = {
+                "startDate": start.isoformat(),
+                "endDate": end.isoformat(),
+                "start": str(page_no * ACTIVITY_PAGE_SIZE),
+                "limit": str(ACTIVITY_PAGE_SIZE),
+                "sortOrder": "asc",
+            }
+            page = self.call("connectapi", url, params=params) or []
+            items.extend(page)
+            if len(page) < ACTIVITY_PAGE_SIZE:
+                break
+        else:
+            raise GarminConnectConnectionError(f"activity list exceeded {MAX_ACTIVITY_PAGES} pages")
+        if self.raw_sink is not None:
+            self.raw_sink(ep.ACTIVITY_LIST, ep.date_range_ref(start, end), items)
+        return items
 
     def activity_summary(self, garmin_id: int) -> dict[str, Any]:
         return self._fetch(ep.ACTIVITY_SUMMARY, garmin_id, "get_activity", garmin_id)
