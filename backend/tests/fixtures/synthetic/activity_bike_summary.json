@@ -1,0 +1,52 @@
+{
+ "_synthetic": true,
+ "activityId": 900000102,
+ "activityName": "anonymized",
+ "userProfileId": 900000001,
+ "isMultiSportParent": false,
+ "activityTypeDTO": {
+  "typeId": 10,
+  "typeKey": "road_biking",
+  "parentTypeId": 2,
+  "isHidden": false,
+  "restricted": false,
+  "trimmable": true
+ },
+ "eventTypeDTO": {
+  "typeId": 1,
+  "typeKey": "race",
+  "sortOrder": 1
+ },
+ "timeZoneUnitDTO": {
+  "unitId": 124,
+  "unitKey": "Europe/Bratislava",
+  "factor": 0.0,
+  "timeZone": "Europe/Bratislava"
+ },
+ "summaryDTO": {
+  "startTimeLocal": "2026-09-27T09:00:00.0",
+  "startTimeGMT": "2026-09-27T07:00:00.0",
+  "startLatitude": 10.2,
+  "startLongitude": 20.1,
+  "distance": 42150.0,
+  "duration": 4210.0,
+  "movingDuration": 4180.0,
+  "elapsedDuration": 4295.0,
+  "elevationGain": 380.0,
+  "elevationLoss": 377.0,
+  "averageSpeed": 10.012,
+  "averageMovingSpeed": 10.084,
+  "maxSpeed": 17.9,
+  "calories": 1105.0,
+  "averageHR": 158.0,
+  "maxHR": 182.0,
+  "minHR": 102.0,
+  "averageBikeCadence": 87.0,
+  "maxBikeCadence": 118.0,
+  "trainingEffect": 3.9,
+  "anaerobicTrainingEffect": 2.1,
+  "activityTrainingLoad": 210.4,
+  "trainingEffectLabel": "TEMPO"
+ },
+ "locationName": "anonymized"
+}

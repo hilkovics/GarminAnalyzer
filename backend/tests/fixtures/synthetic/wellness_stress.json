@@ -1,0 +1,159 @@
+{
+ "_synthetic": true,
+ "userProfilePK": 900000001,
+ "calendarDate": "2026-09-28",
+ "startTimestampGMT": "2026-09-27T22:00:00.0",
+ "endTimestampGMT": "2026-09-28T22:00:00.0",
+ "startTimestampLocal": "2026-09-28T00:00:00.0",
+ "endTimestampLocal": "2026-09-29T00:00:00.0",
+ "maxStressLevel": 91,
+ "avgStressLevel": 26,
+ "stressChartValueOffset": 1,
+ "stressChartYAxisOrigin": -1,
+ "stressValueDescriptorsDTOList": [
+  {
+   "key": "timestamp",
+   "index": 0
+  },
+  {
+   "key": "stressLevel",
+   "index": 1
+  }
+ ],
+ "stressValuesArray": [
+  [
+   1790546580000,
+   12
+  ],
+  [
+   1790550180000,
+   10
+  ],
+  [
+   1790553780000,
+   9
+  ],
+  [
+   1790557380000,
+   11
+  ],
+  [
+   1790560980000,
+   -1
+  ],
+  [
+   1790564580000,
+   8
+  ],
+  [
+   1790568180000,
+   15
+  ],
+  [
+   1790571780000,
+   32
+  ],
+  [
+   1790575380000,
+   41
+  ],
+  [
+   1790578980000,
+   28
+  ],
+  [
+   1790582580000,
+   35
+  ],
+  [
+   1790586180000,
+   90
+  ],
+  [
+   1790589780000,
+   -2
+  ],
+  [
+   1790593380000,
+   30
+  ],
+  [
+   1790596980000,
+   27
+  ],
+  [
+   1790600580000,
+   33
+  ],
+  [
+   1790604180000,
+   25
+  ],
+  [
+   1790607780000,
+   38
+  ],
+  [
+   1790611380000,
+   40
+  ],
+  [
+   1790614980000,
+   29
+  ],
+  [
+   1790618580000,
+   22
+  ],
+  [
+   1790622180000,
+   26
+  ],
+  [
+   1790625780000,
+   31
+  ],
+  [
+   1790629380000,
+   24
+  ]
+ ],
+ "bodyBatteryValueDescriptorsDTOList": [
+  {
+   "bodyBatteryValueDescriptorIndex": 0,
+   "bodyBatteryValueDescriptorKey": "timestamp"
+  },
+  {
+   "bodyBatteryValueDescriptorIndex": 1,
+   "bodyBatteryValueDescriptorKey": "bodyBatteryStatus"
+  },
+  {
+   "bodyBatteryValueDescriptorIndex": 2,
+   "bodyBatteryValueDescriptorKey": "bodyBatteryLevel"
+  },
+  {
+   "bodyBatteryValueDescriptorIndex": 3,
+   "bodyBatteryValueDescriptorKey": "bodyBatteryVersion"
+  }
+ ],
+ "bodyBatteryValuesArray": [
+  [
+   1790546580000,
+   "MEASURED",
+   40,
+   2.0
+  ],
+  [
+   1790550180000,
+   "MEASURED",
+   40,
+   2.0
+  ],
+  [
+   1790553780000,
+   "MEASURED",
+   40,
+   2.0
+  ]
+ ]
+}

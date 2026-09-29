@@ -1,0 +1,99 @@
+{
+ "_synthetic": true,
+ "dailySleepDTO": {
+  "id": 1790541900000,
+  "userProfilePK": 900000001,
+  "calendarDate": "2026-09-28",
+  "sleepTimeSeconds": 25500,
+  "napTimeSeconds": 0,
+  "sleepWindowConfirmed": true,
+  "sleepWindowConfirmationType": "enhanced_confirmed_final",
+  "sleepStartTimestampGMT": 1790541900000,
+  "sleepEndTimestampGMT": 1790569800000,
+  "sleepStartTimestampLocal": 1790549100000,
+  "sleepEndTimestampLocal": 1790577000000,
+  "unmeasurableSleepSeconds": 0,
+  "deepSleepSeconds": 5400,
+  "lightSleepSeconds": 13500,
+  "remSleepSeconds": 6600,
+  "awakeSleepSeconds": 2400,
+  "deviceRemCapable": true,
+  "retro": false,
+  "sleepFromDevice": true,
+  "averageRespirationValue": 14.0,
+  "lowestRespirationValue": 11.0,
+  "highestRespirationValue": 18.0,
+  "awakeCount": 2,
+  "avgSleepStress": 14.6,
+  "ageGroup": "ADULT",
+  "sleepScoreFeedback": "POSITIVE_LONG_AND_DEEP",
+  "sleepScoreInsight": "NONE",
+  "sleepScores": {
+   "totalDuration": {
+    "qualifierKey": "GOOD",
+    "optimalStart": 28800.0,
+    "optimalEnd": 28800.0
+   },
+   "stress": {
+    "qualifierKey": "EXCELLENT",
+    "optimalStart": 0.0,
+    "optimalEnd": 15.0
+   },
+   "awakeCount": {
+    "qualifierKey": "GOOD",
+    "optimalStart": 0.0,
+    "optimalEnd": 1.0
+   },
+   "overall": {
+    "value": 81,
+    "qualifierKey": "GOOD"
+   },
+   "remPercentage": {
+    "value": 26,
+    "qualifierKey": "EXCELLENT"
+   },
+   "restlessness": {
+    "qualifierKey": "GOOD"
+   },
+   "lightPercentage": {
+    "value": 53,
+    "qualifierKey": "GOOD"
+   },
+   "deepPercentage": {
+    "value": 21,
+    "qualifierKey": "EXCELLENT"
+   }
+  },
+  "sleepVersion": 2
+ },
+ "sleepMovement": [
+  {
+   "startGMT": "2026-09-27T20:44:00.0",
+   "endGMT": "2026-09-27T20:45:00.0",
+   "activityLevel": 3.1
+  },
+  {
+   "startGMT": "2026-09-27T20:45:00.0",
+   "endGMT": "2026-09-27T20:46:00.0",
+   "activityLevel": 1.2
+  }
+ ],
+ "remSleepData": true,
+ "sleepLevels": [
+  {
+   "startGMT": "2026-09-27T20:45:00.0",
+   "endGMT": "2026-09-27T21:30:00.0",
+   "activityLevel": 1.0
+  },
+  {
+   "startGMT": "2026-09-27T21:30:00.0",
+   "endGMT": "2026-09-27T22:40:00.0",
+   "activityLevel": 0.0
+  }
+ ],
+ "restlessMomentsCount": 18,
+ "avgOvernightHrv": 52.0,
+ "hrvStatus": "BALANCED",
+ "bodyBatteryChange": 52,
+ "restingHeartRate": 47
+}
