@@ -13,12 +13,15 @@ receives the resolved values.
 
 Null rules (METRICS §1, §2.1–§2.3 clarified 2026-09-29):
 - no `lthr` → `hrtss`, `if_hr`, `trimp_norm`, `time_in_hr_zone` are None;
+- no valid HR sample (`hr_coverage == 0`, §2.1 changed 2026-09-29) → `hrtss`, `if_hr`, `trimp_norm` are
+  None (unknown, not 0); `time_in_hr_zone` stays the all-zero count; the activity is `low_confidence`;
 - `trimp_norm` also None without `sex` / `max_hr` / `rest_hr`, or with `max_hr ≤ rest_hr` (and when
   `lthr ≤ rest_hr`, where TRIMP_ref is 0);
 - `rtss` / `if_pace` only for runs with usable GPS and a `threshold_speed`, and None with fewer than 30
   valid 30 s windows;
 - `time_in_pace_zone` for runs with a `threshold_speed` (on `gap_speed`, samples with a speed);
-- no load at all → `load_primary` and `load_method` None.
+- no load at all → `load_primary` and `load_method` None (e.g. a ride without HR; a run without HR keeps
+  rTSS when it has usable GPS and a `threshold_speed`).
 """
 
 from dataclasses import dataclass
@@ -99,7 +102,9 @@ def activity_metrics(
     lthr = positive_number(threshold.lthr)
     threshold_speed = positive_number(threshold.threshold_speed) if sport == "run" else None
 
-    # §2.1 hrTSS / IF_hr, §2.2 TRIMP_norm, §1 HR zones – all need LTHR.
+    # §2.1 hrTSS / IF_hr, §2.2 TRIMP_norm, §1 HR zones – all need LTHR. Without any valid HR sample the
+    # load functions return None (§2.1 changed 2026-09-29), which also makes load_primary None below
+    # unless §2.4 picks rTSS.
     hrtss_value = if_hr_value = trimp_norm_value = None
     time_in_hr_zone = None
     if lthr is not None:

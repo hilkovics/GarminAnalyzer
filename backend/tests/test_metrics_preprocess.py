@@ -243,7 +243,7 @@ def test_grade_nan_without_distance():
 def test_gap_speed_runs_use_grade():
     pre = preprocess(hilly(600, speed=2.5, grade=0.10), "run")
     gap = pre.samples["gap_speed"].to_numpy()
-    np.testing.assert_allclose(gap[7:-7], 2.5 * 5.968214 / 3.6, atol=1e-12)
+    np.testing.assert_allclose(gap[7:-7], 2.5 * 5.968214 / 3.6, atol=1e-12)  # 4.14 m/s, below the 7 m/s clamp
     np.testing.assert_allclose(gap, 2.5 * minetti_cost(pre.samples["grade"].to_numpy()) / 3.6, atol=1e-12)
 
 
@@ -263,6 +263,32 @@ def test_gap_speed_nan_grade_falls_back_to_clamped_speed():
     df = stream(hr=150.0, speed=[9.0] * 10, distance=np.nan)
     pre = preprocess(df, "run")
     np.testing.assert_array_equal(pre.samples["gap_speed"].to_numpy(), 7.0)
+
+
+def test_gap_speed_clamped_to_run_range_on_steep_run():
+    """§3 changed 2026-09-29: 3 m/s at the +0.30 grade clamp → 3 · C(0.30)/3.6 = 10.48, clamped to 7.0.
+
+    The shortened end windows see ≥ 0.8 · 0.30 = 0.24 (3 · C(0.24)/3.6 = 8.64), so every sample clamps.
+    """
+    pre = preprocess(hilly(100, speed=3.0, grade=0.30), "run")
+    np.testing.assert_allclose(pre.samples["grade"].to_numpy()[7:-7], 0.30, atol=1e-12)
+    np.testing.assert_array_equal(pre.samples["gap_speed"].to_numpy(), 7.0)
+    np.testing.assert_array_equal(pre.samples["speed"].to_numpy(), 3.0)  # speed itself is untouched
+
+
+def test_gap_speed_altitude_step_glitch_is_bounded():
+    # A 30 m altitude jump at sample 100 on flat ground at 3 m/s: the median keeps the step, so samples
+    # 95..104 see Δalt = 30 m over Δdist = 30 m → grade 1.0 → clamp 0.30 → GAP 10.48, clamped to 7.0.
+    alt = np.r_[np.full(100, 100.0), np.full(100, 130.0)]
+    pre = preprocess(stream(hr=150.0, speed=3.0, alt=alt), "run")
+    expected = np.full(200, 3.0)
+    expected[95:105] = 7.0
+    np.testing.assert_array_equal(pre.samples["gap_speed"].to_numpy(), expected)
+
+
+def test_gap_clamp_does_not_touch_non_runs():
+    pre = preprocess(hilly(100, speed=3.0, grade=0.30), "bike")
+    np.testing.assert_array_equal(pre.samples["gap_speed"].to_numpy(), 3.0)
 
 
 # ---------------------------------------------------------------- §0.6 HR lag helper

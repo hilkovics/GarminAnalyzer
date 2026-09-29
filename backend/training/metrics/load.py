@@ -39,25 +39,30 @@ def intensity_factor_hr(r: np.ndarray) -> np.ndarray:
     return out
 
 
-def hrtss(hr: np.ndarray, lthr: float) -> float:
+def hrtss(hr: np.ndarray, lthr: float) -> float | None:
     """METRICS §2.1: `hrTSS = Σ_i IF_i² · dt_i / 36` with `dt_i = 1 s`, `IF_i = IF(hr_i / lthr)`.
 
-    Samples with NaN HR contribute 0 (clarified 2026-09-29), so no HR at all gives 0.0.
+    `hr` holds the kept samples, valid (§0.3) or NaN. Samples with NaN HR contribute 0 (clarified
+    2026-09-29). Changed 2026-09-29: with no valid HR sample at all (`hr_coverage == 0`) the load is
+    unknown → None, not 0.
     """
     threshold = positive_number(lthr)
     if threshold is None:
         raise ValueError(f"lthr must be a positive number, got {lthr!r}")
     hr = np.asarray(hr, dtype=float)
     hr = hr[~np.isnan(hr)]
+    if len(hr) == 0:
+        return None
     return float(np.sum(intensity_factor_hr(hr / threshold) ** 2) / 36.0)
 
 
-def activity_if_hr(hrtss_value: float, moving_s: int) -> float | None:
-    """METRICS §2.1: `IF_hr = sqrt(hrTSS · 36 / moving_s)`; None without moving time.
+def activity_if_hr(hrtss_value: float | None, moving_s: int) -> float | None:
+    """METRICS §2.1: `IF_hr = sqrt(hrTSS · 36 / moving_s)`; None without moving time or without hrTSS.
 
-    `moving_s` is the §0.2 count including samples without HR (clarified 2026-09-29).
+    `moving_s` is the §0.2 count including samples without HR (clarified 2026-09-29). A null hrTSS (no
+    valid HR sample, changed 2026-09-29) gives a null IF_hr.
     """
-    if moving_s <= 0:
+    if hrtss_value is None or moving_s <= 0:
         return None
     return math.sqrt(hrtss_value * 36.0 / moving_s)
 
@@ -68,28 +73,37 @@ def activity_if_hr(hrtss_value: float, moving_s: int) -> float | None:
 TRIMP_CONSTANTS: dict[str, tuple[float, float]] = {"male": (0.64, 1.92), "female": (0.86, 1.67)}
 
 
-def trimp(hr: np.ndarray, rest_hr: float, max_hr: float, sex: str) -> float:
+def trimp(hr: np.ndarray, rest_hr: float, max_hr: float, sex: str) -> float | None:
     """METRICS §2.2 Banister TRIMP over the valid samples (`dt_i = 1 s`).
 
     `HRr_i = (hr_i − rest_hr) / (max_hr − rest_hr)`, clamped to [0, 1];
     male `TRIMP = Σ_i (dt_i/60) · HRr_i · 0.64 · e^(1.92·HRr_i)`, female `0.86 · e^(1.67·HRr_i)`.
+    Changed 2026-09-29 (§2.1): no valid HR sample → None (unknown), not 0. The parameters are validated
+    either way.
     """
     a, b = _trimp_constants(sex)
     hrr = _hrr(np.asarray(hr, dtype=float), rest_hr, max_hr)
     hrr = hrr[~np.isnan(hrr)]
+    if len(hrr) == 0:
+        return None
     return float(np.sum(hrr * a * np.exp(b * hrr)) / 60.0)
 
 
-def trimp_norm(trimp_value: float, *, rest_hr: float, max_hr: float, lthr: float, sex: str) -> float:
+def trimp_norm(
+    trimp_value: float | None, *, rest_hr: float, max_hr: float, lthr: float, sex: str
+) -> float | None:
     """METRICS §2.2: `TRIMP_norm = TRIMP · 100 / TRIMP_ref`, `TRIMP_ref` = TRIMP of 60 min at hr == lthr.
 
-    Raises ValueError when TRIMP_ref is 0 (lthr ≤ rest_hr), which the spec leaves undefined.
+    A null TRIMP (no valid HR sample, §2.1 changed 2026-09-29) gives None. Raises ValueError when
+    TRIMP_ref is 0 (lthr ≤ rest_hr), which the spec leaves undefined.
     """
     a, b = _trimp_constants(sex)
     hrr_lthr = float(_hrr(np.array([float(lthr)]), rest_hr, max_hr)[0])
     trimp_ref = 60.0 * hrr_lthr * a * math.exp(b * hrr_lthr)  # 60 one-minute terms of equal HRr
     if not trimp_ref > 0:
         raise ValueError(f"TRIMP_ref is 0 for lthr {lthr!r} ≤ rest_hr {rest_hr!r}")
+    if trimp_value is None:
+        return None
     return float(trimp_value) * 100.0 / trimp_ref
 
 
