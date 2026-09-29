@@ -1,8 +1,44 @@
 # STATUS
 
-Last updated: 2026-09-29 (phase 1 session)
+Last updated: 2026-09-29 (phase 2 session)
 
 ## Done
+
+### Phase 2 – load metrics and PMC (code complete; real-data report pending, see Next)
+- `metrics/` (pure, test-first by two metrics-implementer subagents in parallel worktrees):
+  - `preprocess.py` implements METRICS §0.3–§0.6: HR validity, coverage and low_confidence; speed clamp and slow
+    flag; 5-sample median altitude; 10 s centred grade; `lag_hr` helper for phase 4.
+  - `zones.py` implements §1: half-open HR and pace zones, time in zone, default zone JSON.
+  - `gap.py` implements §3 (Minetti cost, GAP).
+  - `load.py` implements §2: hrTSS through the IF table, TRIMP and TRIMP_norm, NGS and rTSS, usable-GPS check,
+    and the §2.5 `load_sanity`.
+  - `activity.py` runs the above for one activity, including §2.4 primary selection.
+  - `pmc.py` implements §4: daily load series, CTL/ATL/TSB, ACWR with bands, monotony, strain, ramp and warning,
+    and weekly ISO aggregates with polarization.
+- `training/pipeline.py` connects the DB to the metrics:
+  - thresholds are resolved by activity date, and `other` uses the run threshold;
+  - rest HR is the athlete override, else the 28-day median RHR;
+  - it upserts `activity_metric` and recomputes `daily_load` for the whole series (keeping `readiness`);
+  - `recompute`, `update_after_sync` (affected activities, plus the last 28 days when wellness changed) and
+    `set_threshold` (only activities from `valid_from` on) are the entry points.
+- `services/diagnostics.py` returns `DiagnosticsDTO` with:
+  - sync state, pending and failed queues;
+  - the §2.5 Pearson r against Garmin training load;
+  - the low-confidence share, and runs where hrTSS and rTSS differ by more than 40 %.
+- CLI (now a `training/cli/` package):
+  - `recompute [--since] [--metrics-only]`;
+  - `threshold add --sport --lthr [--pace m:ss] --valid-from` and `threshold list`;
+  - `athlete --sex --max-hr --rest-hr …`;
+  - `diagnostics`.
+  `sync` and `backfill` recompute metrics for what they changed.
+- Tests: 470 passed, 5 skipped. They include:
+  - hrTSS exactly 100 for 1 h at LTHR (and 56.25 at r = 0.83), TRIMP_norm = 100, rTSS = 100 at threshold speed,
+    and GAP of 4.1446 at +10 %;
+  - every zone edge, and a hand-computed 10-day PMC checked against exact fractions;
+  - every ACWR band;
+  - historical thresholds, where a new LTHR changes only later activities;
+  - a full `recompute` from raw that equals the incremental result, plus the CLI commands.
+  The PMC tests were mutation-checked: 17 deliberate code changes, all caught.
 
 ### Phase 1 – database, sync and backfill (code complete; local acceptance steps pending, see Next)
 - SQLModel models for every table in PLAN §4 (`db/models.py`) and the initial Alembic migration
@@ -148,9 +184,39 @@ Last updated: 2026-09-29 (phase 1 session)
    0.7 s per request: about 5 wellness calls per day, 4 per activity, and the list pages. Interrupt it once with
    Ctrl+C and run it again to check that it resumes. Then run `uv run training sync` twice and
    `uv run training db-stats`: the counts must not change on the second sync.
-5. **Phase 2** – zones, GAP, hrTSS/TRIMP/rTSS, PMC, `recompute` (test-first via the metrics-implementer).
+5. **You, locally – phase 2 report**, after the backfill. PLAN phase 2 asks for these numbers, and they need
+   your real data:
+   ```bash
+   uv run training athlete --sex male --max-hr <max>
+   uv run training threshold add --sport run  --lthr <bpm> --pace <m:ss> --valid-from 2024-01-01
+   uv run training threshold add --sport bike --lthr <bpm> --valid-from 2024-01-01
+   uv run training diagnostics
+   ```
+   The output gives the number of activities, the low-confidence share, Pearson r against Garmin training load
+   (expect > 0.8; below 0.7 means review your LTHR first), and the runs where hrTSS and rTSS differ by more than
+   40 %. Also compare time in zones for 5 activities with Garmin Connect (PLAN §7); it should match almost exactly.
+6. **Phase 3** – services and DTOs, FastAPI read-only endpoints, Streamlit UI v1 (ui-page-builder).
 
 ## Known issues / open questions
+
+- **Open for the user (phase 2):**
+  - **Activity with no valid HR at all** (e.g. a ride without the strap). §2.1 says samples without HR contribute
+    0, so it currently gets hrTSS = 0 and `load_primary = 0` (flagged low_confidence). That is literal but
+    misleading for the PMC. Proposal: hrTSS/TRIMP are null when `hr_coverage == 0`, so the day counts as
+    "unknown" rather than a rest day. This needs a METRICS §2.1 change first.
+  - **GAP is not clamped.** At the +30 % grade clamp, GAP is about 3.5 × speed, so a GPS or altitude glitch
+    that survives the median can inflate rTSS. Proposal: clamp `gap_speed` to the §0.4 run speed limit
+    (0–7 m/s). This needs a METRICS §3 change first.
+- Phase 2 interpretation choices, all literal to METRICS:
+  - An empty stream gives hrTSS 0 with IF_hr null.
+  - When `lthr ≤ rest_hr`, TRIMP_norm is null.
+  - Indoor runs with a threshold_speed still get pace-zone times (rTSS stays null without usable GPS).
+  - `other` uses the run speed limits.
+  - NGS needs 30 full trailing windows, so at least 59 samples.
+  - A Pearson r with zero variance is "insufficient".
+  - `lag_hr` shifts by array position, so apply it to pause-free series (phase 4).
+- The IF-table point (0.83, 0.75) sits on the old Z2/Z3 edge. It is harmless, since the table is independent of
+  zones, but the 56.25 test value depends on it.
 
 - The phase 0 acceptance criteria (login with MFA, whoami, fixtures with a hilly run and a bike) are **not verified
   yet**. They are pending step 1 above.
@@ -193,6 +259,12 @@ Last updated: 2026-09-29 (phase 1 session)
   - §10.6 Z1 IF 0.50 is not the table midpoint (0.30–0.55). Confirm that it is intended.
 
 ## Decisions
+
+- 2026-09-29 **Metric orchestration lives in `training/pipeline.py`, not `metrics/pipeline.py`** (PLAN §6 phase 2),
+  so that `metrics/` stays pure (CLAUDE.md). The CLI became a package `training/cli/` (auth, ingest, metrics)
+  to stay under ~400 lines per file.
+- 2026-09-29 **The PMC is always recomputed for the whole series.** CTL/ATL are recursive from 0, so a partial
+  recompute would change values. It covers 2 years in well under a second.
 
 - 2026-09-29 **Phase 2 METRICS clarifications written first**, marked "Clarified 2026-09-29 (phase 2, approved)"
   in §0.3–§0.5, §1, §2.1–§2.3, §2.5 and §4. They resolve points the spec leaves open:
