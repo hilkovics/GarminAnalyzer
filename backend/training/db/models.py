@@ -137,7 +137,9 @@ class BestEffort(SQLModel, table=True):
     sport: str
     kind: str  # "gap_speed" | "speed" | "hr"
     window_s: int
-    value: float
+    value: float  # m/s or bpm
+    distance_m: float | None = None  # distance covered in the window (METRICS §6.2 clarified, used by §7)
+    start_t: int | None = None  # stream second where the window starts
 
 
 class DailyWellness(SQLModel, table=True):

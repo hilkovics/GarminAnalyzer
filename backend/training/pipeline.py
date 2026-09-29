@@ -19,6 +19,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session
 
+from training import pipeline_progress
 from training.db import repo
 from training.db.models import (
     Activity,
@@ -51,6 +52,7 @@ class RecomputeResult:
     rebuilt_activities: int = 0
     metrics_computed: int = 0
     daily_load_days: int = 0
+    curve_months: int = 0
     errors: list[str] = field(default_factory=list)
 
 
@@ -174,6 +176,7 @@ def compute_metrics_for(session: Session, ids: Iterable[int], result: RecomputeR
     for activity_id in ids:
         try:
             compute_activity_metrics(session, activity_id)
+            pipeline_progress.compute_activity_progress(session, activity_id)  # §5–§6.2 (phase 4)
             session.commit()
             result.metrics_computed += 1
         except Exception as exc:  # one broken activity must not stop the run
@@ -268,7 +271,24 @@ def recompute(
     if since is None:  # everything was recomputed, so pending markers are satisfied
         _reset_markers(session, failed)
     result.daily_load_days = compute_daily_load(session, end)
+    result.curve_months = _refresh_curves(
+        session, end, None if since is None else _dates_since(session, since)
+    )
     return result
+
+
+def _dates_since(session: Session, since: dt.date) -> list[dt.date]:
+    return list(session.execute(select(Activity.local_date).where(Activity.local_date >= since)).scalars())
+
+
+def _refresh_curves(session: Session, end: dt.date | None, days: list[dt.date] | None) -> int:
+    """Speed–HR curve snapshots (§6.1): all months if `days` is None, else the months they touch."""
+    bounds = series_bounds(session, end)
+    if bounds is None:
+        return 0
+    last = bounds[1]
+    months = None if days is None else pipeline_progress.months_touched([*days, last])
+    return pipeline_progress.compute_curve_snapshots(session, last, months)
 
 
 def _reset_markers(session: Session, failed_activity_ids: list[int]) -> None:
@@ -318,6 +338,8 @@ def update_after_sync(session: Session, garmin_ids: Iterable[int] = (), *, today
     failed = compute_metrics_for(session, sorted(ids), result)
     _reset_markers(session, failed)
     result.daily_load_days = compute_daily_load(session, today)
+    days = list(session.execute(select(Activity.local_date).where(Activity.id.in_(sorted(ids)))).scalars())
+    result.curve_months = _refresh_curves(session, today, days)
     return result
 
 
@@ -355,6 +377,8 @@ def set_threshold(
     sports = ["run", "other"] if sport == "run" else ["bike"]
     compute_metrics_for(session, activity_ids(session, since=valid_from, sports=sports), result)
     result.daily_load_days = compute_daily_load(session, end)
+    if sport == "run":  # the curve's reference HR uses the run LTHR valid at each window end
+        result.curve_months = _refresh_curves(session, end, [valid_from, *_dates_since(session, valid_from)])
     return result
 
 
