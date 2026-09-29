@@ -87,6 +87,10 @@ Clamp `r` to `[0.50, 1.15]` before interpolation.
 Tests: 3600 s at `hr == lthr` → `hrTSS == 100.0`; 3600 s at `r = 0.83` → `hrTSS == 56.25`.
 *Clarified 2026-09-29 (phase 2, approved):* the sum runs over kept samples with valid HR (samples with NaN HR contribute 0); `moving_s` in
 `IF_hr` is the §0.2 count including samples without HR. `lthr` missing → `hrTSS`, `IF_hr` null.
+*Changed 2026-09-29 (approved by the user):* an activity with **no valid HR sample** (`hr_coverage == 0`, e.g. a
+ride without the strap) has `hrTSS`, `IF_hr`, `TRIMP` and `TRIMP_norm` **null** (unknown), not 0. Its
+`load_primary` is then null unless §2.4 selects rTSS. It still contributes 0 to `daily_load` (§4) – there is
+nothing to impute – but it is flagged: diagnostics count it in `activities_without_load` and the UI marks it.
 
 ### 2.2 TRIMP (Banister) – secondary, reported for comparison
 
@@ -124,6 +128,8 @@ Expect `r > 0.8`. Below 0.7 → show a warning to review thresholds.
 Metabolic cost of running (Minetti et al. 2002), `i` = grade (fraction):
 `C(i) = 155.4·i⁵ − 30.4·i⁴ − 43.3·i³ + 46.3·i² + 19.5·i + 3.6` (J/kg/m), `C(0) = 3.6`.
 `gap_speed_i = speed_i · C(grade_i) / C(0)`. Where grade is NaN use `gap_speed = speed`.
+*Changed 2026-09-29 (approved by the user):* `gap_speed` is clamped to the run speed range of §0.4
+(`0–7 m/s`), so an altitude/GPS glitch at the ±0.30 grade clamp (C(0.30)/C(0) ≈ 3.5) cannot inflate NGS/rTSS.
 Tests: flat run → `gap == speed`; +10 % grade at 2.5 m/s → GAP ≈ 2.5 · C(0.10)/3.6 ≈ 4.1 m/s.
 
 ## 4. Performance Management Chart (daily)
