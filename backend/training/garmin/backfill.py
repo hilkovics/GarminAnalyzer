@@ -15,8 +15,15 @@ from collections.abc import Callable
 from sqlmodel import Session
 
 from training.db import repo
+from training.garmin import endpoints as ep
 from training.garmin.client import GarminClient
-from training.garmin.sync import LAST_ACTIVITY_SYNC, LAST_WELLNESS_DATE, Ingestor, SyncResult
+from training.garmin.sync import (
+    LAST_ACTIVITY_SYNC,
+    LAST_WELLNESS_DATE,
+    PENDING_WELLNESS,
+    Ingestor,
+    SyncResult,
+)
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +41,17 @@ def add_months(first_of_month: dt.date, months: int) -> dt.date:
 
 def month_end(first_of_month: dt.date) -> dt.date:
     return add_months(first_of_month, 1) - dt.timedelta(days=1)
+
+
+def _known_wellness_days(session: Session, start: dt.date, end: dt.date) -> set[dt.date]:
+    """Days that need no fetch: a wellness row exists, or every endpoint answered (raw stored) and the day is
+    not pending – i.e. a day that simply has no data. Days whose endpoints 404 are fetched again."""
+    known = repo.wellness_dates(session, start, end)
+    lo, hi = start.isoformat(), end.isoformat()
+    answered = [{r for r in repo.raw_ref_keys(session, kind) if lo <= r <= hi} for kind in ep.WELLNESS_KINDS]
+    pending = set(repo.get_state_json(session, PENDING_WELLNESS) or {})
+    complete = set.intersection(*answered) - pending if answered else set()
+    return known | {dt.date.fromisoformat(r) for r in complete}
 
 
 def backfill(
@@ -60,7 +78,7 @@ def backfill(
         end = min(month_end(cursor), today)
         log.info("backfill %s … %s", cursor, end)
         month = ingest.activities(cursor, end)
-        known_days = repo.wellness_dates(session, cursor, end)
+        known_days = _known_wellness_days(session, cursor, end)
         day = cursor
         while day <= end:
             if day not in known_days:

@@ -16,7 +16,8 @@ Garmin training load / training effect / VO2max estimates. **No power data.**
 2. Keep only samples where the timer is running (drop paused/stopped time). `moving_s` = number of kept samples.
    *Clarified 2026-09-29:* timer state comes from the timer channel (`sumDuration`). In a gap a → b of `g`
    seconds with timer increase Δ, the last `round(min(Δ, g))` seconds of (a, b] are running (so the resume
-   sample b is running), the others paused; an unknown Δ counts as running, a negative Δ as 0.
+   sample b is running), the others paused; an unknown Δ counts as running, a negative Δ as 0. The first
+   sample (t = 0) counts as running, so `moving_s` = 1 + Σ running seconds of all gaps.
 3. HR validity: `40 ≤ hr ≤ 230`, else NaN. `hr_coverage` = valid HR samples / kept samples.
    If `hr_coverage < 0.70`, all HR-based metrics for the activity are flagged `low_confidence=True`.
 4. Speed: from Garmin speed stream (m/s); if missing, derive from cumulative distance (*clarified

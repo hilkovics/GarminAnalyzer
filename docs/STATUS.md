@@ -36,8 +36,15 @@ Last updated: 2026-09-29 (phase 1 session)
   sync_state. Its list item (the "fully fetched" marker) is stored only when no endpoint failed with a non-404
   error. Wellness days work the same way through `pending_wellness_days`. Every sync/backfill retries pending
   work first, regardless of the date window. Days without any data are not written.
+- Retries are bounded. After 5 failed runs an activity or day moves to `failed_activities` /
+  `failed_wellness_days`. It is shown by `db-stats` and in the sync report, and it is retried only when its list
+  item changes or with `training sync --retry-failed`. Nothing is fetched twice in one run.
+  Transient = `is_retryable` (5xx, 429, network); 404, other 4xx and parse errors are permanent.
 - `training backfill --restart` walks the range again, which picks up activities edited later in Garmin Connect.
-  It costs one list call per month; unchanged activities and stored days are skipped.
+  - It costs one list call per month; unchanged activities are skipped.
+  - Days are skipped when they have a wellness row, or when all 5 endpoints answered and the day is not pending
+    (days that simply have no data).
+  - Only days whose endpoints return 404 are fetched again.
 - Spec review of phase 1 (2026-09-29) found 3 Blockers, all fixed:
   - A failed or interrupted fetch used up an activity's change signal, so the activity was never fetched again.
   - Failed wellness days were stored as all-NULL rows and never retried.
@@ -47,7 +54,14 @@ Last updated: 2026-09-29 (phase 1 session)
   - a network error ended the CLI with a traceback;
   - the resume sample of a pause was marked paused;
   - the STATUS note about old edits was wrong (now `--restart`).
-- Tests: 218 passed, 5 skipped (real-fixture conformance; they skip until fixtures are recorded).
+- Spec review round 2 (2026-09-29) found no Blockers. Warnings fixed:
+  - Ctrl+C during normalization left an updated activity stale. The completion marker, rows and pending removal
+    now commit together.
+  - 4xx errors counted as transient.
+  - Retries were unbounded and happened twice per run.
+  - `--restart` re-fetched days without data.
+  The t = 0 rule was added to METRICS §0.2.
+- Tests: 223 passed, 5 skipped (real-fixture conformance; they skip until fixtures are recorded).
   - Normalizers are tested against hand-made Garmin-shaped JSON in `backend/tests/fixtures/synthetic/`.
   - Sync is run twice and gives identical rows; a changed list item is re-fetched; failing endpoints are
     tolerated.
@@ -207,7 +221,8 @@ Last updated: 2026-09-29 (phase 1 session)
   and §0.2 (`moving` = timer running, derived from `sumDuration`), plus the §0.4 speed derivation when the speed
   channel is missing. HR validity, clamping, altitude smoothing and lag (§0.3–0.6) are phase 2 preprocessing.
 - 2026-09-29 **Stream normalization rules are now in METRICS.md** (§0.1, §0.2 and §0.4, marked "clarified
-  2026-09-29"; changed in the doc first, per rule 6):
+  2026-09-29"; changed in the doc first, per rule 6). **They await the user's approval**; they are interpretations,
+  not new constants:
   - Per channel, a gap is the time between consecutive valid values. If it is ≤ 10 s it is forward-filled, and
     this also covers nulls inside a channel.
   - Samples are bucketed per second with floor, and the last sample in a second wins.

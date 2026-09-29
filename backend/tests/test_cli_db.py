@@ -64,3 +64,13 @@ def test_backfill_command_and_network_failure_exit_cleanly(env, monkeypatch):
     result = runner.invoke(cli.app, ["sync"])
     assert result.exit_code == 1
     assert "Could not reach Garmin Connect" in result.output
+
+
+def test_sync_retry_failed_and_queue_stats(env, monkeypatch):
+    api = FakeGarmin([])
+    monkeypatch.setattr(garmin_client, "connect", lambda tokens_dir: api)
+    result = runner.invoke(cli.app, ["sync", "--retry-failed"])
+    assert result.exit_code == 0, result.output
+    assert "Retrying 0 previously failed items" in result.output
+    stats = runner.invoke(cli.app, ["db-stats"])
+    assert "pending_activities: 0" in stats.output and "failed_wellness_days: 0" in stats.output

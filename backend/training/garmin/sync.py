@@ -13,6 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+import requests
 from sqlmodel import Session
 
 from training.db import rebuild, repo
@@ -24,14 +25,18 @@ from training.garmin.client import (
     GarminConnectNotFoundError,
     GarminConnectTooManyRequestsError,
     RawSink,
+    is_retryable,
 )
 
 log = logging.getLogger(__name__)
 
 LAST_ACTIVITY_SYNC = "last_activity_sync"
 LAST_WELLNESS_DATE = "last_wellness_date"
-PENDING_ACTIVITIES = "pending_activities"
-PENDING_WELLNESS = "pending_wellness_days"
+PENDING_ACTIVITIES = "pending_activities"  # {garmin_id: {"item": list item, "attempts": n}}
+PENDING_WELLNESS = "pending_wellness_days"  # {date: {"attempts": n}}
+FAILED_ACTIVITIES = "failed_activities"  # moved here after MAX_ATTEMPTS runs; `sync --retry-failed`
+FAILED_WELLNESS = "failed_wellness_days"
+MAX_ATTEMPTS = 5
 ACTIVITY_OVERLAP_DAYS = 2
 FIRST_SYNC_DAYS = 14
 
@@ -42,6 +47,7 @@ class SyncResult:
     activities_updated: int = 0
     activities_unchanged: int = 0
     activities_pending: int = 0  # incomplete after this run (transient failure) – retried next run
+    activities_failed: int = 0  # gave up after MAX_ATTEMPTS runs – see db-stats / `sync --retry-failed`
     wellness_days: int = 0
     errors: list[str] = field(default_factory=list)
 
@@ -50,6 +56,7 @@ class SyncResult:
         self.activities_updated += other.activities_updated
         self.activities_unchanged += other.activities_unchanged
         self.activities_pending += other.activities_pending
+        self.activities_failed += other.activities_failed
         self.wellness_days += other.wellness_days
         self.errors.extend(other.errors)
 
@@ -77,11 +84,17 @@ class Ingestor:
     def __init__(self, session: Session, client: GarminClient) -> None:
         self.session = session
         self.client = client
+        self._attempted: set[str] = set()  # activity ids handled in this run
+        self._attempted_days: set[str] = set()  # wellness days handled in this run
         if client.raw_sink is None:
             client.raw_sink = raw_sink_for(session)
 
     def _try(self, label: str, fn: Callable[..., Any], *args: Any, errors: list[str]) -> tuple[Any, bool]:
-        """Call an endpoint; returns (payload, transient_failure). 404 and bad arguments are permanent."""
+        """Call an endpoint; returns (payload, transient_failure).
+
+        Transient = worth retrying on a later run (5xx, 429-like, network), decided by `is_retryable`;
+        404, other 4xx, parse errors and bad arguments are permanent and never retried.
+        """
         try:
             return fn(*args), False
         except (GarminConnectAuthenticationError, GarminConnectTooManyRequestsError):
@@ -89,41 +102,76 @@ class Ingestor:
         except GarminConnectNotFoundError:
             log.info("%s: not found", label)
             return None, False
-        except ValueError as exc:
-            log.warning("%s failed: %s", label, type(exc).__name__)
+        except (GarminConnectConnectionError, requests.ConnectionError, requests.Timeout, ValueError) as exc:
+            transient = is_retryable(exc)
+            log.warning(
+                "%s failed: %s%s", label, type(exc).__name__, " (retried next run)" if transient else ""
+            )
             errors.append(f"{label}: {type(exc).__name__}")
-            return None, False
-        except GarminConnectConnectionError as exc:
-            log.warning("%s failed: %s (will retry on the next run)", label, type(exc).__name__)
-            errors.append(f"{label}: {type(exc).__name__}")
-            return None, True
+            return None, transient
 
-    # --- pending bookkeeping ------------------------------------------------------------------------------
+    # --- pending bookkeeping (sync_state JSON) --------------------------------------------------------------
 
-    def _pending_activities(self) -> dict[str, Any]:
-        return repo.get_state_json(self.session, PENDING_ACTIVITIES) or {}
+    def _load(self, key: str) -> dict[str, Any]:
+        value = repo.get_state_json(self.session, key)
+        return value if isinstance(value, dict) else {}
 
-    def _pending_days(self) -> set[str]:
-        return set(repo.get_state_json(self.session, PENDING_WELLNESS) or [])
+    def _save(self, key: str, value: dict[str, Any]) -> None:
+        repo.set_state_json(self.session, key, value)
 
-    def _save_pending(self, activities: dict[str, Any] | None = None, days: set[str] | None = None) -> None:
-        if activities is not None:
-            repo.set_state_json(self.session, PENDING_ACTIVITIES, activities)
-        if days is not None:
-            repo.set_state_json(self.session, PENDING_WELLNESS, sorted(days))
+    def _record_failure(self, pending_key: str, failed_key: str, ref: str, entry: dict[str, Any]) -> bool:
+        """Count one more failed run for `ref`; at MAX_ATTEMPTS move it to the failed list (returns True)."""
+        pending = self._load(pending_key)
+        entry = {**entry, "attempts": int(pending.get(ref, {}).get("attempts", 0)) + 1}
+        if entry["attempts"] >= MAX_ATTEMPTS:
+            pending.pop(ref, None)
+            failed = self._load(failed_key)
+            failed[ref] = entry
+            self._save(failed_key, failed)
+            log.error("%s failed %d runs in a row – moved to %s", ref, entry["attempts"], failed_key)
+            moved = True
+        else:
+            pending[ref] = entry
+            moved = False
+        self._save(pending_key, pending)
+        return moved
+
+    def _clear(self, pending_key: str, ref: str) -> None:
+        pending = self._load(pending_key)
+        if pending.pop(ref, None) is not None:
+            self._save(pending_key, pending)
+
+    def retry_failed(self) -> int:
+        """Move everything from the failed lists back to pending (attempts reset). Returns the count."""
+        moved = 0
+        for failed_key, pending_key in (
+            (FAILED_ACTIVITIES, PENDING_ACTIVITIES),
+            (FAILED_WELLNESS, PENDING_WELLNESS),
+        ):
+            failed, pending = self._load(failed_key), self._load(pending_key)
+            for ref, entry in failed.items():
+                pending[ref] = {**entry, "attempts": 0}
+                moved += 1
+            self._save(pending_key, pending)
+            self._save(failed_key, {})
         self.session.commit()
+        return moved
 
     # --- activities ----------------------------------------------------------------------------------------
 
     def activities(self, start: dt.date, end: dt.date) -> SyncResult:
         result = SyncResult()
+        failed = self._load(FAILED_ACTIVITIES)
         for item in self.client.activities_by_date(start, end):
             garmin_id = item.get("activityId")
-            if garmin_id is None:
+            if garmin_id is None or str(garmin_id) in self._attempted:
                 continue
-            unchanged = repo.raw_digest(
-                self.session, ep.ACTIVITY_LIST_ITEM, str(garmin_id)
-            ) == repo.payload_hash(item)
+            digest = repo.payload_hash(item)
+            gave_up = failed.get(str(garmin_id), {}).get("item")
+            if gave_up is not None and repo.payload_hash(gave_up) == digest:
+                result.activities_failed += 1  # given up; only retried if it changes or via --retry-failed
+                continue
+            unchanged = repo.raw_digest(self.session, ep.ACTIVITY_LIST_ITEM, str(garmin_id)) == digest
             if unchanged and repo.activity_id_for(self.session, garmin_id) is not None:
                 result.activities_unchanged += 1
                 continue
@@ -131,17 +179,23 @@ class Ingestor:
         return result
 
     def retry_pending(self, result: SyncResult) -> None:
-        """Retry activities and wellness days left incomplete by earlier runs."""
-        for item in list(self._pending_activities().values()):
-            self._ingest_activity(item, result)
-        for day in sorted(self._pending_days()):
+        """Retry activities and wellness days left incomplete by earlier runs (each at most once per run)."""
+        for entry in list(self._load(PENDING_ACTIVITIES).values()):
+            item = entry.get("item") if isinstance(entry, dict) and "item" in entry else entry
+            if isinstance(item, dict) and "activityId" in item:
+                self._ingest_activity(item, result)
+        for day in sorted(self._load(PENDING_WELLNESS)):
             self.wellness_day(dt.date.fromisoformat(day), result.errors)
+            result.wellness_days += 1
 
     def _ingest_activity(self, item: dict[str, Any], result: SyncResult) -> None:
         garmin_id = item["activityId"]
-        pending = self._pending_activities()
-        pending[str(garmin_id)] = item
-        self._save_pending(activities=pending)
+        ref = str(garmin_id)
+        self._attempted.add(ref)
+        pending = self._load(PENDING_ACTIVITIES)
+        pending[ref] = {"item": item, "attempts": int(pending.get(ref, {}).get("attempts", 0))}
+        self._save(PENDING_ACTIVITIES, pending)
+        self.session.commit()  # pending *before* any fetch: a crash from here on is retried next run
 
         known = repo.activity_id_for(self.session, garmin_id) is not None
         label = f"activity {garmin_id}"
@@ -155,20 +209,30 @@ class Ingestor:
         ):
             transient |= self._try(f"{label} {part}", fn, *args, errors=result.errors)[1]
 
-        if not transient:
-            repo.store_raw(self.session, ep.ACTIVITY_LIST_ITEM, str(garmin_id), item)
-            pending.pop(str(garmin_id), None)
-            self._save_pending(activities=pending)
+        # Completion marker (list item) + normalized rows + pending removal commit together, so an interrupt
+        # during normalization leaves the activity pending instead of "unchanged but stale".
+        def finish() -> None:
+            if not transient:
+                repo.store_raw(self.session, ep.ACTIVITY_LIST_ITEM, ref, item)
+                self._clear(PENDING_ACTIVITIES, ref)
+
+        finish()
         try:
             rebuild.rebuild_activity(self.session, garmin_id)
-            self.session.commit()
-        except LookupError:  # nothing usable fetched yet – stays pending
-            self.session.rollback()
-        except Exception as exc:  # raw data is already safe; report and continue
+        except LookupError:  # nothing usable fetched yet
+            pass
+        except Exception as exc:  # raw data is safe; a normalizer bug is not fixed by re-fetching
             self.session.rollback()
             log.exception("normalizing %s failed", label)
             result.errors.append(f"{label} normalize: {type(exc).__name__}")
-        if transient:
+            finish()
+        failed_now = transient and self._record_failure(
+            PENDING_ACTIVITIES, FAILED_ACTIVITIES, ref, {"item": item}
+        )
+        self.session.commit()
+        if failed_now:
+            result.activities_failed += 1
+        elif transient:
             result.activities_pending += 1
         elif known:
             result.activities_updated += 1
@@ -179,6 +243,10 @@ class Ingestor:
 
     def wellness_day(self, day: dt.date, errors: list[str]) -> bool:
         """Fetch + normalize one day. False if an endpoint failed transiently (the day stays pending)."""
+        ref = day.isoformat()
+        if ref in self._attempted_days or ref in self._load(FAILED_WELLNESS):
+            return True
+        self._attempted_days.add(ref)
         transient = False
         for kind, fn in (
             (ep.SLEEP, self.client.sleep),
@@ -190,17 +258,15 @@ class Ingestor:
             transient |= self._try(f"{kind} {day}", fn, day, errors=errors)[1]
         try:
             rebuild.rebuild_wellness_day(self.session, day)
-            self.session.commit()
         except Exception as exc:
             self.session.rollback()
             log.exception("normalizing wellness %s failed", day)
             errors.append(f"wellness {day} normalize: {type(exc).__name__}")
-        days = self._pending_days()
         if transient:
-            days.add(day.isoformat())
+            self._record_failure(PENDING_WELLNESS, FAILED_WELLNESS, ref, {})
         else:
-            days.discard(day.isoformat())
-        self._save_pending(days=days)
+            self._clear(PENDING_WELLNESS, ref)
+        self.session.commit()
         return not transient
 
     def status(self, day: dt.date, errors: list[str]) -> None:
@@ -228,6 +294,8 @@ def sync(session: Session, client: GarminClient, today: dt.date) -> SyncResult:
     last_well = repo.get_state_date(session, LAST_WELLNESS_DATE)
     well_start = min(last_well, today) if last_well else today - dt.timedelta(days=FIRST_SYNC_DAYS)
     for day in _days(well_start, today):
+        if day.isoformat() in ingest._attempted_days:  # already retried from pending in this run
+            continue
         ingest.wellness_day(day, result.errors)
         result.wellness_days += 1
         repo.set_state(session, LAST_WELLNESS_DATE, day.isoformat())

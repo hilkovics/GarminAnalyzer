@@ -8,6 +8,7 @@ import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
 
+import requests
 import typer
 from rich.console import Console
 from rich.markup import escape
@@ -19,7 +20,15 @@ from training.db import repo
 from training.db.session import get_engine
 from training.garmin import client as garmin_client
 from training.garmin.backfill import backfill as run_backfill
-from training.garmin.sync import SyncResult, raw_sink_for
+from training.garmin.sync import (
+    FAILED_ACTIVITIES,
+    FAILED_WELLNESS,
+    PENDING_ACTIVITIES,
+    PENDING_WELLNESS,
+    Ingestor,
+    SyncResult,
+    raw_sink_for,
+)
 from training.garmin.sync import sync as run_sync
 
 app = typer.Typer(
@@ -111,7 +120,11 @@ def _garmin_session() -> Iterator[tuple[Session, garmin_client.GarminClient]]:
         except garmin_client.GarminConnectAuthenticationError as exc:
             err.print(f"[red]Not logged in:[/] {escape(str(exc))}")
             raise typer.Exit(1) from None
-        except garmin_client.GarminConnectConnectionError as exc:
+        except (
+            garmin_client.GarminConnectConnectionError,
+            requests.ConnectionError,
+            requests.Timeout,
+        ) as exc:
             err.print(f"[red]Could not reach Garmin Connect:[/] {type(exc).__name__}")
             raise typer.Exit(1) from None
         try:
@@ -124,7 +137,11 @@ def _garmin_session() -> Iterator[tuple[Session, garmin_client.GarminClient]]:
         except garmin_client.GarminConnectAuthenticationError as exc:
             err.print(f"[red]Garmin rejected the tokens:[/] {escape(str(exc))} – run `training login`.")
             raise typer.Exit(1) from None
-        except garmin_client.GarminConnectConnectionError as exc:
+        except (
+            garmin_client.GarminConnectConnectionError,
+            requests.ConnectionError,
+            requests.Timeout,
+        ) as exc:
             err.print(
                 f"[red]Garmin Connect is unreachable or failing:[/] {type(exc).__name__}. "
                 "Progress is saved – run the same command again later."
@@ -153,9 +170,15 @@ def _report(result: SyncResult) -> None:
 
 
 @app.command()
-def sync() -> None:
+def sync(
+    retry_failed: bool = typer.Option(
+        False, "--retry-failed", help="Also retry activities/days that failed repeatedly before."
+    ),
+) -> None:
     """Incremental sync of activities and wellness (idempotent; safe to run from cron)."""
     with _garmin_session() as (session, client):
+        if retry_failed:
+            console.print(f"Retrying {Ingestor(session, client).retry_failed()} previously failed items.")
         _report(run_sync(session, client, dt.date.today()))
 
 
@@ -189,6 +212,11 @@ def db_stats() -> None:
             k: repo.get_state(session, k)
             for k in ("last_activity_sync", "last_wellness_date", "backfill_cursor")
         }
+        queues = {
+            k: len(repo.get_state_json(session, k) or {})
+            for k in (PENDING_ACTIVITIES, PENDING_WELLNESS, FAILED_ACTIVITIES, FAILED_WELLNESS)
+        }
+        failed_ids = sorted(repo.get_state_json(session, FAILED_ACTIVITIES) or {})
     table = Table("table", "rows")
     for name, n in counts.items():
         table.add_row(name, f"{n:,}")
@@ -200,6 +228,10 @@ def db_stats() -> None:
         console.print(kinds)
     for key, value in state.items():
         console.print(f"{key}: {value or '–'}")
+    for key, n in queues.items():
+        console.print(f"{key}: {n}")
+    if failed_ids:
+        console.print(f"failed activity ids: {', '.join(failed_ids[:20])}")
 
 
 if __name__ == "__main__":
