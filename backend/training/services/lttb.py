@@ -77,7 +77,7 @@ def select_indices(t: np.ndarray, series: Mapping[str, np.ndarray], points: int)
         return np.arange(n)
     if not series:
         series = {"": np.zeros(n)}
-    budget = max(points // len(series), MIN_POINTS)
+    budget = max((points - 2) // len(series), MIN_POINTS)  # {0, n-1} are always added on top
     x = np.asarray(t, dtype=float)
     chosen: set[int] = {0, n - 1}
     for values in series.values():
@@ -90,6 +90,6 @@ def select_indices(t: np.ndarray, series: Mapping[str, np.ndarray], points: int)
         chosen.update(np.flatnonzero(valid)[picks].tolist())
         chosen.update(markers.tolist())
     out = np.array(sorted(chosen), dtype=np.int64)
-    if len(out) > points:  # only when there are more series than points // MIN_POINTS: keep the ends
+    if len(out) > points:  # safety net (many series with gap markers): thin uniformly, keeping the ends
         out = out[np.unique(np.linspace(0, len(out) - 1, points).round().astype(int))]
     return out

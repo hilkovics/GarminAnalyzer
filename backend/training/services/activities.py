@@ -13,9 +13,9 @@ from sqlalchemy import func, select
 from sqlmodel import Session
 
 from training import pipeline
+from training.db import raw_kinds as ep
 from training.db import repo
 from training.db.models import Activity, ActivityMetric, Subjective, Threshold
-from training.garmin import endpoints as ep
 from training.metrics.preprocess import preprocess
 from training.services.dto import (
     ActivityDetailDTO,
@@ -165,7 +165,10 @@ def save_subjective(session: Session, activity_id: int, data: SubjectiveIn) -> S
     if activity is None:
         raise NotFoundError(f"activity {activity_id} not found")
     row = session.execute(
-        select(Subjective).where(Subjective.activity_id == activity_id).order_by(Subjective.id).limit(1)
+        select(Subjective)
+        .where(Subjective.activity_id == activity_id)
+        .order_by(Subjective.id.desc())
+        .limit(1)
     ).scalar_one_or_none() or Subjective(activity_id=activity_id, date=activity.local_date)
     row.date = activity.local_date
     row.rpe, row.feel, row.soreness, row.notes = data.rpe, data.feel, data.soreness, data.notes

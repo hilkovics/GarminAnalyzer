@@ -9,7 +9,7 @@ import datetime as dt
 import _db
 import pandas as pd
 import streamlit as st
-from components.format import fmt_date, fmt_num, fmt_pace, fmt_zone_range, parse_pace, sport_label
+from components.format import fmt_date, fmt_num, fmt_pace, fmt_pace_s, fmt_zone_range, parse_pace, sport_label
 from pydantic import ValidationError
 
 from training.services import settings as settings_service
@@ -86,7 +86,7 @@ def athlete_form(athlete: AthleteDTO | None) -> None:
             weight_kg=weight,
             run_bike_split=split / 100 if split is not None else None,
         )
-        with _db.session() as session:
+        with st.spinner("Ukladám a prepočítavam metriky…"), _db.session() as session:
             settings_service.update_athlete(session, data, today=_db.today())
     except (ServiceError, ValidationError) as exc:
         st.error(str(exc))
@@ -114,14 +114,17 @@ def threshold_history(cfg: SettingsDTO) -> None:
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 
 
-def add_threshold_form() -> None:
-    """ "Pridať prah": sport, LTHR, pace as m:ss (run only), valid-from date."""
+def add_threshold_form(cfg: SettingsDTO | None = None) -> None:
+    """ "Pridať prah": sport, LTHR, pace as m:ss (run only, prefilled with today's run pace), valid-from."""
+    current_run = cfg.current.get("run") if cfg is not None else None
+    speed_now = current_run.threshold_speed if current_run else None
+    pace_default = fmt_pace_s(1000.0 / speed_now) if speed_now else ""
     st.markdown("##### Pridať prah")
     with st.form("threshold_form"):
         c1, c2, c3, c4 = st.columns(4)
         sport = c1.selectbox("Šport", THRESHOLD_SPORTS, format_func=sport_label)
         lthr = c2.number_input("LTHR (bpm)", min_value=1.0, value=None, step=1.0)
-        pace_text = c3.text_input("Prahové tempo (m:ss, iba beh)", placeholder="4:10")
+        pace_text = c3.text_input("Prahové tempo (m:ss, iba beh)", value=pace_default, placeholder="4:10")
         valid_from = c4.date_input("Platný od", value=_db.today(), format="DD.MM.YYYY")
         submitted = st.form_submit_button("Pridať prah")
     if not submitted:
@@ -130,10 +133,9 @@ def add_threshold_form() -> None:
         st.error("Zadaj LTHR.")
         return
     speed = None
-    if pace_text.strip():
-        if sport == "bike":
-            st.error("Tempo sa pre bicykel nepoužíva.")
-            return
+    if sport == "run" and not pace_text.strip():
+        st.warning("Bez tempa sa od tohto dátumu nepočíta rTSS ani tempové zóny (len hrTSS).")
+    if sport == "run" and pace_text.strip():
         try:
             speed = parse_pace(pace_text)
         except ValueError as exc:
@@ -141,7 +143,7 @@ def add_threshold_form() -> None:
             return
     try:
         data = ThresholdIn(sport=sport, valid_from=valid_from, lthr=lthr, threshold_speed=speed)
-        with _db.session() as session:
+        with st.spinner("Ukladám prah a prepočítavam metriky…"), _db.session() as session:
             settings_service.add_threshold(session, data, today=_db.today())
     except (ServiceError, ValidationError) as exc:
         st.error(str(exc))

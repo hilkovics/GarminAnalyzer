@@ -4,6 +4,8 @@ The sync runs synchronously inside a spinner (no threads, CLAUDE.md); the result
 user-facing error message is rendered.
 """
 
+import logging
+
 import _db
 import pandas as pd
 import streamlit as st
@@ -29,6 +31,10 @@ def sync_now() -> None:
             result = sync.run_sync(session, settings=get_settings(), today=_db.today())
     except ServiceError as exc:
         st.error(f"Sync zlyhal: {exc}")
+        return
+    except Exception as exc:  # never show a traceback / exception text in the browser
+        logging.getLogger(__name__).exception("sync from the UI failed")
+        st.error(f"Sync zlyhal neočakávanou chybou ({type(exc).__name__}). Podrobnosti sú v logu.")
         return
     _sync_result(result)
 

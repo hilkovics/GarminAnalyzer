@@ -178,6 +178,9 @@ class DailyLoad(SQLModel, table=True):
 
 
 class Subjective(SQLModel, table=True):
+    # one entry per activity (NULL activity_id = day-level entries, not constrained)
+    __table_args__ = (Index("ux_subjective_activity_id", "activity_id", unique=True),)
+
     id: int | None = Field(default=None, primary_key=True)
     date: dt.date = Field(index=True)
     activity_id: int | None = Field(default=None, foreign_key="activity.id", ondelete="SET NULL")

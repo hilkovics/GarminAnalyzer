@@ -30,7 +30,20 @@ Last updated: 2026-09-29 (phase 3 session)
   - `/dashboard` URL → the default page is served at `/`;
   - the speed metric was truncated;
   - the rest-HR override couldn't be cleared (`AthleteIn.clear_rest_hr_override`).
-- Tests: 796 passed, 5 skipped. They cover services on a seeded DB, every API endpoint including 404/422, and
+- Spec review of phase 3 (2026-09-29) found no Blockers. Warnings fixed:
+  - Saving the athlete recomputed all metrics even for a weight change. Now it recomputes only when sex, max HR
+    or rest HR actually change; the write is atomic and the page shows a spinner.
+  - The run-threshold form now prefills today's pace (a missing pace would silently switch runs to hrTSS), and
+    pace is ignored for bike.
+  - `subjective` is one row per activity: a unique index (migration `0002`), with the same ordering for read
+    and upsert.
+  Nits fixed:
+  - the Fitness range covers exactly N days;
+  - the LTTB budget reserves the forced end points;
+  - clearing the rest HR on an empty DB no longer creates a row;
+  - unexpected sync errors show a generic message instead of a traceback;
+  - raw kinds moved to `db/raw_kinds.py`, which also resolves the old db → garmin dependency.
+- Tests: 798 passed, 5 skipped. They cover services on a seeded DB, every API endpoint including 404/422, and
   every page through AppTest with faked services.
   They also check that PUT /settings/thresholds changes only activities from `valid_from` on.
 
@@ -265,7 +278,7 @@ Last updated: 2026-09-29 (phase 3 session)
   - The UI computes the page count itself (`ActivityListDTO` has no `pages`).
   - METRICS gives no monotony threshold, so Fitness shows the value without a flag.
 - Phase 2 interpretation choices, all literal to METRICS:
-  - An empty stream gives hrTSS 0 with IF_hr null.
+  - An empty stream or an activity without HR gives null hrTSS / IF_hr / TRIMP (METRICS §2.1, changed).
   - When `lthr ≤ rest_hr`, TRIMP_norm is null.
   - Indoor runs with a threshold_speed still get pace-zone times (rTSS stays null without usable GPS).
   - `other` uses the run speed limits.
@@ -308,8 +321,6 @@ Last updated: 2026-09-29 (phase 3 session)
   was recorded is not picked up by `sync`. `training backfill --months N --restart` picks it up.
 - If page N of an activity list fails, pages 1..N−1 of that call are not stored raw. The whole call is retried on
   the next run, so nothing is lost.
-- `db/rebuild.py` imports the raw kind constants from `garmin/endpoints.py` (db depends on garmin). Move them to a
-  neutral module if that ever matters.
 - Open METRICS.md points to decide before the phase that uses them:
   - §0.6 HR-lag direction. Proposal: pair speed(t) with HR(t + 30 s).
   - §10.4 rule 1 "whichever the template has fewer of" needs a deterministic tie-break.

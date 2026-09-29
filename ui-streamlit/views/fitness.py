@@ -31,7 +31,7 @@ today = _db.today()
 days = RANGES[range_label]
 try:
     with _db.session() as session:
-        pmc = fitness.get_pmc(session, date_from=today - dt.timedelta(days=days) if days else None)
+        pmc = fitness.get_pmc(session, date_from=today - dt.timedelta(days=days - 1) if days else None)
         weekly = fitness.get_weekly(session, weeks=weeks, today=today)
 except ServiceError as exc:
     st.error(str(exc))

@@ -235,7 +235,6 @@ def test_add_threshold_run_without_pace_and_bike(monkeypatch):
         ({"pace": "abc"}, "Tempo zadaj ako m:ss"),
         ({"pace": "4:75"}, "Sekundy musia byť"),
         ({"pace": "1:00"}, "Tempo musí byť medzi"),
-        ({"sport": "bike", "pace": "4:10"}, "Tempo sa pre bicykel nepoužíva."),
         ({"lthr": None}, "Zadaj LTHR."),
     ],
 )
@@ -247,6 +246,16 @@ def test_add_threshold_validation_errors_do_not_call_the_service(monkeypatch, kw
     assert not at.exception
     assert message in at.error[0].value
     assert calls.threshold == []
+
+
+def test_bike_threshold_ignores_prefilled_pace(monkeypatch):
+    """Review phase 3: the pace field is prefilled with today's run pace; for bike it is simply ignored."""
+    calls = patch_settings(monkeypatch)
+    at = run_page("nastavenia")
+    fill_threshold(at, sport="bike", pace="4:10")
+    button(at, "Pridať prah").click().run()
+    assert not at.exception
+    assert [(t.sport, t.threshold_speed) for t in calls.threshold] == [("bike", None)]
 
 
 def test_add_threshold_service_error_is_shown(monkeypatch):

@@ -268,3 +268,45 @@ def test_clear_rest_hr_override_returns_to_median(session):
     assert _update(session, _AthleteIn(rest_hr_override=44.0), today=today).rest_hr_current == 44.0
     dto = _update(session, _AthleteIn(clear_rest_hr_override=True), today=today)
     assert dto.rest_hr_override is None and dto.rest_hr_current == 51.0
+
+
+def test_athlete_save_recomputes_only_on_metric_relevant_changes(session, monkeypatch):
+    """Review phase 3 W1: the form resends sex/max_hr unchanged – that must not trigger a full recompute."""
+    import datetime as _dt
+
+    from training import pipeline as _pipeline
+    from training.services.dto import AthleteIn as _AthleteIn
+    from training.services.settings import update_athlete as _update
+
+    today = _dt.date(2026, 9, 29)
+    calls: list[int] = []
+    real = _pipeline.recompute
+    monkeypatch.setattr(_pipeline, "recompute", lambda *a, **k: calls.append(1) or real(*a, **k))
+    _update(session, _AthleteIn(sex="female", max_hr=183.0), today=today)  # differs from the seeded athlete
+    assert len(calls) == 1
+    _update(session, _AthleteIn(sex="female", max_hr=183.0, weight_kg=71.0), today=today)
+    assert len(calls) == 1  # unchanged sex/max_hr, only weight
+    _update(session, _AthleteIn(max_hr=184.0), today=today)
+    assert len(calls) == 2
+
+
+def test_clear_rest_hr_override_on_empty_db_creates_nothing(tmp_path):
+    import datetime as _dt
+
+    import pytest as _pytest
+    from sqlmodel import Session as _Session
+
+    from training.db.session import make_engine as _make_engine
+    from training.db.session import migrate as _migrate
+
+    _migrate(tmp_path / "empty.db")
+    session = _Session(_make_engine(tmp_path / "empty.db"))
+
+    from training import pipeline as _pipeline
+    from training.services.dto import AthleteIn as _AthleteIn
+    from training.services.errors import InvalidInputError as _Invalid
+    from training.services.settings import update_athlete as _update
+
+    with _pytest.raises(_Invalid):
+        _update(session, _AthleteIn(clear_rest_hr_override=True), today=_dt.date(2026, 9, 29))
+    assert _pipeline.get_athlete(session) is None

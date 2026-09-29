@@ -28,7 +28,7 @@ with tab_athlete:
 with tab_thresholds:
     st.markdown("##### História prahov")
     settings_forms.threshold_history(cfg)
-    settings_forms.add_threshold_form()
+    settings_forms.add_threshold_form(cfg)
     settings_forms.zone_preview(cfg)
 
 with tab_sync:

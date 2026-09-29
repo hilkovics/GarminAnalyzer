@@ -163,7 +163,9 @@ def test_fitness_renders_pmc_with_warming_up_band_and_weekly_bars(monkeypatch):
     calls = patch_fitness(monkeypatch)
     at = run_page("fitness")
     assert not at.exception
-    assert calls["pmc"] == [(TODAY - dt.timedelta(days=365), None)]  # default range: 1 year
+    assert calls["pmc"] == [
+        (TODAY - dt.timedelta(days=364), None)
+    ]  # default range: 1 year = 365 days incl. today
     assert calls["weekly"] == [(12, TODAY)]
     pmc_fig, weekly_fig = figures(at)
     assert trace_names(pmc_fig) == ["Denná záťaž", "CTL", "ATL", "TSB"]

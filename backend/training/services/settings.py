@@ -86,12 +86,18 @@ def update_athlete(session: Session, data: AthleteIn, *, today: dt.date) -> Athl
         raise InvalidInputError(f"sex must be one of {', '.join(SEXES)}")
     if data.birth_year is not None and not 1900 <= data.birth_year <= today.year:
         raise InvalidInputError(f"birth_year must be between 1900 and {today.year}")
-    athlete = pipeline.set_athlete(session, **given)
+    athlete = pipeline.get_athlete(session)
+    if athlete is None and not given:
+        raise InvalidInputError("no athlete settings to clear yet")
+    athlete = athlete or Athlete()
+    before = {k: getattr(athlete, k) for k in METRIC_FIELDS}
+    for key, value in given.items():
+        setattr(athlete, key, value)
     if data.clear_rest_hr_override:
         athlete.rest_hr_override = None
-        session.add(athlete)
-        session.commit()
-    if data.clear_rest_hr_override or any(k in given for k in METRIC_FIELDS):
+    session.add(athlete)
+    session.commit()  # one atomic write
+    if any(getattr(athlete, k) != before[k] for k in METRIC_FIELDS):  # only real TRIMP-relevant changes
         pipeline.recompute(session, renormalize=False, end=today)
     dto = _athlete_dto(session, today)
     assert dto is not None
