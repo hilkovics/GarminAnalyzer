@@ -37,6 +37,10 @@ PENDING_WELLNESS = "pending_wellness_days"  # {date: {"attempts": n}}
 FAILED_ACTIVITIES = "failed_activities"  # moved here after MAX_ATTEMPTS runs; `sync --retry-failed`
 FAILED_WELLNESS = "failed_wellness_days"
 MAX_ATTEMPTS = 5
+# "Metrics needed" markers, written in the same transaction as the typed rows and cleared by
+# training.pipeline.update_after_sync – so an interrupted run never leaves rows without metrics.
+METRICS_DIRTY_ACTIVITIES = "metrics_dirty_activities"  # [garmin_id, …]
+METRICS_DIRTY_WELLNESS = "metrics_dirty_wellness_days"  # [date, …] (RHR feeds TRIMP, METRICS §2.2)
 ACTIVITY_OVERLAP_DAYS = 2
 FIRST_SYNC_DAYS = 14
 
@@ -138,6 +142,12 @@ class Ingestor:
         self._save(pending_key, pending)
         return moved
 
+    def _mark_dirty(self, key: str, value: object) -> None:
+        dirty = set(repo.get_state_json(self.session, key) or [])
+        if value not in dirty:
+            dirty.add(value)
+            repo.set_state_json(self.session, key, sorted(dirty))
+
     def _clear(self, pending_key: str, ref: str) -> None:
         pending = self._load(pending_key)
         if pending.pop(ref, None) is not None:
@@ -222,6 +232,7 @@ class Ingestor:
         try:
             rebuild.rebuild_activity(self.session, garmin_id)
             result.affected.add(garmin_id)
+            self._mark_dirty(METRICS_DIRTY_ACTIVITIES, garmin_id)
         except LookupError:  # nothing usable fetched yet
             pass
         except Exception as exc:  # raw data is safe; a normalizer bug is not fixed by re-fetching
@@ -260,7 +271,8 @@ class Ingestor:
         ):
             transient |= self._try(f"{kind} {day}", fn, day, errors=errors)[1]
         try:
-            rebuild.rebuild_wellness_day(self.session, day)
+            if rebuild.rebuild_wellness_day(self.session, day):
+                self._mark_dirty(METRICS_DIRTY_WELLNESS, ref)
         except Exception as exc:
             self.session.rollback()
             log.exception("normalizing wellness %s failed", day)

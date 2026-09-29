@@ -48,7 +48,7 @@ def get_diagnostics(session: Session) -> DiagnosticsDTO:
     divergent = []
     for r in rows:
         if r.hrtss and r.rtss:
-            diff = abs(r.hrtss - r.rtss) / max(r.hrtss, r.rtss) * 100
+            diff = abs(r.hrtss - r.rtss) / min(r.hrtss, r.rtss) * 100
             if diff > DIVERGENCE_PCT:
                 divergent.append(
                     LoadDivergenceDTO(
@@ -71,6 +71,7 @@ def get_diagnostics(session: Session) -> DiagnosticsDTO:
         activities=n_activities,
         activities_with_metrics=len(rows),
         activities_without_threshold=sum(1 for r in rows if r.threshold_id_used is None),
+        activities_without_load=sum(1 for r in rows if r.load_primary is None),
         low_confidence_share=(sum(1 for r in rows if r.low_confidence) / len(rows)) if rows else None,
         load_sanity=LoadSanityDTO(r=sanity.r, n=sanity.n, status=sanity.status),
         hrtss_rtss_divergent=sorted(divergent, key=lambda d: -d.diff_pct),

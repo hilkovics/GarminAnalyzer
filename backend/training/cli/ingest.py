@@ -91,9 +91,7 @@ def _report(result: SyncResult) -> None:
 
 def _after_ingest(session: Session, result: SyncResult) -> None:
     """Recompute metrics for what the sync/backfill changed (PLAN phase 2 step 5)."""
-    done = pipeline.update_after_sync(
-        session, result.affected, wellness_changed=result.wellness_days > 0, today=dt.date.today()
-    )
+    done = pipeline.update_after_sync(session, result.affected, today=dt.date.today())
     console.print(f"Metrics: {done.metrics_computed} activities, PMC {done.daily_load_days} days")
     for line in done.errors[:5]:
         console.print(f"  [yellow]- {escape(line)}[/]")

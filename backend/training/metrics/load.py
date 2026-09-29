@@ -188,10 +188,10 @@ def load_sanity(load_primary: Sequence[float | None], garmin_load: Sequence[floa
     n = len(x)
     if n < SANITY_MIN_N:
         return LoadSanity(r=None, n=n, status="insufficient")
+    if np.ptp(x) == 0 or np.ptp(y) == 0:  # a constant side has no correlation (exact test, no float residue)
+        return LoadSanity(r=None, n=n, status="insufficient")
     dx, dy = x - x.mean(), y - y.mean()
     denom = math.sqrt(float(np.sum(dx * dx)) * float(np.sum(dy * dy)))
-    if denom == 0:
-        return LoadSanity(r=None, n=n, status="insufficient")
     r = min(1.0, max(-1.0, float(np.sum(dx * dy)) / denom))
     if r > SANITY_GOOD:
         status = "good"

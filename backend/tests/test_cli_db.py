@@ -95,3 +95,27 @@ def test_pace_conversion_is_presentation_only():
 
     assert parse_pace("4:00") == pytest.approx(1000 / 240)
     assert format_pace(parse_pace("4:05")) == "4:05/km"
+    import typer
+
+    for bad in ("4:75", ":30", "4", "4:5", "abc", "0:00"):
+        with pytest.raises(typer.BadParameter):
+            parse_pace(bad)
+
+
+def test_athlete_without_options_creates_nothing(env):
+    r = runner.invoke(cli.app, ["athlete"])
+    assert r.exit_code == 0 and "No athlete settings yet" in r.output
+    args = [
+        "threshold",
+        "add",
+        "--sport",
+        "bike",
+        "--lthr",
+        "160",
+        "--pace",
+        "4:00",
+        "--valid-from",
+        "2026-01-01",
+    ]
+    bike_pace = runner.invoke(cli.app, args)
+    assert bike_pace.exit_code != 0

@@ -120,9 +120,7 @@ def test_update_after_sync_and_diagnostics(session):
         [(LTHR, 150.0), (0.9 * LTHR, 110.0), (0.8 * LTHR, 80.0), (0.7 * LTHR, 55.0)]
     ):
         add_activity(session, 10 + i, dt.date(2026, 9, 1 + i), hr=hr, garmin_load=garmin)
-    result = pipeline.update_after_sync(
-        session, [10, 11, 12, 13], wellness_changed=False, today=dt.date(2026, 9, 5)
-    )
+    result = pipeline.update_after_sync(session, [10, 11, 12, 13], today=dt.date(2026, 9, 5))
     assert result.metrics_computed == 4 and result.daily_load_days == 5
     d = get_diagnostics(session)
     assert d.activities == d.activities_with_metrics == 4
@@ -145,7 +143,7 @@ def test_recompute_from_raw_matches_incremental(session):
     )
     pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 1, 1), lthr=155.0)
     result = sync(session, GarminClient(api, rate_limit_s=0, sleep=lambda s: None), TODAY)
-    pipeline.update_after_sync(session, result.affected, wellness_changed=True, today=TODAY)
+    pipeline.update_after_sync(session, result.affected, today=TODAY)
     before = {
         r.activity_id: (r.load_primary, r.load_method) for r in session.exec(select(ActivityMetric)).scalars()
     }
@@ -159,3 +157,60 @@ def test_recompute_from_raw_matches_incremental(session):
         "run",
         "bike",
     ]
+
+
+def test_interrupted_ingest_is_caught_up_by_the_next_run(session):
+    """Review phase 2, blocker: activities normalized by a run that never reached the metric step
+    (Ctrl+C / 429) get their metrics on the next run, although they are "unchanged" by then."""
+    from training.garmin.backfill import backfill
+    from training.garmin.client import GarminClient
+
+    from .test_sync import TODAY, FakeGarmin, make_activity
+
+    pipeline.set_threshold(session, sport="run", valid_from=dt.date(2026, 1, 1), lthr=150.0)
+    api = FakeGarmin([make_activity(2001, dt.date(2026, 8, 5)), make_activity(2002, dt.date(2026, 9, 2))])
+    client = GarminClient(api, rate_limit_s=0, sleep=lambda s: None)
+    backfill(session, client, 2, TODAY)  # the CLI would now call update_after_sync – simulate that it died
+    assert session.exec(select(ActivityMetric)).scalars().all() == []
+
+    result = pipeline.update_after_sync(session, [], today=TODAY)  # next run: nothing new was fetched
+    assert result.metrics_computed == 2
+    assert repo.get_state_json(session, "metrics_dirty_activities") == []
+    assert pipeline.update_after_sync(session, [], today=TODAY).metrics_computed == 0  # markers cleared
+
+
+def test_pmc_series_end_and_readiness_are_stable_across_entry_points(session):
+    """Review phase 2, warning 1: every entry point extends the series to `end` and keeps readiness."""
+    pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 1, 1), lthr=LTHR)
+    add_activity(session, 1, dt.date(2026, 9, 1))
+    today = dt.date(2026, 9, 10)
+    pipeline.update_after_sync(session, [1], today=today)
+    row = session.get(DailyLoad, today)
+    row.readiness = 77.0
+    session.commit()
+    pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 8, 1), lthr=LTHR + 5, end=today)
+    pipeline.recompute(session, renormalize=False, end=today)
+    session.expire_all()
+    days = session.exec(select(DailyLoad).order_by(DailyLoad.date)).scalars().all()
+    assert days[-1].date == today and len(days) == 10
+    assert session.get(DailyLoad, today).readiness == 77.0
+
+
+def test_old_wellness_change_recomputes_the_following_28_days(session):
+    """Review phase 2, warning 2: RHR of day W feeds TRIMP of activities on W..W+27."""
+    pipeline.set_athlete(session, sex="male", max_hr=190.0)
+    pipeline.set_threshold(session, sport="bike", valid_from=dt.date(2026, 1, 1), lthr=LTHR)
+    inside = add_activity(session, 1, dt.date(2026, 3, 20), hr=0.8 * LTHR)
+    outside = add_activity(session, 2, dt.date(2026, 5, 1), hr=0.8 * LTHR)
+    repo.upsert_wellness(session, {"date": dt.date(2026, 3, 10), "rhr": 50.0})
+    session.commit()
+    pipeline.recompute(session, renormalize=False)
+    before_inside, before_outside = metric(session, inside).trimp_norm, metric(session, outside).trimp_norm
+    assert before_inside is not None and before_outside is None  # no RHR within 28 days of 2026-05-01
+
+    repo.upsert_wellness(session, {"date": dt.date(2026, 3, 10), "rhr": 40.0})  # backfilled/corrected value
+    repo.set_state_json(session, "metrics_dirty_wellness_days", ["2026-03-10"])
+    session.commit()
+    result = pipeline.update_after_sync(session, [], today=dt.date(2026, 5, 2))
+    assert result.metrics_computed == 1  # only the activity inside 2026-03-10 … 2026-04-06
+    assert metric(session, inside).trimp_norm != before_inside

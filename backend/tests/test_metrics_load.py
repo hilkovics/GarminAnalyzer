@@ -310,3 +310,11 @@ def test_load_sanity_zero_variance_has_no_r():
 def test_load_sanity_length_mismatch():
     with pytest.raises(ValueError):
         load_sanity([1, 2, 3], [1, 2])
+
+
+def test_load_sanity_constant_side_with_float_residue_is_insufficient():
+    """Review phase 2 nit: a constant series must not yield a garbage r from float residue."""
+    from training.metrics.load import load_sanity
+
+    out = load_sanity([33.3, 33.3, 33.3, 33.3], [10.0, 20.0, 30.0, 40.0])
+    assert out.r is None and out.status == "insufficient"

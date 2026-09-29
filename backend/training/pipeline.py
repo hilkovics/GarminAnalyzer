@@ -19,6 +19,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session
 
+from training.db import repo
 from training.db.models import (
     Activity,
     ActivityMetric,
@@ -29,6 +30,7 @@ from training.db.models import (
     Threshold,
 )
 from training.db.rebuild import rebuild_all
+from training.garmin.sync import METRICS_DIRTY_ACTIVITIES, METRICS_DIRTY_WELLNESS
 from training.metrics.activity import AthleteParams, ThresholdParams, activity_metrics
 from training.metrics.pmc import daily_load_series, pmc
 from training.metrics.zones import default_zones
@@ -51,7 +53,7 @@ class RecomputeResult:
 
 
 def resolve_threshold(session: Session, sport: str, day: dt.date) -> Threshold | None:
-    """Threshold valid at `day` for `sport` (`other` → run)."""
+    """Threshold valid at `day` for `sport` (`other` → run) – METRICS §1 (clarified), CLAUDE.md rule 7."""
     key = "run" if sport == "other" else sport
     stmt = (
         select(Threshold)
@@ -67,6 +69,7 @@ def get_athlete(session: Session) -> Athlete | None:
 
 
 def rest_hr_for(session: Session, athlete: Athlete | None, day: dt.date) -> float | None:
+    """METRICS §1/§2.2: athlete override, else the median Garmin RHR of the 28 days ending on `day`."""
     if athlete is not None and athlete.rest_hr_override is not None:
         return athlete.rest_hr_override
     start = day - dt.timedelta(days=REST_HR_WINDOW_DAYS - 1)
@@ -80,18 +83,19 @@ def rest_hr_for(session: Session, athlete: Athlete | None, day: dt.date) -> floa
 
 
 def load_streams(session: Session, activity_id: int) -> pd.DataFrame:
-    cols = [c for c in STREAM_COLUMNS]
+    """The activity's 1 Hz `activity_stream` rows as a DataFrame with `STREAM_COLUMNS` (NULL → NaN)."""
+    table = ActivityStream.__table__
     rows = session.execute(
-        select(*[getattr(ActivityStream, c) for c in cols])
-        .where(ActivityStream.activity_id == activity_id)
-        .order_by(ActivityStream.t)
+        select(*[table.c[c] for c in STREAM_COLUMNS])
+        .where(table.c.activity_id == activity_id)
+        .order_by(table.c.t)
     ).all()
-    frame = pd.DataFrame(rows, columns=cols)
-    for c in cols:
+    frame = pd.DataFrame(rows, columns=STREAM_COLUMNS)
+    for c in STREAM_COLUMNS:
         if c == "t":
             frame[c] = frame[c].astype("int64")
         elif c == "moving":
-            frame[c] = frame[c].astype(bool)
+            frame[c] = frame[c].fillna(True).astype(bool)
         else:
             frame[c] = pd.to_numeric(frame[c], errors="coerce").astype(float)
     return frame
@@ -248,16 +252,42 @@ def recompute(
     return result
 
 
-def update_after_sync(
-    session: Session, garmin_ids: Iterable[int], *, wellness_changed: bool, today: dt.date
-) -> RecomputeResult:
-    """Recompute what a sync affected: its activities, plus the last 28 days if RHR may have changed
-    (TRIMP uses the 28-day RHR median), then the PMC."""
+def update_after_sync(session: Session, garmin_ids: Iterable[int] = (), *, today: dt.date) -> RecomputeResult:
+    """Recompute everything an ingest run changed, then the PMC up to `today`.
+
+    Driven by the "metrics needed" markers that sync/backfill write together with the typed rows, so an
+    interrupted run (Ctrl+C, 429, network) is caught up by the next one. Covers:
+    - activities marked dirty (plus `garmin_ids`) and any activity that has no `activity_metric` row,
+    - activities on the 28 days starting at each changed wellness day (the RHR median feeds TRIMP, §2.2).
+    """
     result = RecomputeResult()
-    ids = set(session.execute(select(Activity.id).where(Activity.garmin_id.in_(list(garmin_ids)))).scalars())
-    if wellness_changed:
-        ids |= set(activity_ids(session, since=today - dt.timedelta(days=REST_HR_WINDOW_DAYS)))
+    dirty_ids = {int(g) for g in repo.get_state_json(session, METRICS_DIRTY_ACTIVITIES) or []} | set(
+        garmin_ids
+    )
+    dirty_days = sorted(
+        dt.date.fromisoformat(d) for d in repo.get_state_json(session, METRICS_DIRTY_WELLNESS) or []
+    )
+    ids = set(session.execute(select(Activity.id).where(Activity.garmin_id.in_(sorted(dirty_ids)))).scalars())
+    ids |= set(
+        session.execute(
+            select(Activity.id)
+            .join(ActivityMetric, ActivityMetric.activity_id == Activity.id, isouter=True)
+            .where(ActivityMetric.activity_id.is_(None))
+        ).scalars()
+    )
+    if dirty_days:
+        window_end = dirty_days[-1] + dt.timedelta(days=REST_HR_WINDOW_DAYS - 1)
+        ids |= set(
+            session.execute(
+                select(Activity.id).where(
+                    Activity.local_date >= dirty_days[0], Activity.local_date <= window_end
+                )
+            ).scalars()
+        )
     compute_metrics_for(session, sorted(ids), result)
+    repo.set_state_json(session, METRICS_DIRTY_ACTIVITIES, [])
+    repo.set_state_json(session, METRICS_DIRTY_WELLNESS, [])
+    session.commit()
     result.daily_load_days = compute_daily_load(session, today)
     return result
 
@@ -270,6 +300,7 @@ def set_threshold(
     lthr: float | None,
     threshold_speed: float | None = None,
     source: str = "manual",
+    end: dt.date | None = None,
 ) -> RecomputeResult:
     """Insert/replace the threshold record for (sport, valid_from) and recompute only what it affects:
     activities of that sport (and `other` for run) from `valid_from` on, then the PMC."""
@@ -294,7 +325,7 @@ def set_threshold(
     result = RecomputeResult()
     sports = ["run", "other"] if sport == "run" else ["bike"]
     compute_metrics_for(session, activity_ids(session, since=valid_from, sports=sports), result)
-    result.daily_load_days = compute_daily_load(session)
+    result.daily_load_days = compute_daily_load(session, end)
     return result
 
 

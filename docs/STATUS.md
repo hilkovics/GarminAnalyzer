@@ -39,6 +39,24 @@ Last updated: 2026-09-29 (phase 2 session)
   - historical thresholds, where a new LTHR changes only later activities;
   - a full `recompute` from raw that equals the incremental result, plus the CLI commands.
   The PMC tests were mutation-checked: 17 deliberate code changes, all caught.
+- Spec review of phase 2 (2026-09-29): every constant and clarification matches METRICS. It found 1 Blocker,
+  fixed: an interrupted sync/backfill left normalized activities without metrics, which silently dropped them
+  from the PMC.
+  - "Metrics needed" markers (`metrics_dirty_activities` / `metrics_dirty_wellness_days`) are now written with
+    the typed rows and cleared only after `update_after_sync` has computed them. It also picks up any
+    activity without an `activity_metric` row.
+  Warnings fixed:
+  - the PMC series now ends on `today` for every CLI entry point, and `readiness` is kept;
+  - a wellness change on day W recomputes activities on W..W+27, the RHR median window for TRIMP.
+  Nits fixed:
+  - hrTSS/rTSS divergence is measured against the smaller value;
+  - `load_sanity` tests constancy exactly;
+  - a new `activities_without_load` count;
+  - pace input validation, and `--pace` is rejected for bike;
+  - `training athlete` without options no longer creates an empty row;
+  - the full divergent-id list is printed;
+  - streams are loaded through table columns (faster).
+- Tests: 475 passed, 5 skipped.
 
 ### Phase 1 – database, sync and backfill (code complete; local acceptance steps pending, see Next)
 - SQLModel models for every table in PLAN §4 (`db/models.py`) and the initial Alembic migration
@@ -263,6 +281,11 @@ Last updated: 2026-09-29 (phase 2 session)
 - 2026-09-29 **Metric orchestration lives in `training/pipeline.py`, not `metrics/pipeline.py`** (PLAN §6 phase 2),
   so that `metrics/` stays pure (CLAUDE.md). The CLI became a package `training/cli/` (auth, ingest, metrics)
   to stay under ~400 lines per file.
+- 2026-09-29 **`activity_stream.grade` / `gap_speed` stay NULL in the DB.** Preprocessing computes them on the fly
+  for each metric run (METRICS §0.5, §3), so they always follow the current formula. Persist them only if a phase
+  needs them from SQL.
+- 2026-09-29 **hrTSS vs rTSS divergence** ("> 40 %", PLAN phase 2) is `|a − b| / min(a, b)`, the more sensitive
+  reading.
 - 2026-09-29 **The PMC is always recomputed for the whole series.** CTL/ATL are recursive from 0, so a partial
   recompute would change values. It covers 2 years in well under a second.
 

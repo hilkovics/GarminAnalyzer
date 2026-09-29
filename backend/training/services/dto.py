@@ -20,7 +20,7 @@ class LoadDivergenceDTO(BaseModel):
     sport: str
     hrtss: float = Field(description="TSS-equivalent points")
     rtss: float = Field(description="TSS-equivalent points")
-    diff_pct: float = Field(description="|hrTSS − rTSS| / max(hrTSS, rTSS) · 100")
+    diff_pct: float = Field(description="|hrTSS − rTSS| / min(hrTSS, rTSS) · 100 (relative to the smaller)")
 
 
 class DiagnosticsDTO(BaseModel):
@@ -33,9 +33,14 @@ class DiagnosticsDTO(BaseModel):
     failed_wellness_days: list[dt.date]
     activities: int
     activities_with_metrics: int
-    activities_without_threshold: int = Field(description="activities computed without a valid threshold")
+    activities_without_threshold: int = Field(
+        description="activities with no threshold record valid at their date"
+    )
+    activities_without_load: int = Field(
+        description="activities whose load_primary is null (no LTHR, no HR, …)"
+    )
     low_confidence_share: float | None = Field(description="share of activities flagged low_confidence (0–1)")
     load_sanity: LoadSanityDTO
     hrtss_rtss_divergent: list[LoadDivergenceDTO] = Field(
-        description="runs where hrTSS and rTSS differ by more than 40 % (threshold sanity check)"
+        description="runs where hrTSS and rTSS differ by > 40 % of the smaller value (threshold check)"
     )

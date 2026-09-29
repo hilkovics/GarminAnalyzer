@@ -20,8 +20,11 @@ def _db_session() -> Session:
 
 def parse_pace(text: str) -> float:
     """ "m:ss" per km → m/s (presentation-layer conversion)."""
-    minutes, _, seconds = text.partition(":")
-    total = int(minutes) * 60 + int(seconds or 0)
+    minutes, sep, seconds = text.strip().partition(":")
+    valid_seconds = seconds.isdigit() and len(seconds) == 2 and int(seconds) < 60
+    if not sep or not minutes.isdigit() or not valid_seconds:
+        raise typer.BadParameter("pace must be m:ss per km, e.g. 4:05")
+    total = int(minutes) * 60 + int(seconds)
     if total <= 0:
         raise typer.BadParameter("pace must be m:ss per km, e.g. 4:05")
     return 1000.0 / total
@@ -68,10 +71,17 @@ def threshold_add(
     """Add (or replace) a threshold valid from a date; recomputes only the affected activities."""
     if sport not in ("run", "bike"):
         raise typer.BadParameter("sport must be run or bike")
+    if pace and sport != "run":
+        raise typer.BadParameter("--pace is only used for run thresholds")
     speed = parse_pace(pace) if pace else None
     with _db_session() as session:
         result = pipeline.set_threshold(
-            session, sport=sport, valid_from=valid_from.date(), lthr=lthr, threshold_speed=speed
+            session,
+            sport=sport,
+            valid_from=valid_from.date(),
+            lthr=lthr,
+            threshold_speed=speed,
+            end=dt.date.today(),
         )
     console.print(
         f"Threshold {sport} from {valid_from:%Y-%m-%d}: LTHR {lthr:.0f}, pace {format_pace(speed)} · "
@@ -117,13 +127,18 @@ def athlete(
         "weight_kg": weight_kg,
     }
     with _db_session() as session:
+        if all(v is None for v in fields.values()):
+            current = pipeline.get_athlete(session)
+            if current is None:
+                console.print("No athlete settings yet – e.g. `training athlete --sex male --max-hr 190`.")
+                return
         a = pipeline.set_athlete(session, **fields)
         console.print(
             f"sex {a.sex or '–'} · max HR {a.max_hr or '–'} · rest HR override {a.rest_hr_override or '–'} · "
             f"birth year {a.birth_year or '–'} · weight {a.weight_kg or '–'} kg"
         )
         if any(v is not None for v in fields.values()):
-            result = pipeline.recompute(session, renormalize=False)
+            result = pipeline.recompute(session, renormalize=False, end=dt.date.today())
             console.print(f"Recomputed {result.metrics_computed} activities")
 
 
@@ -135,8 +150,10 @@ def diagnostics() -> None:
     console.print(
         f"last activity sync: {d.last_activity_sync or '–'} · last wellness: {d.last_wellness_date or '–'}"
     )
-    console.print(f"activities: {d.activities} (with metrics {d.activities_with_metrics}, "
-                  f"without threshold {d.activities_without_threshold})")  # fmt: skip
+    console.print(
+        f"activities: {d.activities} (with metrics {d.activities_with_metrics}, without threshold "
+        f"{d.activities_without_threshold}, without load {d.activities_without_load})"
+    )
     if d.low_confidence_share is not None:
         console.print(f"low-confidence share: {d.low_confidence_share:.0%}")
     colour = {"good": "green", "fair": "yellow", "warning": "red"}.get(d.load_sanity.status, "white")
@@ -153,5 +170,8 @@ def diagnostics() -> None:
                 f"  {x.local_date} {x.garmin_id}: hrTSS {x.hrtss:.0f} vs rTSS {x.rtss:.0f} "
                 f"({x.diff_pct:.0f} %)"
             )
+        if len(d.hrtss_rtss_divergent) > 15:
+            console.print(f"  … {len(d.hrtss_rtss_divergent) - 15} more")
+        console.print("  garmin ids: " + ", ".join(str(x.garmin_id) for x in d.hrtss_rtss_divergent))
     if d.pending_activities or d.failed_activities:
         console.print(f"pending activities: {d.pending_activities} · failed: {len(d.failed_activities)}")

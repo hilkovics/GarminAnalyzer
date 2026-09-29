@@ -15,7 +15,7 @@ Pure functions over pandas/numpy; no I/O.
 #   ramp_rate = CTL[d] − CTL[d−7]. Warn if > 6.
 #   Weekly aggregates: ISO weeks, per sport: load, duration, distance, elevation, time_in_zone.
 #     Polarization index = share of time in Z1–Z2 vs Z3 vs Z4–Z5.
-# Clarified 2026-09-29 (phase 2, proposed):
+# Clarified 2026-09-29 (phase 2, approved):
 #   CTL / ATL of the day before the first day are 0, so the first day's TSB is 0.
 #   Windows (acute, chronic, mean7, std7, sum7, the 28-day training-day count) include day d and need their
 #   full length of series history; before that the value is NaN. std7 is the population standard deviation
