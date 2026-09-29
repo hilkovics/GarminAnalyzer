@@ -147,3 +147,76 @@ def test_non_garmin_errors_fail_fast():
 
 def test_library_translates_429_to_dedicated_type():
     assert isinstance(as_library_raises(api_error(429)), GarminConnectTooManyRequestsError)
+
+
+class SignatureCheckingApi:
+    """Accepts any Garmin method, checks the call binds to the real signature, returns a marker payload."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, tuple, dict]] = []
+
+    def __getattr__(self, name):
+        import inspect
+
+        from garminconnect import Garmin
+
+        real = getattr(Garmin, name)
+
+        def method(*args, **kwargs):
+            inspect.signature(real).bind(None, *args, **kwargs)
+            self.calls.append((name, args, kwargs))
+            return {"from": name}
+
+        return method
+
+
+def test_endpoint_methods_store_raw_before_returning():
+    import datetime as dt
+
+    api = SignatureCheckingApi()
+    sink: list[tuple[str, str, object]] = []
+    returned: list[object] = []
+
+    def raw_sink(kind, ref, payload):
+        assert payload not in returned, "raw must be stored before the caller sees the payload"
+        sink.append((kind, ref, payload))
+
+    client = GarminClient(api, rate_limit_s=0, sleep=lambda s: None, raw_sink=raw_sink)
+    day = dt.date(2026, 9, 20)
+    calls = [
+        lambda: client.activities_by_date(day, day),
+        lambda: client.activity_summary(123),
+        lambda: client.activity_details(123, 7200),
+        lambda: client.activity_splits(123),
+        lambda: client.activity_hr_zones(123),
+        lambda: client.sleep(day),
+        lambda: client.rhr(day),
+        lambda: client.body_battery(day),
+        lambda: client.stress(day),
+        lambda: client.user_summary(day),
+        lambda: client.training_status(day),
+        lambda: client.max_metrics(day),
+        lambda: client.lactate_threshold(day),
+    ]
+    for c in calls:
+        returned.append(c())
+    kinds = [k for k, _, _ in sink]
+    assert kinds == [
+        "activity_list",
+        "activity_summary",
+        "activity_details",
+        "laps",
+        "hr_zones",
+        "sleep",
+        "rhr",
+        "body_battery",
+        "stress",
+        "user_summary",
+        "training_status",
+        "max_metrics",
+        "lactate_threshold",
+    ]
+    assert sink[0][1] == "2026-09-20..2026-09-20"
+    assert sink[1][1] == "123" and sink[5][1] == "2026-09-20"
+    details_call = next(c for c in api.calls if c[0] == "get_activity_details")
+    assert details_call[2]["maxchart"] == 7300  # sized to the activity so 1 Hz data is not downsampled

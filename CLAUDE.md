@@ -28,6 +28,7 @@ uv run training whoami                   # verify stored tokens (prints your Gar
 uv run python scripts/record_fixtures.py # record anonymized JSON fixtures into backend/tests/fixtures/
 uv run training sync                     # incremental sync (activities + wellness), then recompute affected days
 uv run training backfill --months 24     # first-run history download (resumable)
+uv run training db-stats                 # row counts per table / raw payloads per kind
 uv run training recompute                # recompute all metrics from stored raw JSON (no network)
 uv run training api                      # FastAPI on :8000
 uv run streamlit run ui-streamlit/app.py # Streamlit UI on :8501

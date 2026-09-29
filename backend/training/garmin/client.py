@@ -7,12 +7,14 @@ Everything that talks to Garmin goes through this module, so tests mock it here 
 - `GarminClient.call` keeps `rate_limit_s` between the end of one request and the start of the next and
   retries 429/5xx and network failures with exponential backoff (CLAUDE.md rule 9). The library's own retry
   layer is disabled (`retry_attempts=0`) so there is exactly one retry policy, and it respects the spacing.
-  Phase 1 adds one typed method per endpoint and raw_garmin persistence.
+- One method per endpoint. Each response is handed to `raw_sink(kind, ref_key, payload)` *before* it is
+  returned, so every Garmin response is persisted verbatim before anything else happens (CLAUDE.md rule 4).
 
 garminconnect 0.3.x raises `GarminConnectConnectionError` *without* a `.response`; the HTTP status is only
 in the message ("API Error 503 …", "client error (400)"), so `http_status` parses it from there.
 """
 
+import datetime as dt
 import logging
 import re
 import time
@@ -30,10 +32,13 @@ from garminconnect import (
 )
 
 from training.config import Settings
+from training.garmin import endpoints as ep
 
 log = logging.getLogger(__name__)
 
 TOKEN_FILENAME = "garmin_tokens.json"
+RawSink = Callable[[str, str, Any], None]
+MIN_MAXCHART = 2000
 _STATUS_RE = re.compile(r"(?:API Error|HTTP|error \()\s*(\d{3})\b")
 
 __all__ = [
@@ -145,8 +150,10 @@ class GarminClient:
         backoff_base_s: float = 2.0,
         sleep: Callable[[float], None] = time.sleep,
         clock: Callable[[], float] = time.monotonic,
+        raw_sink: RawSink | None = None,
     ) -> None:
         self.api = api
+        self.raw_sink = raw_sink
         self.rate_limit_s = rate_limit_s
         self.max_retries = max_retries
         self.backoff_base_s = backoff_base_s
@@ -155,9 +162,12 @@ class GarminClient:
         self._last_call: float | None = None
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "GarminClient":
+    def from_settings(cls, settings: Settings, raw_sink: RawSink | None = None) -> "GarminClient":
         return cls(
-            connect(settings.tokens_dir), rate_limit_s=settings.rate_limit_s, max_retries=settings.max_retries
+            connect(settings.tokens_dir),
+            rate_limit_s=settings.rate_limit_s,
+            max_retries=settings.max_retries,
+            raw_sink=raw_sink,
         )
 
     def _throttle(self) -> None:
@@ -192,3 +202,64 @@ class GarminClient:
             self._last_call = self._clock()
             return result
         raise AssertionError("unreachable")
+
+    # --- endpoints (every response goes to raw_sink first) -------------------------------------------------
+
+    def _fetch(self, kind: str, ref_key: object, method: str, *args: Any, **kwargs: Any) -> Any:
+        payload = self.call(method, *args, **kwargs)
+        if self.raw_sink is not None:
+            self.raw_sink(kind, str(ref_key), payload)
+        return payload
+
+    def activities_by_date(self, start: dt.date, end: dt.date) -> list[dict[str, Any]]:
+        """Activity list items with local start date in [start, end], oldest first."""
+        payload = self._fetch(
+            ep.ACTIVITY_LIST,
+            ep.date_range_ref(start, end),
+            "get_activities_by_date",
+            start.isoformat(),
+            end.isoformat(),
+            sortorder="asc",
+        )
+        return list(payload or [])
+
+    def activity_summary(self, garmin_id: int) -> dict[str, Any]:
+        return self._fetch(ep.ACTIVITY_SUMMARY, garmin_id, "get_activity", garmin_id)
+
+    def activity_details(self, garmin_id: int, duration_s: float | None = None) -> dict[str, Any]:
+        """Detail streams; maxChartSize is sized to the activity so 1 s recordings are not downsampled."""
+        maxchart = max(MIN_MAXCHART, int(duration_s or 0) + 100)
+        return self._fetch(
+            ep.ACTIVITY_DETAILS, garmin_id, "get_activity_details", garmin_id, maxchart=maxchart
+        )
+
+    def activity_splits(self, garmin_id: int) -> dict[str, Any]:
+        return self._fetch(ep.LAPS, garmin_id, "get_activity_splits", garmin_id)
+
+    def activity_hr_zones(self, garmin_id: int) -> Any:
+        return self._fetch(ep.HR_ZONES, garmin_id, "get_activity_hr_in_timezones", garmin_id)
+
+    def sleep(self, day: dt.date) -> dict[str, Any]:
+        return self._fetch(ep.SLEEP, day, "get_sleep_data", day.isoformat())
+
+    def rhr(self, day: dt.date) -> dict[str, Any]:
+        return self._fetch(ep.RHR, day, "get_rhr_day", day.isoformat())
+
+    def body_battery(self, day: dt.date) -> list[dict[str, Any]]:
+        return self._fetch(ep.BODY_BATTERY, day, "get_body_battery", day.isoformat(), day.isoformat())
+
+    def stress(self, day: dt.date) -> dict[str, Any]:
+        return self._fetch(ep.STRESS, day, "get_stress_data", day.isoformat())
+
+    def user_summary(self, day: dt.date) -> dict[str, Any]:
+        return self._fetch(ep.USER_SUMMARY, day, "get_user_summary", day.isoformat())
+
+    def training_status(self, day: dt.date) -> dict[str, Any]:
+        return self._fetch(ep.TRAINING_STATUS, day, "get_training_status", day.isoformat())
+
+    def max_metrics(self, day: dt.date) -> Any:
+        return self._fetch(ep.MAX_METRICS, day, "get_max_metrics", day.isoformat())
+
+    def lactate_threshold(self, day: dt.date) -> dict[str, Any]:
+        """Garmin's latest LT (HR + speed) as of `day`; stored under that date."""
+        return self._fetch(ep.LACTATE_THRESHOLD, day, "get_lactate_threshold", latest=True)
