@@ -21,8 +21,8 @@ Last updated: 2026-09-29 (phase 5 session)
   - Streamlit Spánok page: readiness gauge + breakdown, sleep stages, sleep score and RHR with median ± MAD,
     sleep debt, and Findings.
   - Correlations are cached in-process by a hash of all their inputs, so any data change refreshes them.
-- Spec review: 1 blocker (the cache fingerprint missed most inputs → stale findings) fixed and tested;
-  warnings (DTO file size, test split, timing-test margin, doc notes) addressed.
+- Spec review: round 1 – 1 blocker (the cache fingerprint missed most inputs → stale findings) fixed and tested;
+  warnings (DTO file size, test split, timing-test margin, doc notes) addressed; round 2 – READY.
 - **Demo report** (`scripts/seed_demo.py`, 240 synthetic days with a planted sleep → HR effect; no real data
   yet): readiness today **77, green** (RHR 100, sleep 84, Body Battery 74, form 37). Top 3 run findings:
   1. sleep_s (night before) → EF: partial ρ +0.46 [0.21; 0.65], n = 51 – the planted effect.

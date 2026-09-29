@@ -337,7 +337,7 @@ def test_correlations_rejects_other_sport() -> None:
 
 
 def test_correlations_timing_400_rows() -> None:
-    """Timing: 19 predictors × 4 outcomes, 2 bootstraps of 1000 each, on 400 rows in < 10 s."""
+    """Timing: 19 predictors × 4 outcomes, 2 bootstraps of 1000 each, on 400 rows in < 30 s."""
     ds = full_dataset(400, seed=5)
     start = time.perf_counter()
     results = correlations(ds, "run")

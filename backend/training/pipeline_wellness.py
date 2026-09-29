@@ -115,7 +115,7 @@ def correlation_activities(session: Session) -> pd.DataFrame:
         .join(ActivityMetric, ActivityMetric.activity_id == Activity.id)
         .join(Subjective, Subjective.activity_id == Activity.id, isouter=True)
         .where(Activity.sport.in_(("run", "bike")))
-        .order_by(Activity.local_date)
+        .order_by(Activity.local_date, Activity.id)  # deterministic order → stable cache hash
     ).all()
     columns = [
         "activity_id",

@@ -5,7 +5,7 @@ and assembles DTOs – no formula lives here. Units are internal (seconds, bpm, 
 presentation matter.
 
 `get_correlations` bootstraps (3–30 s on real data), so its per-sport result is kept in a small in-process
-cache keyed by the database identity and a cheap fingerprint of the tables it reads.
+cache keyed by a hash of all its input frames (so any data change refreshes it).
 """
 
 import datetime as dt
@@ -224,10 +224,12 @@ def _fingerprint(*frames: pd.DataFrame) -> str:
     return digest.hexdigest()
 
 
-def _cached_sport(session: Session, sport: str, n_boot: int) -> tuple[list[CorrelationDTO], int]:
+def _cached_sport(
+    frames: tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame], digest: str, sport: str, n_boot: int
+) -> tuple[list[CorrelationDTO], int]:
     """Results of one sport (sorted by |headline ρ|) and its qualifying days, cached by input hash."""
-    activities, wellness, daily = _frames(session)
-    key = (_fingerprint(activities, wellness, daily), sport, n_boot)
+    activities, wellness, daily = frames
+    key = (digest, sport, n_boot)
     with _cache_lock:
         if key in _cache:
             _cache.move_to_end(key)
@@ -258,8 +260,10 @@ def get_correlations(session: Session, sport: str | None = None, n_boot: int = N
     sports = [sport] if sport else list(SPORTS)
     results: list[CorrelationDTO] = []
     n_days: dict[str, int] = {}
+    frames = _frames(session)  # loaded and hashed once for both sports
+    digest = _fingerprint(*frames)
     for name in sports:
-        found, n_days[name] = _cached_sport(session, name, n_boot)
+        found, n_days[name] = _cached_sport(frames, digest, name, n_boot)
         results += found
     return CorrelationsDTO(
         sports=sports,

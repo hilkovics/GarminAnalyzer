@@ -46,3 +46,15 @@
   timing asserts (<10 s) in unit tests - flag as flaky.
 - Slovak sentence direction verified OK: phrase = higher predictor, sign of headline (partial else raw) rho
   flips outcome word; pace_at_ref_hr_day is m/s (higher = faster).
+
+## Phase 5 round 2 (2026-09-29)
+- Blocker 1 verified fixed: services/sleep.py now keys the cache by sha256 of
+  `hash_pandas_object(frame.astype(object), index=True)` over the exact build_dataset inputs. Scratch-checked
+  (pandas 3.0.6): same hash across processes (fixed hash_key); NaN/NaT/None, 1e-15 float edits, timestamp and
+  index changes all detected; None vs NaN in an object column hash the same (harmless, both null).
+  A cache hit costs about 0.15 s at 4 years of data. The Streamlit ttl cache was removed.
+- New pattern: after a fix, docstrings and comments still describe the old mechanism (module docstring still
+  says "database identity and a cheap fingerprint"; timing-test docstring says < 10 s but asserts < 30).
+  Grep for the old wording every round 2.
+- Check approval claims in STATUS against METRICS.md and the commit that approved them (phase 4 approval came in
+  ea1c748, which is legitimate).
