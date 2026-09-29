@@ -9,7 +9,7 @@ from training.db import repo
 from training.db.models import Activity, ActivityStream, DailyWellness, RawGarmin
 from training.db.rebuild import rebuild_all
 from training.garmin.backfill import BACKFILL_CURSOR, backfill
-from training.garmin.client import GarminClient, GarminConnectNotFoundError
+from training.garmin.client import GarminClient, GarminConnectConnectionError, GarminConnectNotFoundError
 from training.garmin.sync import sync
 
 TODAY = dt.date(2026, 9, 29)
@@ -70,12 +70,15 @@ class FakeGarmin:
     def __init__(self, activities: list[dict]) -> None:
         self.activities = {a["item"]["activityId"]: a for a in activities}
         self.calls: dict[str, int] = {}
-        self.fail: set[str] = set()
+        self.fail: dict[str, type[BaseException]] = {}  # method → exception class to raise
 
     def _hit(self, name: str) -> None:
         self.calls[name] = self.calls.get(name, 0) + 1
-        if name in self.fail:
-            raise GarminConnectNotFoundError("API Error 404")
+        exc = self.fail.get(name)
+        if exc is GarminConnectNotFoundError:
+            raise exc("API Error 404")
+        if exc is not None:
+            raise exc("API Error 503") if issubclass(exc, GarminConnectConnectionError) else exc()
 
     garmin_connect_activities = "/activitylist-service/activities/search/activities"
     page_size: int | None = None  # override to force pagination in tests
@@ -197,12 +200,61 @@ def test_changed_list_item_is_refetched(session, api):
     assert session.execute(select(Activity.name).where(Activity.garmin_id == 1001)).scalar_one() == "Renamed"
 
 
-def test_failing_endpoint_does_not_stop_sync(session, api):
-    api.fail = {"get_activity_hr_in_timezones", "get_stress_data"}
+def test_404_is_permanent_and_not_an_error(session, api):
+    api.fail = {"get_activity_hr_in_timezones": GarminConnectNotFoundError}
     result = sync(session, client_for(api), TODAY)
-    assert result.activities_new == 2
-    assert any("hr zones" in e for e in result.errors) and any("stress" in e for e in result.errors)
-    assert count(session, DailyWellness) == result.wellness_days
+    assert (result.activities_new, result.activities_pending, result.errors) == (2, 0, [])
+    assert repo.get_state_json(session, "pending_activities") == {}
+
+
+def test_transient_failure_leaves_activity_pending_and_it_is_retried(session, api):
+    """Review phase 1, blocker 1 (a): a failed details fetch must not be marked done."""
+    api.fail = {"get_activity_details": GarminConnectConnectionError}
+    first = sync(session, client_for(api), TODAY)
+    assert first.activities_pending == 2 and any("details" in e for e in first.errors)
+    assert count(session, Activity) == 2 and count(session, ActivityStream) == 0  # rows from summaries
+    assert set(repo.get_state_json(session, "pending_activities")) == {"1001", "1002"}
+
+    api.fail = {}
+    second = sync(session, client_for(api), TODAY)
+    assert second.activities_updated == 2 and second.activities_pending == 0
+    assert count(session, ActivityStream) == 120
+    assert repo.get_state_json(session, "pending_activities") == {}
+
+
+def test_pending_activity_is_retried_even_outside_the_sync_window(session, api):
+    api.fail = {"get_activity_details": GarminConnectConnectionError}
+    sync(session, client_for(api), TODAY)
+    api.fail = {}
+    later = TODAY + dt.timedelta(days=30)  # the activities are far outside the 2-day overlap now
+    sync(session, client_for(api), later)
+    assert count(session, ActivityStream) == 120
+
+
+def test_interrupted_refetch_of_a_changed_activity_resumes(session, api):
+    """Review phase 1, blocker 1 (b): Ctrl+C during the refetch must not consume the change signal."""
+    sync(session, client_for(api), TODAY)
+    api.activities[1001]["item"]["activityName"] = "Renamed"
+    api.activities[1001]["summary"]["activityName"] = "Renamed"
+    api.fail = {"get_activity": KeyboardInterrupt}
+    with pytest.raises(KeyboardInterrupt):
+        sync(session, client_for(api), TODAY)
+    api.fail = {}
+    sync(session, client_for(api), TODAY)
+    assert session.execute(select(Activity.name).where(Activity.garmin_id == 1001)).scalar_one() == "Renamed"
+
+
+def test_failed_wellness_day_is_not_written_and_retried(session, api):
+    """Review phase 1, blocker 2: no all-NULL rows; transient failures are retried."""
+    api.fail = {m: GarminConnectConnectionError for m in ("get_sleep_data", "get_user_summary", "get_rhr_day",
+                                                          "get_stress_data", "get_body_battery")}  # fmt: skip
+    sync(session, client_for(api), TODAY)
+    assert count(session, DailyWellness) == 0
+    assert len(repo.get_state_json(session, "pending_wellness_days")) == 15
+    api.fail = {}
+    sync(session, client_for(api), TODAY)
+    assert count(session, DailyWellness) == 15
+    assert repo.get_state_json(session, "pending_wellness_days") == []
 
 
 def test_backfill_resumes_after_interruption(session):
@@ -237,7 +289,7 @@ def test_rebuild_from_raw_is_offline_and_complete(session, api):
     for model in (ActivityStream, Activity, DailyWellness):
         session.execute(model.__table__.delete())
     session.commit()
-    api.fail = set(api.calls)  # any network access would now raise
+    api.fail = dict.fromkeys(api.calls, GarminConnectConnectionError)  # any network access would now raise
     result = rebuild_all(session)
     assert result.errors == []
     assert {m: count(session, m) for m in before} == before
@@ -254,3 +306,15 @@ def test_activity_list_is_paged_through_the_rate_limited_client(session, monkeyp
     assert len(items) == 5
     assert api.calls["activity_search"] == 3  # pages of 2, 2, 1 – each one a separate rate-limited call
     assert [k for k, _, _ in stored] == ["activity_list"] and len(stored[0][2]) == 5
+
+
+def test_backfill_restart_picks_up_old_edits_cheaply(session):
+    api = FakeGarmin([make_activity(4001, dt.date(2026, 7, 10)), make_activity(4002, dt.date(2026, 9, 2))])
+    backfill(session, client_for(api), 3, TODAY)
+    details_before, sleep_before = api.calls["get_activity_details"], api.calls["get_sleep_data"]
+    api.activities[4001]["item"]["activityName"] = "Edited in July"
+    api.activities[4001]["summary"]["activityName"] = "Edited in July"
+    result = backfill(session, client_for(api), 3, TODAY, restart=True)
+    assert result.activities_updated == 1 and result.activities_unchanged == 1
+    assert api.calls["get_activity_details"] == details_before + 1  # only the edited one
+    assert api.calls["get_sleep_data"] == sleep_before  # stored days are not fetched again

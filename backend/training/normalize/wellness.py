@@ -12,7 +12,8 @@ Sources (one calendar day each, except body battery which may be a date range):
 - `stress` = `get_stress_data(date)`: `avgStressLevel`; negative values (−1 / −2) mean "no data".
 - `body_battery` = `get_body_battery(start, end)`: list of `{date, bodyBatteryValuesArray,
   bodyBatteryValueDescriptorDTOList[{bodyBatteryValueDescriptorIndex, bodyBatteryValueDescriptorKey}]}`;
-  array columns are mapped by descriptor key, never by position.
+  array columns are mapped by descriptor key. Only when the descriptor list is missing entirely are the
+  columns assumed to be [timestamp, level] (the documented Garmin default); verify with real fixtures.
 
 Every field is nullable and missing or malformed keys never raise. `sleep_start` / `sleep_end` are
 timezone-aware UTC datetimes. `weight_kg` is not fetched in phase 1 and is always None.

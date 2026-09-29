@@ -46,3 +46,21 @@ def test_sync_without_tokens_fails_cleanly(env):
     result = runner.invoke(cli.app, ["sync"])
     assert result.exit_code == 1
     assert "training login" in result.output
+
+
+def test_backfill_command_and_network_failure_exit_cleanly(env, monkeypatch):
+    import datetime as dt
+
+    api = FakeGarmin([make_activity(8, dt.date.today())])
+    monkeypatch.setattr(garmin_client, "connect", lambda tokens_dir: api)
+    result = runner.invoke(cli.app, ["backfill", "--months", "1"])
+    assert result.exit_code == 0, result.output
+    assert "1 new" in result.output
+
+    def unreachable(tokens_dir):
+        raise garmin_client.GarminConnectConnectionError("connection reset")
+
+    monkeypatch.setattr(garmin_client, "connect", unreachable)
+    result = runner.invoke(cli.app, ["sync"])
+    assert result.exit_code == 1
+    assert "Could not reach Garmin Connect" in result.output

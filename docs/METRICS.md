@@ -8,10 +8,20 @@ Garmin training load / training effect / VO2max estimates. **No power data.**
 ## 0. Stream preprocessing (applies to everything below)
 
 1. Resample detail streams to 1 s. Forward-fill gaps ≤ 10 s; longer gaps stay NaN.
+   *Clarified 2026-09-29:* the grid is `t = 0..T` in whole seconds since the first sample (floor; several
+   samples in one second → the last one wins). Per channel, a gap is the time between two consecutive valid
+   values a → b; it covers missing samples as well as nulls inside a channel (HR strap dropout, GPS loss).
+   If `b − a ≤ 10 s` the seconds in between get a's value; otherwise all of them stay NaN (no partial fill).
+   Leading/trailing NaN runs stay NaN.
 2. Keep only samples where the timer is running (drop paused/stopped time). `moving_s` = number of kept samples.
+   *Clarified 2026-09-29:* timer state comes from the timer channel (`sumDuration`). In a gap a → b of `g`
+   seconds with timer increase Δ, the last `round(min(Δ, g))` seconds of (a, b] are running (so the resume
+   sample b is running), the others paused; an unknown Δ counts as running, a negative Δ as 0.
 3. HR validity: `40 ≤ hr ≤ 230`, else NaN. `hr_coverage` = valid HR samples / kept samples.
    If `hr_coverage < 0.70`, all HR-based metrics for the activity are flagged `low_confidence=True`.
-4. Speed: from Garmin speed stream (m/s); if missing, derive from cumulative distance. Clamp run speed to
+4. Speed: from Garmin speed stream (m/s); if missing, derive from cumulative distance (*clarified
+   2026-09-29:* `(d_b − d_a) / (t_b − t_a)` on the seconds (a, b] between consecutive valid distance values;
+   NaN over all of (a, b] when `t_b − t_a > 10 s`, and at t = 0). Clamp run speed to
    `0–7 m/s`, bike to `0–25 m/s`. Walking/stopped samples (run `< 1.0 m/s`, bike `< 2.0 m/s`) are kept for load
    metrics but excluded from efficiency/curve metrics.
 5. Altitude: 5 s rolling median. Grade over a 10 s centred window: `grade = Δalt / Δdist`, clamp to ±0.30,

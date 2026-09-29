@@ -111,6 +111,9 @@ def _garmin_session() -> Iterator[tuple[Session, garmin_client.GarminClient]]:
         except garmin_client.GarminConnectAuthenticationError as exc:
             err.print(f"[red]Not logged in:[/] {escape(str(exc))}")
             raise typer.Exit(1) from None
+        except garmin_client.GarminConnectConnectionError as exc:
+            err.print(f"[red]Could not reach Garmin Connect:[/] {type(exc).__name__}")
+            raise typer.Exit(1) from None
         try:
             yield session, client
         except garmin_client.GarminConnectTooManyRequestsError:
@@ -120,6 +123,12 @@ def _garmin_session() -> Iterator[tuple[Session, garmin_client.GarminClient]]:
             raise typer.Exit(1) from None
         except garmin_client.GarminConnectAuthenticationError as exc:
             err.print(f"[red]Garmin rejected the tokens:[/] {escape(str(exc))} – run `training login`.")
+            raise typer.Exit(1) from None
+        except garmin_client.GarminConnectConnectionError as exc:
+            err.print(
+                f"[red]Garmin Connect is unreachable or failing:[/] {type(exc).__name__}. "
+                "Progress is saved – run the same command again later."
+            )
             raise typer.Exit(1) from None
         except KeyboardInterrupt:
             err.print("[yellow]Interrupted.[/] Progress is saved – run the same command again to continue.")
@@ -131,6 +140,10 @@ def _report(result: SyncResult) -> None:
         f"Activities: [green]{result.activities_new} new[/], {result.activities_updated} updated, "
         f"{result.activities_unchanged} unchanged · wellness days: {result.wellness_days}"
     )
+    if result.activities_pending:
+        console.print(
+            f"[yellow]{result.activities_pending} activities incomplete[/] – retried on the next run."
+        )
     if result.errors:
         console.print(f"[yellow]{len(result.errors)} endpoint calls failed[/] (details in the log):")
         for line in result.errors[:10]:
@@ -147,7 +160,12 @@ def sync() -> None:
 
 
 @app.command()
-def backfill(months: int = typer.Option(24, "--months", min=1, help="Calendar months to download.")) -> None:
+def backfill(
+    months: int = typer.Option(24, "--months", min=1, help="Calendar months to download."),
+    restart: bool = typer.Option(
+        False, "--restart", help="Walk the whole range again (picks up activities edited later)."
+    ),
+) -> None:
     """First-run history download, month by month backwards. Resumable: just run it again."""
     with _garmin_session() as (session, client):
         result = run_backfill(
@@ -155,6 +173,7 @@ def backfill(months: int = typer.Option(24, "--months", min=1, help="Calendar mo
             client,
             months,
             dt.date.today(),
+            restart=restart,
             on_month=lambda cursor: console.print(f"  month done, next: {cursor:%Y-%m}"),
         )
         _report(result)

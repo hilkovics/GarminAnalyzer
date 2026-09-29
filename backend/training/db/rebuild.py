@@ -41,8 +41,11 @@ def rebuild_activity(session: Session, garmin_id: int) -> tuple[int, int]:
     return activity_id, rows
 
 
-def rebuild_wellness_day(session: Session, day: dt.date) -> None:
-    """Normalize one day of wellness from its raw payloads (missing endpoints are fine)."""
+def rebuild_wellness_day(session: Session, day: dt.date) -> bool:
+    """Normalize one day of wellness from its raw payloads (missing endpoints are fine).
+
+    A day without any value is not written (so "row exists" means "has data"). Returns True if written.
+    """
     ref = day.isoformat()
     row = normalize_wellness(
         day,
@@ -52,7 +55,10 @@ def rebuild_wellness_day(session: Session, day: dt.date) -> None:
         stress=repo.get_raw(session, ep.STRESS, ref),
         body_battery=repo.get_raw(session, ep.BODY_BATTERY, ref),
     )
+    if all(v is None for k, v in row.items() if k != "date"):
+        return False
     repo.upsert_wellness(session, row)
+    return True
 
 
 def rebuild_all(session: Session) -> RebuildResult:
@@ -74,9 +80,9 @@ def rebuild_all(session: Session) -> RebuildResult:
     days = {ref for kind in ep.WELLNESS_KINDS for ref in repo.raw_ref_keys(session, kind)}
     for ref in sorted(days):
         try:
-            rebuild_wellness_day(session, dt.date.fromisoformat(ref))
+            if rebuild_wellness_day(session, dt.date.fromisoformat(ref)):
+                result.wellness_days += 1
             session.commit()
-            result.wellness_days += 1
         except Exception as exc:
             session.rollback()
             log.exception("rebuild of wellness %s failed", ref)

@@ -3,7 +3,9 @@
 The cursor `backfill_cursor` in sync_state is the first day of the next month still to process. It is saved
 after every completed month, so an interrupted run continues where it stopped; within a partly done month,
 already-known unchanged activities and already-stored wellness days are skipped. Re-running with a larger
-`--months` extends the history further back.
+`--months` extends the history further back. `restart=True` walks the whole range again from the current
+month – cheap for unchanged data (one list call per month) – to pick up activities edited in Garmin Connect
+after sync's 2-day overlap. Work left incomplete by transient failures is retried first (see sync.Ingestor).
 """
 
 import datetime as dt
@@ -40,6 +42,7 @@ def backfill(
     months: int,
     today: dt.date,
     *,
+    restart: bool = False,
     on_month: Callable[[dt.date], None] | None = None,
 ) -> SyncResult:
     """Download `months` calendar months (including the current one) of activities and wellness."""
@@ -48,8 +51,9 @@ def backfill(
     ingest = Ingestor(session, client)
     target = add_months(month_start(today), -(months - 1))
     stored = repo.get_state_date(session, BACKFILL_CURSOR)
-    cursor = stored if stored is not None else month_start(today)
+    cursor = month_start(today) if restart or stored is None else stored
     result = SyncResult()
+    ingest.retry_pending(result)
     if cursor < target:
         log.info("backfill already complete back to %s", target)
     while cursor >= target:

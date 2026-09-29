@@ -32,7 +32,22 @@ Last updated: 2026-09-29 (phase 1 session)
   resumes, a larger `--months` extends the history, and already stored days/activities are skipped.
 - CLI: `training sync`, `training backfill --months N`, `training db-stats`. 429 errors, rejected tokens and
   Ctrl+C give a clean message ("progress is saved – run again").
-- Tests: 212 passed, 5 skipped (real-fixture conformance; they skip until fixtures are recorded).
+- Transient failures are retried, never lost. Before an activity is fetched it goes onto `pending_activities` in
+  sync_state. Its list item (the "fully fetched" marker) is stored only when no endpoint failed with a non-404
+  error. Wellness days work the same way through `pending_wellness_days`. Every sync/backfill retries pending
+  work first, regardless of the date window. Days without any data are not written.
+- `training backfill --restart` walks the range again, which picks up activities edited later in Garmin Connect.
+  It costs one list call per month; unchanged activities and stored days are skipped.
+- Spec review of phase 1 (2026-09-29) found 3 Blockers, all fixed:
+  - A failed or interrupted fetch used up an activity's change signal, so the activity was never fetched again.
+  - Failed wellness days were stored as all-NULL rows and never retried.
+  - The ≤ 10 s forward-fill was not applied to nulls inside a channel.
+  Warnings fixed:
+  - METRICS §0.1/§0.2/§0.4 interpretations moved into METRICS.md;
+  - a network error ended the CLI with a traceback;
+  - the resume sample of a pause was marked paused;
+  - the STATUS note about old edits was wrong (now `--restart`).
+- Tests: 218 passed, 5 skipped (real-fixture conformance; they skip until fixtures are recorded).
   - Normalizers are tested against hand-made Garmin-shaped JSON in `backend/tests/fixtures/synthetic/`.
   - Sync is run twice and gives identical rows; a changed list item is re-fetched; failing endpoints are
     tolerated.
@@ -153,7 +168,11 @@ Last updated: 2026-09-29 (phase 1 session)
 - Weight (`daily_wellness.weight_kg`) is not fetched yet. It needs `get_body_composition`, which can be added once
   a phase needs it.
 - Sync looks back only 2 days, as the spec says. An activity edited in Garmin Connect more than 2 days after it
-  was recorded is not picked up by `sync`; `backfill` of that month picks it up.
+  was recorded is not picked up by `sync`. `training backfill --months N --restart` picks it up.
+- If page N of an activity list fails, pages 1..N−1 of that call are not stored raw. The whole call is retried on
+  the next run, so nothing is lost.
+- `db/rebuild.py` imports the raw kind constants from `garmin/endpoints.py` (db depends on garmin). Move them to a
+  neutral module if that ever matters.
 - Open METRICS.md points to decide before the phase that uses them:
   - §0.6 HR-lag direction. Proposal: pair speed(t) with HR(t + 30 s).
   - §10.4 rule 1 "whichever the template has fewer of" needs a deterministic tie-break.
@@ -185,14 +204,17 @@ Last updated: 2026-09-29 (phase 1 session)
 - 2026-09-29 Fake ids in fixtures start at 900000001 and are consistent across all files of one recording.
 - 2026-09-29 **grade and gap_speed stay NULL in phase 1.** They are computed in phase 2 by `metrics/preprocess.py`
   and `metrics/gap.py` (METRICS §0.5, §3). `normalize/` only applies METRICS §0.1 (1 s grid, forward-fill ≤ 10 s)
-  and §0.2 (`moving` = timer running, derived from `sumDuration`). HR validity, clamping and lag (§0.3–0.6) are
-  phase 2 preprocessing.
-- 2026-09-29 **Stream normalization rules.**
-  - A gap is the spacing between two original samples. If it is ≤ 10 s the seconds in between are forward-filled;
-    if it is > 10 s they stay NaN.
-  - Samples are bucketed per second with `floor`, and the last sample in a second wins.
-  - Moving seconds in a gap are the first round(min(Δtimer, gap)) seconds.
-  - Speed is derived from Δdistance when no speed channel exists. The grid is capped at 3 days.
+  and §0.2 (`moving` = timer running, derived from `sumDuration`), plus the §0.4 speed derivation when the speed
+  channel is missing. HR validity, clamping, altitude smoothing and lag (§0.3–0.6) are phase 2 preprocessing.
+- 2026-09-29 **Stream normalization rules are now in METRICS.md** (§0.1, §0.2 and §0.4, marked "clarified
+  2026-09-29"; changed in the doc first, per rule 6):
+  - Per channel, a gap is the time between consecutive valid values. If it is ≤ 10 s it is forward-filled, and
+    this also covers nulls inside a channel.
+  - Samples are bucketed per second with floor, and the last sample in a second wins.
+  - In a pause gap, the running seconds are the last ones, so the resume sample counts as running.
+  - When there is no speed channel, speed is derived from Δdistance (the derivation only; clamping is phase 2),
+    and it is NaN across gaps > 10 s.
+  - The grid is capped at 3 days as a safeguard against corrupt timestamps.
 - 2026-09-29 **Timestamps are timezone-aware UTC** (SQLModel 0.0.47 `UTCDateTime` rejects naive values).
   `local_date` is a `date` and `tz` holds the IANA name, or a "+HH:MM" offset when no name is available.
 - 2026-09-29 **Schema additions to PLAN §4:**

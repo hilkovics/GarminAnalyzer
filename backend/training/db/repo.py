@@ -49,6 +49,13 @@ def store_raw(session: Session, kind: str, ref_key: str, payload: Any) -> bool:
     return old_digest != digest
 
 
+def raw_digest(session: Session, kind: str, ref_key: str) -> str | None:
+    row = session.exec(
+        select(RawGarmin.payload_sha256).where(RawGarmin.kind == kind, RawGarmin.ref_key == ref_key)
+    ).first()
+    return row[0] if row is not None else None
+
+
 def get_raw(session: Session, kind: str, ref_key: str) -> Any | None:
     row = session.exec(
         select(RawGarmin.payload).where(RawGarmin.kind == kind, RawGarmin.ref_key == ref_key)
@@ -135,6 +142,15 @@ def get_state(session: Session, key: str) -> str | None:
 
 def set_state(session: Session, key: str, value: str) -> None:
     _upsert(session, SyncState, {"key": key, "value": value}, "key")
+
+
+def get_state_json(session: Session, key: str) -> Any | None:
+    value = get_state(session, key)
+    return json.loads(value) if value else None
+
+
+def set_state_json(session: Session, key: str, value: Any) -> None:
+    set_state(session, key, json.dumps(value, sort_keys=True))
 
 
 def get_state_date(session: Session, key: str) -> dt.date | None:

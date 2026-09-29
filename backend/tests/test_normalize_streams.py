@@ -121,7 +121,7 @@ def test_speed_derived_from_distance_when_channel_missing(run_df):
     df = normalize_streams(_drop_descriptor(load("activity_run_details.json"), "directSpeed"))
     expected = np.full(161, 3.0)
     expected[0] = np.nan  # no previous sample
-    expected[78:92] = np.nan  # inside the 15 s gap; t = 92 gets (276 − 231) / 15 = 3.0
+    expected[78:93] = np.nan  # the whole 15 s gap (77, 92] incl. its closing sample (METRICS §0.4 note)
     expected[111:130] = 0.0  # timer (and distance) constant during the pause
     np.testing.assert_allclose(df["speed"].to_numpy(), expected, equal_nan=True)
     pd.testing.assert_frame_equal(df.drop(columns="speed"), run_df.drop(columns="speed"))
@@ -169,11 +169,23 @@ def test_ffill_boundary_at_ten_seconds():
     assert unfilled["hr"].iloc[1:11].isna().all()
 
 
-def test_null_values_in_original_samples_are_not_filled():
-    details = build_details(
-        [sample(0, directHeartRate=100.0), sample(1, directHeartRate=None), sample(2, directHeartRate=102.0)]
+def test_null_values_inside_a_channel_follow_the_same_gap_rule():
+    """METRICS §0.1: a dropout inside a channel is a gap too (valid → valid ≤ 10 s is forward-filled)."""
+    short = [sample(0, directHeartRate=100.0)] + [sample(t, directHeartRate=None) for t in range(1, 10)]
+    short.append(sample(10, directHeartRate=110.0))
+    assert normalize_streams(build_details(short))["hr"].tolist() == [100.0] * 10 + [110.0]
+    long = [sample(0, directHeartRate=100.0)] + [sample(t, directHeartRate=None) for t in range(1, 11)]
+    long.append(sample(11, directHeartRate=110.0))
+    hr = normalize_streams(build_details(long))["hr"]
+    assert hr.iloc[0] == 100.0 and hr.iloc[11] == 110.0 and hr.iloc[1:11].isna().all()
+    trailing = [
+        sample(0, directHeartRate=100.0),
+        sample(1, directHeartRate=None),
+        sample(2, directHeartRate=None),
+    ]
+    np.testing.assert_allclose(
+        normalize_streams(build_details(trailing))["hr"], [100.0, np.nan, np.nan], equal_nan=True
     )
-    np.testing.assert_allclose(normalize_streams(details)["hr"], [100.0, np.nan, 102.0], equal_nan=True)
 
 
 @pytest.mark.parametrize(
@@ -183,7 +195,8 @@ def test_null_values_in_original_samples_are_not_filled():
 def test_moving_splits_gap_by_timer_increase(delta, expected_running):
     details = build_details([sample(0, sumDuration=100.0), sample(5, sumDuration=100.0 + delta)])
     moving = normalize_streams(details)["moving"].tolist()
-    assert moving == [True] + [True] * expected_running + [False] * (5 - expected_running)
+    # running seconds are the last ones of the gap, so the resume sample b (t = 5) runs whenever Δ > 0
+    assert moving == [True] + [False] * (5 - expected_running) + [True] * expected_running
 
 
 def test_moving_all_true_without_timer_channel():
