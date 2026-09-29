@@ -7,6 +7,7 @@ import logging
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 
 from training.config import get_settings
 from training.garmin import client as garmin_client
@@ -35,7 +36,7 @@ def _prompt_mfa() -> str:
 
 @app.command()
 def login(
-    email: str = typer.Option(None, "--email", help="Garmin account e-mail (prompted if omitted)."),
+    email: str | None = typer.Option(None, "--email", help="Garmin account e-mail (prompted if omitted)."),
     force: bool = typer.Option(False, "--force", help="Discard stored tokens and log in again."),
 ) -> None:
     """Interactive Garmin Connect login (with MFA prompt). Stores tokens only – never the password."""
@@ -55,13 +56,16 @@ def login(
     try:
         api = garmin_client.login_interactive(email, password, _prompt_mfa, tokens_dir, force=force)
     except garmin_client.GarminConnectAuthenticationError as exc:
-        err.print(f"[red]Login failed:[/] {exc}")
+        err.print(f"[red]Login failed:[/] {escape(str(exc))}")
         raise typer.Exit(1) from None
     except garmin_client.GarminConnectTooManyRequestsError:
         err.print("[red]Garmin is rate-limiting logins (429).[/] Wait a while and try again.")
         raise typer.Exit(1) from None
     except garmin_client.GarminConnectConnectionError as exc:
         err.print(f"[red]Could not reach Garmin Connect:[/] {type(exc).__name__}")
+        raise typer.Exit(1) from None
+    except (OSError, ValueError) as exc:
+        err.print(f"[red]Could not store tokens in {escape(str(tokens_dir))}:[/] {type(exc).__name__}")
         raise typer.Exit(1) from None
     finally:
         del password
@@ -76,7 +80,7 @@ def whoami() -> None:
     try:
         api = garmin_client.connect(settings.tokens_dir)
     except garmin_client.GarminConnectAuthenticationError as exc:
-        err.print(f"[red]Not logged in:[/] {exc}")
+        err.print(f"[red]Not logged in:[/] {escape(str(exc))}")
         raise typer.Exit(1) from None
     except garmin_client.GarminConnectConnectionError as exc:
         err.print(f"[red]Could not reach Garmin Connect:[/] {type(exc).__name__}")

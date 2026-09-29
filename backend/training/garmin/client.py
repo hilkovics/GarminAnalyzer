@@ -4,16 +4,23 @@ Everything that talks to Garmin goes through this module, so tests mock it here 
 
 - Tokens live in `<tokens_dir>/garmin_tokens.json` (written 0600 by garminconnect). The password is only
   held in memory during `login_interactive` and never stored or logged (CLAUDE.md rule 8).
-- `GarminClient.call` spaces requests by `rate_limit_s` and retries 429/5xx with exponential backoff
-  (CLAUDE.md rule 9). Phase 1 adds one typed method per endpoint and raw_garmin persistence.
+- `GarminClient.call` keeps `rate_limit_s` between the end of one request and the start of the next and
+  retries 429/5xx and network failures with exponential backoff (CLAUDE.md rule 9). The library's own retry
+  layer is disabled (`retry_attempts=0`) so there is exactly one retry policy, and it respects the spacing.
+  Phase 1 adds one typed method per endpoint and raw_garmin persistence.
+
+garminconnect 0.3.x raises `GarminConnectConnectionError` *without* a `.response`; the HTTP status is only
+in the message ("API Error 503 …", "client error (400)"), so `http_status` parses it from there.
 """
 
 import logging
+import re
 import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+import requests
 from garminconnect import (
     Garmin,
     GarminConnectAuthenticationError,
@@ -27,6 +34,7 @@ from training.config import Settings
 log = logging.getLogger(__name__)
 
 TOKEN_FILENAME = "garmin_tokens.json"
+_STATUS_RE = re.compile(r"(?:API Error|HTTP|error \()\s*(\d{3})\b")
 
 __all__ = [
     "GarminClient",
@@ -56,18 +64,26 @@ def login_interactive(
 ) -> Garmin:
     """Log in with credentials (+ MFA via `prompt_mfa`) and persist tokens to `tokens_dir`.
 
-    With `force`, existing tokens are removed first so a fresh credential login always happens.
-    Raises GarminConnectAuthenticationError, GarminConnectTooManyRequestsError or
-    GarminConnectConnectionError.
+    With `force`, existing tokens are moved aside so a fresh credential login happens; they are restored if
+    the login fails, so a failed `--force` never leaves the user logged out.
+    Raises GarminConnectAuthenticationError, GarminConnectTooManyRequestsError,
+    GarminConnectConnectionError, or OSError/ValueError if the tokens cannot be written.
     """
     path = token_file(tokens_dir)
+    backup = path.with_name(path.name + ".bak")
     if force and path.exists():
-        path.unlink()
-    api = Garmin(email=email, password=password, prompt_mfa=prompt_mfa)
-    api.login(tokenstore=str(tokens_dir.expanduser()))
-    # garminconnect already dumps after a credential login but suppresses errors; dump again so a
-    # failure to persist tokens is surfaced instead of silently requiring MFA on every run.
-    api.client.dump(str(tokens_dir.expanduser()))
+        path.replace(backup)
+    try:
+        api = Garmin(email=email, password=password, prompt_mfa=prompt_mfa, retry_attempts=0)
+        api.login(tokenstore=str(tokens_dir.expanduser()))
+        # garminconnect already dumps after a credential login but suppresses errors; dump again so a
+        # failure to persist tokens is surfaced instead of silently requiring MFA on every run.
+        api.client.dump(str(tokens_dir.expanduser()))
+    except BaseException:
+        if backup.exists():
+            backup.replace(path)
+        raise
+    backup.unlink(missing_ok=True)
     return api
 
 
@@ -75,20 +91,46 @@ def connect(tokens_dir: Path) -> Garmin:
     """Resume a session from stored tokens only. Raises GarminConnectAuthenticationError if none/invalid."""
     if not token_file(tokens_dir).exists():
         raise GarminConnectAuthenticationError(f"No Garmin tokens in {tokens_dir}. Run `training login`.")
-    api = Garmin()
+    api = Garmin(retry_attempts=0)
     api.login(tokenstore=str(tokens_dir.expanduser()))
     return api
 
 
-def _is_retryable(exc: Exception) -> bool:
+def http_status(exc: BaseException) -> int | None:
+    """HTTP status of a garminconnect error: attribute if present, else parsed from the message."""
+    for status in (
+        getattr(exc, "status_code", None),
+        getattr(getattr(exc, "response", None), "status_code", None),
+    ):
+        if isinstance(status, int):
+            return status
+    match = _STATUS_RE.search(str(exc))
+    return int(match.group(1)) if match else None
+
+
+def _has_network_cause(exc: BaseException) -> bool:
+    seen: set[int] = set()
+    cur: BaseException | None = exc
+    while cur is not None and id(cur) not in seen:
+        seen.add(id(cur))
+        if isinstance(cur, requests.ConnectionError | requests.Timeout):
+            return True
+        cur = cur.__cause__ or cur.__context__
+    return False
+
+
+def is_retryable(exc: BaseException) -> bool:
+    """429, 5xx and genuine network failures are retried; 401, 404, other 4xx and parse errors are not."""
     if isinstance(exc, GarminConnectTooManyRequestsError):
         return True
-    if isinstance(exc, GarminConnectNotFoundError):
+    if isinstance(exc, GarminConnectAuthenticationError | GarminConnectNotFoundError):
         return False
     if isinstance(exc, GarminConnectConnectionError):
-        status = getattr(getattr(exc, "response", None), "status_code", None)
-        return status is None or status >= 500
-    return False
+        status = http_status(exc)
+        if status is None:
+            return _has_network_cause(exc)
+        return status == 429 or 500 <= status < 600
+    return isinstance(exc, requests.ConnectionError | requests.Timeout)
 
 
 class GarminClient:
@@ -123,7 +165,6 @@ class GarminClient:
             wait = self.rate_limit_s - (self._clock() - self._last_call)
             if wait > 0:
                 self._sleep(wait)
-        self._last_call = self._clock()
 
     def call(self, method: str, *args: Any, **kwargs: Any) -> Any:
         """Call `Garmin.<method>(*args, **kwargs)` with spacing and backoff on 429/5xx."""
@@ -131,18 +172,23 @@ class GarminClient:
         for attempt in range(1, self.max_retries + 1):
             self._throttle()
             try:
-                return fn(*args, **kwargs)
+                result = fn(*args, **kwargs)
             except Exception as exc:
-                if not _is_retryable(exc) or attempt == self.max_retries:
+                self._last_call = self._clock()
+                if not is_retryable(exc) or attempt == self.max_retries:
                     raise
                 delay = self.backoff_base_s * 2 ** (attempt - 1)
                 log.warning(
-                    "Garmin %s failed (%s), retry %d/%d in %.1fs",
+                    "Garmin %s failed (%s, status=%s), retry %d/%d in %.1fs",
                     method,
                     type(exc).__name__,
+                    http_status(exc),
                     attempt,
                     self.max_retries - 1,
                     delay,
                 )
                 self._sleep(delay)
+                continue
+            self._last_call = self._clock()
+            return result
         raise AssertionError("unreachable")

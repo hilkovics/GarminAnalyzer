@@ -8,7 +8,8 @@ Downloads the most recent activities (summary, details, splits/laps, HR time in 
 outdoor run with elevation gain and a bike ride if the latest ones contain none – plus daily sleep, RHR,
 stress and user summary, a body-battery range, training status, max metrics (VO2max) and Garmin's
 lactate threshold. Every payload goes through `training.garmin.anonymize` (random GPS offset that is never
-saved, PII removed) before it touches the disk. Calls are rate-limited via GarminClient.
+saved, ids remapped, PII removed) and then `find_leaks` (real name / profile id / start coordinates) before
+it touches the disk; a detected leak aborts the recording. Calls are rate-limited via GarminClient.
 """
 
 import json
@@ -22,7 +23,7 @@ from typing import Any
 import typer
 
 from training.config import get_settings
-from training.garmin.anonymize import anonymize, random_offset
+from training.garmin.anonymize import IdMap, anonymize, find_leaks, random_offset
 from training.garmin.client import (
     GarminClient,
     GarminConnectAuthenticationError,
@@ -72,13 +73,28 @@ def select_activities(items: list[dict[str, Any]], n: int, min_gain_m: float = 2
     return chosen
 
 
-class Recorder:
-    """Fetches, anonymizes and writes fixtures; per-call failures are recorded, not fatal."""
+class LeakError(RuntimeError):
+    """An anonymized payload still contains a known real value; nothing was written for it."""
 
-    def __init__(self, client: GarminClient, out_dir: Path, offset: tuple[float, float]) -> None:
+
+class Recorder:
+    """Fetches, anonymizes, leak-checks and writes fixtures; per-call failures are recorded, not fatal."""
+
+    def __init__(
+        self,
+        client: GarminClient,
+        out_dir: Path,
+        offset: tuple[float, float],
+        *,
+        sensitive: list[str] | None = None,
+        real_points: list[tuple[float, float]] | None = None,
+    ) -> None:
         self.client = client
         self.out_dir = out_dir
         self.offset = offset
+        self.ids = IdMap()
+        self.sensitive = sensitive or []
+        self.real_points = real_points or []
         self.files: list[str] = []
         self.errors: list[dict[str, str]] = []
 
@@ -95,9 +111,28 @@ class Recorder:
         return payload
 
     def write(self, filename: str, payload: Any) -> None:
-        path = self.out_dir / filename
-        path.write_text(json.dumps(anonymize(payload, self.offset), indent=1, ensure_ascii=False) + "\n")
+        clean = anonymize(payload, self.offset, self.ids)
+        leaks = find_leaks(clean, strings=self.sensitive, points=self.real_points)
+        if leaks:
+            raise LeakError(f"{filename}: {', '.join(leaks)} after anonymization – not written")
+        (self.out_dir / filename).write_text(json.dumps(clean, indent=1, ensure_ascii=False) + "\n")
         self.files.append(filename)
+
+
+def _sensitive_values(client: Any) -> list[str]:
+    """Real identifiers of the logged-in user, used only in memory for the leak scan."""
+    api = getattr(client, "api", None)
+    values = [getattr(api, attr, None) for attr in ("full_name", "display_name", "profile_id")]
+    return [str(v) for v in values if v]
+
+
+def _start_points(activities: list[dict[str, Any]]) -> list[tuple[float, float]]:
+    return [
+        (float(a["startLatitude"]), float(a["startLongitude"]))
+        for a in activities
+        if isinstance(a.get("startLatitude"), int | float)
+        and isinstance(a.get("startLongitude"), int | float)
+    ]
 
 
 def record(
@@ -118,10 +153,15 @@ def record(
         for old in out_dir.glob("*.json"):
             if old.name.startswith(FIXTURE_PREFIXES):
                 old.unlink()
-    rec = Recorder(client, out_dir, offset or random_offset())
-
     items = client.call("get_activities", 0, search) or []
     selected = select_activities(items, n_activities)
+    rec = Recorder(
+        client,
+        out_dir,
+        offset or random_offset(),
+        sensitive=_sensitive_values(client),
+        real_points=_start_points(items),
+    )
     rec.write("activities_list.json", selected)
     for i, act in enumerate(selected, start=1):
         aid = act["activityId"]
@@ -175,7 +215,7 @@ def main(
     ),
     days: int = typer.Option(14, help="Days of wellness data (ending today)."),
     maxchart: int = typer.Option(20000, help="maxChartSize for activity details (≈ samples kept)."),
-    out: Path = typer.Option(None, help="Output directory (default: backend/tests/fixtures)."),
+    out: Path | None = typer.Option(None, help="Output directory (default: backend/tests/fixtures)."),
     clean: bool = typer.Option(True, help="Delete previously recorded fixture files first."),
 ) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
@@ -188,10 +228,17 @@ def main(
         typer.echo(f"Not logged in: {exc}", err=True)
         raise typer.Exit(1) from None
     out_dir = out or settings.fixtures_dir
-    manifest = record(
-        client, out_dir, today=date.today(), n_activities=activities, search=search, days=days,
-        maxchart=maxchart, clean=clean,
-    )  # fmt: skip
+    try:
+        manifest = record(
+            client, out_dir, today=date.today(), n_activities=activities, search=search, days=days,
+            maxchart=maxchart, clean=clean,
+        )  # fmt: skip
+    except LeakError as exc:
+        typer.echo(f"ABORTED – possible privacy leak: {exc}", err=True)
+        typer.echo(
+            "Files written so far passed the check. Do not commit until the anonymizer is fixed.", err=True
+        )
+        raise typer.Exit(2) from None
     typer.echo(f"Wrote {len(manifest['files'])} files to {out_dir}")
     typer.echo(f"Activities: {', '.join(a['type_key'] for a in manifest['activities'])}")
     if not manifest["has_hilly_run"]:
@@ -204,5 +251,8 @@ def main(
         typer.echo(f"{len(manifest['errors'])} calls failed – see manifest.json")
 
 
+app = typer.Typer(pretty_exceptions_show_locals=False, add_completion=False)
+app.command()(main)
+
 if __name__ == "__main__":
-    typer.run(main)
+    app()

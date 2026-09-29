@@ -15,9 +15,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 if not config.get_main_option("sqlalchemy.url"):
-    settings = get_settings()
-    settings.db_path.expanduser().parent.mkdir(parents=True, exist_ok=True)
-    config.set_main_option("sqlalchemy.url", settings.db_url)
+    config.set_main_option("sqlalchemy.url", get_settings().db_url)
 
 target_metadata = SQLModel.metadata
 
@@ -35,6 +33,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    get_settings().db_path.expanduser().parent.mkdir(parents=True, exist_ok=True)
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

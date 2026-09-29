@@ -8,6 +8,9 @@ data/
 oauth1_token.json
 oauth2_token.json
 garmin_tokens*/
+garmin_tokens*.json
+garmin_tokens*.json.bak
+.garmin_tokens.json.*.tmp
 .env
 
 # Python

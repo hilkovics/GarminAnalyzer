@@ -12,8 +12,12 @@ Last updated: 2026-09-29 (end of phase 0 session)
   `garmin_tokens` (also read from `GARMINTOKENS`, default `~/.garminconnect`), `rate_limit_s` (0.7), `max_retries` (5).
 - Alembic initialised (`alembic.ini` at the root, scripts in `backend/alembic/`). The DB URL comes from
   config, `render_as_batch=True` for SQLite. There are no migrations yet; the first one comes in phase 1.
-- `training/garmin/client.py`: `login_interactive`, `connect` (tokens only), `GarminClient.call` with 0.7 s
-  spacing and exponential backoff on 429/5xx (non-retryable: 401, 404, other 4xx).
+- `training/garmin/client.py`:
+  - `login_interactive`: `--force` moves the old tokens aside and restores them if the login fails.
+  - `connect`: tokens only.
+  - `GarminClient.call`: keeps 0.7 s between the end of one request and the start of the next, and backs off
+    exponentially on 429, 5xx and network errors. 401, 404, other 4xx and parse errors fail fast.
+    garminconnect's own retry layer is disabled (`retry_attempts=0`).
 - CLI: `uv run training login [--email] [--force]` (password prompt hidden, MFA prompt, never echoed) and
   `uv run training whoami`.
 - `scripts/record_fixtures.py` records these into `backend/tests/fixtures/`:
@@ -22,11 +26,28 @@ Last updated: 2026-09-29 (end of phase 0 session)
   - 14 days of sleep, RHR, stress and user summary;
   - body battery and max-metrics ranges, training status and the latest lactate threshold;
   - a `manifest.json`.
-  Everything is anonymized by `training/garmin/anonymize.py` before writing.
+  Everything is anonymized by `training/garmin/anonymize.py` before writing. On top of that, each file is scanned for your
+  real name, display name, profile id and real start coordinates (`find_leaks`). A hit aborts the run
+  (exit code 2) before that file is written.
 - FastAPI app stub with `/api/health`.
-- Tests (25): anonymizer, client spacing/backoff, CLI login/whoami with a mocked client (password never in
-  output or token file), record_fixtures with a fake client that checks each call against the real
-  `garminconnect.Garmin` signatures, core never imports Streamlit/FastAPI, settings.
+- Tests (63):
+  - the anonymizer, including a realistic `geoPolylineDTO` with min/max lat/lon, case-insensitive PII keys and
+    id remapping across files;
+  - client spacing/backoff, with errors produced by garminconnect's real error decorator;
+  - CLI login/whoami/`--force` with a mocked client (the password never appears in output or in the token file);
+  - record_fixtures against a fake client that checks each call against the real `garminconnect.Garmin`
+    signatures, plus the leak guard;
+  - core never imports Streamlit/FastAPI, and settings.
+- Spec review, round 1 (2026-09-29), found 3 Blockers, all fixed:
+  - GPS bounding-box keys `minLat`/`maxLat`/`minLon`/`maxLon` were not shifted;
+  - case variants such as `userInfoDto.fullname`, and `userId`, were not scrubbed;
+  - the retry classifier retried every error, because 0.3.x puts no `.response` on its exceptions.
+  Warnings fixed:
+  - duplicate library retries;
+  - token file patterns missing from `.gitignore`;
+  - activity/device ids and serials were not remapped;
+  - tests could overwrite real tokens through `TRAINING_GARMIN_TOKENS`;
+  - `--force` logged the user out when the new login failed.
 
 ## Next
 
@@ -54,6 +75,13 @@ Last updated: 2026-09-29 (end of phase 0 session)
   - the detail descriptor keys (`directHeartRate`, `directSpeed`, `directElevation`, `directLatitude`, …);
   - the shape of `get_max_metrics_range`;
   - the unit of `speed` in `get_lactate_threshold`.
+- The fixture GPS offset is constant, so the shape and absolute altitude of a route are kept, and a route could in
+  theory be found again by map-matching. The spec accepts this. If it matters, trim the first/last ~300 m of each
+  activity before committing.
+- The leak guard can give a false positive on a very long ride: when the shifted route crosses the real start
+  point within 0.05° on both axes, the run aborts. Just re-run; the offset is random each time.
+- `get_lactate_threshold(latest=True)` makes 2 HTTP requests inside one `GarminClient.call`, so the 0.7 s spacing
+  only applies around the pair.
 - `garminconnect.get_activities_by_date` pages 20 at a time without delay. Phase 1 should paginate
   through `GarminClient.call("get_activities", start, limit)` so every page is rate-limited.
 - Open METRICS.md points to decide before the phase that uses them:
@@ -76,5 +104,7 @@ Last updated: 2026-09-29 (end of phase 0 session)
   the source would be reversible. Owner names and ids, location names and activity names (Garmin's default name
   contains the town) are replaced.
 - 2026-09-29 `record_fixtures` requests details with `maxchart=20000`, so activities up to about 5.5 h keep 1 Hz resolution.
-- 2026-09-29 `httpx2` added as a dev dependency because Starlette's TestClient requires it.
+- 2026-09-29 `httpx2` added as a dev dependency because Starlette's TestClient requires it. `requests`, which garminconnect
+  already brings in, is now declared explicitly because `garmin/client.py` uses its exception types.
+- 2026-09-29 Fake ids in fixtures start at 900000001 and are consistent across all files of one recording.
 - To decide in phase 1: compute grade/gap_speed in `normalize/` or leave them NULL until phase 2.

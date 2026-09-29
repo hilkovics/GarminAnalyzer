@@ -57,7 +57,7 @@ training-app/
 ├── CLAUDE.md
 ├── docs/  PLAN.md · METRICS.md · STATUS.md · API.md (generuje sa z OpenAPI vo fáze 3)
 ├── backend/
-│   ├── pyproject.toml            # uv, ruff, pytest, alembic
+│   ├── (pyproject.toml je v koreni repozitára – viď STATUS.md → Decisions)
 │   ├── alembic/
 │   ├── training/
 │   │   ├── config.py             # pydantic-settings, TRAINING_* env

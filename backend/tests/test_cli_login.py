@@ -47,7 +47,9 @@ class FakeGarmin:
 
 @pytest.fixture
 def env(monkeypatch, tmp_path):
+    # both variables: TRAINING_GARMIN_TOKENS wins if exported, and must never point at real tokens here
     monkeypatch.setenv("GARMINTOKENS", str(tmp_path / "tokens"))
+    monkeypatch.setenv("TRAINING_GARMIN_TOKENS", str(tmp_path / "tokens"))
     get_settings.cache_clear()
     monkeypatch.setattr(garmin_client, "Garmin", FakeGarmin)
     FakeGarmin.instances.clear()
@@ -94,3 +96,32 @@ def test_whoami_prints_name(env):
     result = runner.invoke(cli.app, ["whoami"])
     assert result.exit_code == 0, result.output
     assert result.output.strip() == "Test Athlete"
+
+
+def test_force_login_failure_keeps_previous_tokens(env):
+    runner.invoke(cli.app, ["login"], input=f"me@example.com\n{SECRET}\n123456\n")
+    before = (env / "garmin_tokens.json").read_text()
+    FakeGarmin.fail_with = garmin_client.GarminConnectAuthenticationError("bad credentials")
+    result = runner.invoke(cli.app, ["login", "--force"], input=f"me@example.com\n{SECRET}\n")
+    assert result.exit_code == 1
+    assert (env / "garmin_tokens.json").read_text() == before
+    assert not (env / "garmin_tokens.json.bak").exists()
+
+
+def test_force_login_success_replaces_tokens(env):
+    runner.invoke(cli.app, ["login"], input=f"me@example.com\n{SECRET}\n123456\n")
+    result = runner.invoke(cli.app, ["login", "--force"], input=f"me@example.com\n{SECRET}\n123456\n")
+    assert result.exit_code == 0, result.output
+    assert "Logged in as" in result.output
+    assert not (env / "garmin_tokens.json.bak").exists()
+
+
+def test_token_write_failure_is_reported_without_traceback(env, monkeypatch):
+    def broken_dump(self, path):
+        raise OSError("read-only")
+
+    monkeypatch.setattr(FakeTokenClient, "dump", broken_dump)
+    result = runner.invoke(cli.app, ["login"], input=f"me@example.com\n{SECRET}\n123456\n")
+    assert result.exit_code == 1
+    assert "Could not store tokens" in result.output
+    assert SECRET not in result.output

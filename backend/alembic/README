@@ -1,1 +1,7 @@
-Generic single-database configuration.
+Alembic migrations for data/training.db (config: alembic.ini at the repo root, DB path from TRAINING_DB_PATH).
+
+  uv run alembic upgrade head
+  uv run alembic revision --autogenerate -m "..."
+
+Do NOT add an __init__.py to this directory: it would turn it into a regular package named `alembic`
+that shadows the installed alembic library (`from alembic import context` in env.py).
