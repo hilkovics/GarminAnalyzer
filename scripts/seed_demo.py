@@ -41,14 +41,16 @@ KINDS = {
 }
 
 
-def stream(rng: np.random.Generator, sport: str, kind: str, hilly: bool) -> pd.DataFrame:
+def stream(
+    rng: np.random.Generator, sport: str, kind: str, hilly: bool, hr_factor: float = 1.0
+) -> pd.DataFrame:
     seconds, hr_frac, speed_frac = KINDS[kind]
     seconds = int(seconds * rng.uniform(0.85, 1.15))
     t = np.arange(seconds)
     lthr = RUN_LTHR if sport == "run" else BIKE_LTHR
     warmup = np.clip(t / 600, 0, 1)
     drift = 1 + 0.03 * t / seconds
-    hr = lthr * hr_frac * (0.85 + 0.15 * warmup) * drift + rng.normal(0, 2, seconds)
+    hr = lthr * hr_frac * hr_factor * (0.85 + 0.15 * warmup) * drift + rng.normal(0, 2, seconds)
     base_speed = RUN_THRESHOLD_SPEED * speed_frac if sport == "run" else rng.uniform(7.0, 8.5)
     speed = np.clip(base_speed * (0.9 + 0.1 * warmup) + rng.normal(0, 0.15, seconds), 0, None)
     distance = np.cumsum(speed)
@@ -60,7 +62,7 @@ def stream(rng: np.random.Generator, sport: str, kind: str, hilly: bool) -> pd.D
 
 
 def main(
-    days: int = typer.Option(150, help="History length in days (ending today)."),
+    days: int = typer.Option(240, help="History length in days (ending today)."),
     seed: int = typer.Option(7, help="Random seed."),
     force: bool = typer.Option(False, help="Allow seeding a DB that already has activities."),
 ) -> None:
@@ -86,12 +88,17 @@ def main(
         garmin_id = 900_000_000
         for i in range(days):
             day = start + dt.timedelta(days=i)
+            sleep_s = float(rng.normal(7.2, 0.6) * 3600)
             repo.upsert_wellness(
                 session,
                 {
                     "date": day,
-                    "rhr": float(round(48 + rng.normal(0, 1.5))),
-                    "sleep_s": float(rng.normal(7.2, 0.6) * 3600),
+                    "rhr": float(round(48 + rng.normal(0, 1.5) - (sleep_s / 3600 - 7.2))),
+                    "sleep_s": sleep_s,
+                    "deep_s": sleep_s * float(rng.uniform(0.15, 0.22)),
+                    "rem_s": sleep_s * float(rng.uniform(0.18, 0.25)),
+                    "light_s": sleep_s * 0.55,
+                    "awake_s": float(rng.uniform(300, 1800)),
                     "sleep_score": float(np.clip(rng.normal(78, 8), 30, 100)),
                     "body_battery_wake": float(np.clip(rng.normal(72, 10), 5, 100)),
                     "stress_avg": float(np.clip(rng.normal(30, 6), 5, 90)),
@@ -103,7 +110,9 @@ def main(
                 continue  # rest day / skipped session / lighter recovery week
             sport, kind = plan
             garmin_id += 1
-            frame = stream(rng, sport, kind, hilly=rng.random() < 0.4)
+            # demo only: a short night raises HR at the same speed (≈ 1 % per hour below 7.2 h)
+            hr_factor = 1 - 0.01 * (sleep_s / 3600 - 7.2)
+            frame = stream(rng, sport, kind, hilly=rng.random() < 0.4, hr_factor=hr_factor)
             aid = repo.upsert_activity(
                 session,
                 {

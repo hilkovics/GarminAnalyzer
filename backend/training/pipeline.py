@@ -6,7 +6,7 @@ rather than in `metrics/pipeline.py` (PLAN §6 phase 2) so that `metrics/` never
 - Thresholds are historical (CLAUDE.md rule 7): each activity uses the record of its sport with the latest
   `valid_from ≤ local_date`; `other` uses the run record (METRICS §1, clarified).
 - `rest_hr` = athlete override, else the median Garmin RHR of the 28 days ending on the activity date (§2.2).
-- The PMC is always recomputed for the whole series (cheap; CTL/ATL are recursive, §4).
+- The PMC is always recomputed for the whole series (cheap; CTL/ATL are recursive, §4), then readiness (§8).
 """
 
 import datetime as dt
@@ -19,7 +19,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session
 
-from training import pipeline_progress
+from training import pipeline_progress, pipeline_wellness
 from training.db import repo
 from training.db.models import (
     Activity,
@@ -212,7 +212,7 @@ def series_bounds(session: Session, end: dt.date | None = None) -> tuple[dt.date
 
 
 def compute_daily_load(session: Session, end: dt.date | None = None) -> int:
-    """Recompute `daily_load` (loads + PMC) for the whole series; keeps phase-5 `readiness`. Returns days."""
+    """Recompute `daily_load` (loads + PMC, then readiness §8) for the whole series. Returns days."""
     bounds = series_bounds(session, end)
     if bounds is None:
         return 0
@@ -242,6 +242,7 @@ def compute_daily_load(session: Session, end: dt.date | None = None) -> int:
         )
     session.execute(delete(DailyLoad.__table__).where(DailyLoad.__table__.c.date > last))
     session.commit()
+    pipeline_wellness.compute_readiness(session)
     return len(out)
 
 
