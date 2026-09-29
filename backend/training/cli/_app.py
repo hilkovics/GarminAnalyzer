@@ -21,5 +21,5 @@ def main(verbose: bool = typer.Option(False, "--verbose", "-v", help="Debug logg
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     # garminconnect/urllib3 debug output can include request details; keep it quiet unless asked.
-    for name in ("garminconnect", "urllib3", "curl_cffi"):
+    for name in ("garminconnect", "urllib3", "curl_cffi", "alembic"):
         logging.getLogger(name).setLevel(logging.DEBUG if verbose else logging.WARNING)
