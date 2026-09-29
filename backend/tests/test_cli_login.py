@@ -125,3 +125,11 @@ def test_token_write_failure_is_reported_without_traceback(env, monkeypatch):
     assert result.exit_code == 1
     assert "Could not store tokens" in result.output
     assert SECRET not in result.output
+
+
+def test_tracebacks_never_show_locals():
+    """The login frame holds the password; typer must not render locals even if its default changes."""
+    from scripts import record_fixtures
+
+    assert cli.app.pretty_exceptions_show_locals is False
+    assert record_fixtures.app.pretty_exceptions_show_locals is False

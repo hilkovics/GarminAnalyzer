@@ -8,9 +8,11 @@ import pytest
 from garminconnect import Garmin
 
 from scripts.record_fixtures import LeakError, record, select_activities, sport_of
+from training.garmin.anonymize import axis_angle_rotation, rotate_point
 from training.garmin.client import GarminConnectNotFoundError
 
 REAL_LAT, REAL_LON = 48.1486, 17.1077
+ROT = axis_angle_rotation((0.3, -1.0, 0.7), 35.0)
 
 
 def act(aid: int, key: str, gain: float = 0.0) -> dict:
@@ -66,9 +68,17 @@ class FakeClient:
         if method == "get_activity_details":
             return {
                 "activityId": args[0],
-                "metricDescriptors": [{"metricsIndex": 0, "key": "directLatitude"}],
-                "activityDetailMetrics": [{"metrics": [REAL_LAT]}],
-                "geoPolylineDTO": {"minLat": REAL_LAT - 0.01, "maxLon": REAL_LON + 0.01},
+                "metricDescriptors": [
+                    {"metricsIndex": 0, "key": "directLatitude"},
+                    {"metricsIndex": 1, "key": "directLongitude"},
+                ],
+                "activityDetailMetrics": [{"metrics": [REAL_LAT, REAL_LON]}],
+                "geoPolylineDTO": {
+                    "minLat": REAL_LAT - 0.01,
+                    "minLon": REAL_LON - 0.01,
+                    "maxLat": REAL_LAT + 0.01,
+                    "maxLon": REAL_LON + 0.01,
+                },
             }
         if method == "get_stress_data":
             raise GarminConnectNotFoundError("API Error 404")
@@ -77,24 +87,32 @@ class FakeClient:
 
 def test_record_writes_anonymized_files_and_manifest(tmp_path):
     client = FakeClient()
-    manifest = record(client, tmp_path, today=date(2026, 9, 29), days=2, offset=(1.0, 1.0))
+    manifest = record(client, tmp_path, today=date(2026, 9, 29), days=2, rotation=ROT)
 
     assert manifest["has_hilly_run"] and manifest["has_bike"]
     assert "activity_01_running_details.json" in manifest["files"]
     assert "wellness_2026-09-28_sleep.json" in manifest["files"]
     assert {e["method"] for e in manifest["errors"]} == {"get_stress_data"}
 
+    fake_lat, fake_lon = rotate_point(ROT, REAL_LAT, REAL_LON)
     details = json.loads((tmp_path / "activity_01_running_details.json").read_text())
-    assert details["activityDetailMetrics"][0]["metrics"] == [pytest.approx(REAL_LAT + 1.0)]
-    assert details["geoPolylineDTO"]["minLat"] == pytest.approx(REAL_LAT + 0.99)
+    assert details["activityDetailMetrics"][0]["metrics"] == [
+        pytest.approx(fake_lat),
+        pytest.approx(fake_lon),
+    ]
+    geo = details["geoPolylineDTO"]
+    assert geo["minLat"] < fake_lat < geo["maxLat"] and geo["minLon"] < fake_lon < geo["maxLon"]
     listing = json.loads((tmp_path / "activities_list.json").read_text())
     assert listing[0]["activityName"] == "anonymized"
-    assert listing[0]["startLatitude"] == pytest.approx(REAL_LAT + 1.0)
+    assert (listing[0]["startLatitude"], listing[0]["startLongitude"]) == (
+        pytest.approx(fake_lat),
+        pytest.approx(fake_lon),
+    )
     # fake activity ids are consistent between the list and the per-activity files
     assert details["activityId"] == listing[0]["activityId"] != 111111111
 
     everything = "".join(p.read_text() for p in tmp_path.glob("*.json"))
-    for secret in ("Real Name", "98765432", "111111111", f"{REAL_LAT}"):
+    for secret in ("Real Name", "98765432", "111111111", f"{REAL_LAT}", f"{REAL_LON}"):
         assert secret not in everything
     assert client.calls.count("get_sleep_data") == 2
     assert json.loads((tmp_path / "manifest.json").read_text())["files"] == manifest["files"]
@@ -103,8 +121,8 @@ def test_record_writes_anonymized_files_and_manifest(tmp_path):
 def test_leak_guard_aborts_before_writing(tmp_path):
     client = FakeClient(extra={"unknownGeoField": {"x": REAL_LAT + 0.001, "y": REAL_LON - 0.001}})
     with pytest.raises(LeakError) as err:
-        record(client, tmp_path, today=date(2026, 9, 29), days=1, offset=(1.0, 1.0))
-    assert "real coordinates" in str(err.value)
+        record(client, tmp_path, today=date(2026, 9, 29), days=1, rotation=ROT)
+    assert "real coordinates at $.unknownGeoField" in str(err.value)
     assert str(REAL_LAT)[:5] not in str(err.value)  # the error message itself carries no real value
     offending = str(err.value).split(":")[0]
     assert not (tmp_path / offending).exists()
@@ -112,13 +130,22 @@ def test_leak_guard_aborts_before_writing(tmp_path):
 
 def test_leak_guard_catches_real_name_under_unknown_key(tmp_path):
     client = FakeClient(extra={"comment": "Great run, Real Name!"})
-    with pytest.raises(LeakError, match="real user name/id"):
-        record(client, tmp_path, today=date(2026, 9, 29), days=1, offset=(1.0, 1.0))
+    with pytest.raises(LeakError, match=r"real user name/id at \$\.comment"):
+        record(client, tmp_path, today=date(2026, 9, 29), days=1, rotation=ROT)
 
 
 def test_record_clean_removes_only_fixture_files(tmp_path):
     (tmp_path / "activity_99_old_summary.json").write_text("{}")
     (tmp_path / "keep_me.json").write_text("{}")
-    record(FakeClient(), tmp_path, today=date(2026, 9, 29), days=1, offset=(1.0, 1.0))
+    record(FakeClient(), tmp_path, today=date(2026, 9, 29), days=1, rotation=ROT)
     assert not (tmp_path / "activity_99_old_summary.json").exists()
     assert (tmp_path / "keep_me.json").exists()
+
+
+def test_default_rotation_is_random_and_moves_real_points_far_away(tmp_path):
+    record(FakeClient(), tmp_path, today=date(2026, 9, 29), days=1)
+    listing = json.loads((tmp_path / "activities_list.json").read_text())
+    fake = (listing[0]["startLatitude"], listing[0]["startLongitude"])
+    from training.garmin.anonymize import angular_distance_deg
+
+    assert angular_distance_deg((REAL_LAT, REAL_LON), fake) >= 10.0

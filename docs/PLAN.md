@@ -163,8 +163,10 @@ Set up the repository skeleton exactly as described in PLAN.md §3:
   ~/.garminconnect (respect GARMINTOKENS). Never echo credentials. Print a success line and the token path.
 - CLI `training whoami`: uses stored tokens to fetch the user profile and prints display name – used to verify login.
 - scripts/record_fixtures.py: downloads the last 6 activities (summary + details + laps + HR zones) and the
-  last 14 days of sleep, RHR, body battery, stress and daily summary, anonymizes lat/lon (adds a constant
-  offset), and writes them to backend/tests/fixtures/ with descriptive names. Inspect the installed
+  last 14 days of sleep, RHR, body battery, stress and daily summary, anonymizes lat/lon (one random rigid
+  rotation of the sphere per recording – distance-preserving; a constant lat/lon offset is NOT safe because
+  real distances reveal the real latitude via cos φ), and writes them to backend/tests/fixtures/ with
+  descriptive names. Inspect the installed
   garminconnect package to find the correct method names; do not guess.
 - docs/STATUS.md with sections: Done / Next / Known issues / Decisions.
 - .gitignore for data/, tokens, .venv, __pycache__.

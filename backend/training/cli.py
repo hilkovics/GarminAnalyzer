@@ -13,7 +13,9 @@ from training.config import get_settings
 from training.garmin import client as garmin_client
 
 app = typer.Typer(
-    help="Personal training analytics (Garmin Connect → metrics → coach).", no_args_is_help=True
+    help="Personal training analytics (Garmin Connect → metrics → coach).",
+    no_args_is_help=True,
+    pretty_exceptions_show_locals=False,  # never render locals (the password) in a traceback
 )
 console = Console(soft_wrap=True)
 err = Console(stderr=True, soft_wrap=True)

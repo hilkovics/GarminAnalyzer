@@ -30,9 +30,11 @@ Last updated: 2026-09-29 (end of phase 0 session)
   real name, display name, profile id and real start coordinates (`find_leaks`). A hit aborts the run
   (exit code 2) before that file is written.
 - FastAPI app stub with `/api/health`.
-- Tests (63):
-  - the anonymizer, including a realistic `geoPolylineDTO` with min/max lat/lon, case-insensitive PII keys and
-    id remapping across files;
+- Tests (66):
+  - the anonymizer: rotation preserves distances to 0.1 mm; a realistic `geoPolylineDTO` with min/max lat/lon;
+    unpaired coordinates are dropped; case-insensitive PII keys; numeric serials; id remapping across files,
+    including multisport `parentId`/`childIds`; `find_leaks` reports key paths and avoids substring false
+    positives;
   - client spacing/backoff, with errors produced by garminconnect's real error decorator;
   - CLI login/whoami/`--force` with a mocked client (the password never appears in output or in the token file);
   - record_fixtures against a fake client that checks each call against the real `garminconnect.Garmin`
@@ -48,6 +50,13 @@ Last updated: 2026-09-29 (end of phase 0 session)
   - activity/device ids and serials were not remapped;
   - tests could overwrite real tokens through `TRAINING_GARMIN_TOKENS`;
   - `--force` logged the user out when the new login failed.
+- Spec review, round 2 (2026-09-29): no Blockers. Warnings fixed:
+  - A constant lat/lon offset could be undone, since real distances reveal the real latitude through cos φ. It is
+    replaced by a random rigid rotation of the sphere (see Decisions).
+  - Numeric serial numbers were not scrubbed.
+  - `find_leaks` matched substrings of keys and words ("run" matched `running`), and its findings did not say
+    where the hit was.
+  - The `training` CLI did not explicitly hide traceback locals. A test now checks it.
 
 ## Next
 
@@ -75,11 +84,13 @@ Last updated: 2026-09-29 (end of phase 0 session)
   - the detail descriptor keys (`directHeartRate`, `directSpeed`, `directElevation`, `directLatitude`, …);
   - the shape of `get_max_metrics_range`;
   - the unit of `speed` in `get_lactate_threshold`.
-- The fixture GPS offset is constant, so the shape and absolute altitude of a route are kept, and a route could in
-  theory be found again by map-matching. The spec accepts this. If it matters, trim the first/last ~300 m of each
-  activity before committing.
-- The leak guard can give a false positive on a very long ride: when the shifted route crosses the real start
-  point within 0.05° on both axes, the run aborts. Just re-run; the offset is random each time.
+- The GPS rotation keeps a route's shape (mirrored/rotated on the globe) and its absolute altitude, and the timezone
+  name in the summaries is left as is. Matching the altitude profile against a global elevation model is
+  theoretically possible but expensive. If it matters, trim the first/last ~300 m of each activity before committing.
+- Leak guard false positives: two fractional physiological values in one object that happen to lie within 0.05°
+  of your real start latitude *and* longitude (e.g. stress percentages 48.13 / 17.12) abort the run. The same
+  happens on every re-run. The error names the file and the JSON key path, never the values, so a false
+  positive is easy to recognise; if it happens, tell Claude which path it names.
 - `get_lactate_threshold(latest=True)` makes 2 HTTP requests inside one `GarminClient.call`, so the 0.7 s spacing
   only applies around the pair.
 - `garminconnect.get_activities_by_date` pages 20 at a time without delay. Phase 1 should paginate
@@ -100,9 +111,15 @@ Last updated: 2026-09-29 (end of phase 0 session)
 - 2026-09-29 **garminconnect 0.3.x (pinned `>=0.3.17,<0.4`)**: it no longer uses garth. Tokens are
   `garmin_tokens.json` (DI tokens, written 0600) and refreshed tokens are re-dumped automatically. Old garth tokens are
   not accepted. CLAUDE.md, PLAN.md and garmin-explorer were updated to match.
-- 2026-09-29 **Fixture anonymization** uses a random GPS offset per recording that is never saved, since a fixed offset in
-  the source would be reversible. Owner names and ids, location names and activity names (Garmin's default name
-  contains the town) are replaced.
+- 2026-09-29 **Fixture anonymization: random rigid rotation of the sphere** per recording, never saved.
+  It moves every real start point at least 10° (≈ 1100 km) and preserves every distance exactly.
+  - A constant offset was rejected: the spec reviewer recovered the latitude shift to about 1 km from `sumDistance`
+    via cos φ.
+  - Latitude and longitude are rotated as pairs, including detail-metric columns and bounding boxes. Unpaired
+    values are dropped.
+  - PLAN.md phase 0 was updated first.
+  - Owner names and ids, location and activity names (Garmin's default name contains the town), descriptions and
+    serials are replaced.
 - 2026-09-29 `record_fixtures` requests details with `maxchart=20000`, so activities up to about 5.5 h keep 1 Hz resolution.
 - 2026-09-29 `httpx2` added as a dev dependency because Starlette's TestClient requires it. `requests`, which garminconnect
   already brings in, is now declared explicitly because `garmin/client.py` uses its exception types.

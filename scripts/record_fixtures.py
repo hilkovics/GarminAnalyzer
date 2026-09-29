@@ -7,9 +7,10 @@ Run locally after `uv run training login`:
 Downloads the most recent activities (summary, details, splits/laps, HR time in zones) – topping up with an
 outdoor run with elevation gain and a bike ride if the latest ones contain none – plus daily sleep, RHR,
 stress and user summary, a body-battery range, training status, max metrics (VO2max) and Garmin's
-lactate threshold. Every payload goes through `training.garmin.anonymize` (random GPS offset that is never
-saved, ids remapped, PII removed) and then `find_leaks` (real name / profile id / start coordinates) before
-it touches the disk; a detected leak aborts the recording. Calls are rate-limited via GarminClient.
+lactate threshold. Every payload goes through `training.garmin.anonymize` (random distance-preserving
+rotation of all GPS coordinates that is never saved, ids remapped, PII removed) and then `find_leaks`
+(real name / profile id / start coordinates) before it touches the disk; a detected leak aborts the
+recording. Calls are rate-limited via GarminClient.
 """
 
 import json
@@ -23,7 +24,7 @@ from typing import Any
 import typer
 
 from training.config import get_settings
-from training.garmin.anonymize import IdMap, anonymize, find_leaks, random_offset
+from training.garmin.anonymize import IdMap, Rotation, anonymize, find_leaks, random_rotation
 from training.garmin.client import (
     GarminClient,
     GarminConnectAuthenticationError,
@@ -84,14 +85,14 @@ class Recorder:
         self,
         client: GarminClient,
         out_dir: Path,
-        offset: tuple[float, float],
+        rotation: Rotation,
         *,
         sensitive: list[str] | None = None,
         real_points: list[tuple[float, float]] | None = None,
     ) -> None:
         self.client = client
         self.out_dir = out_dir
-        self.offset = offset
+        self.rotation = rotation
         self.ids = IdMap()
         self.sensitive = sensitive or []
         self.real_points = real_points or []
@@ -111,10 +112,10 @@ class Recorder:
         return payload
 
     def write(self, filename: str, payload: Any) -> None:
-        clean = anonymize(payload, self.offset, self.ids)
+        clean = anonymize(payload, self.rotation, self.ids)
         leaks = find_leaks(clean, strings=self.sensitive, points=self.real_points)
         if leaks:
-            raise LeakError(f"{filename}: {', '.join(leaks)} after anonymization – not written")
+            raise LeakError(f"{filename}: {'; '.join(leaks)} after anonymization – not written")
         (self.out_dir / filename).write_text(json.dumps(clean, indent=1, ensure_ascii=False) + "\n")
         self.files.append(filename)
 
@@ -144,7 +145,7 @@ def record(
     search: int = 60,
     days: int = 14,
     maxchart: int = 20000,
-    offset: tuple[float, float] | None = None,
+    rotation: Rotation | None = None,
     clean: bool = True,
 ) -> dict[str, Any]:
     """Record all fixtures. Returns the manifest (also written as manifest.json)."""
@@ -155,12 +156,13 @@ def record(
                 old.unlink()
     items = client.call("get_activities", 0, search) or []
     selected = select_activities(items, n_activities)
+    real_points = _start_points(items)
     rec = Recorder(
         client,
         out_dir,
-        offset or random_offset(),
+        rotation or random_rotation(real_points),
         sensitive=_sensitive_values(client),
-        real_points=_start_points(items),
+        real_points=real_points,
     )
     rec.write("activities_list.json", selected)
     for i, act in enumerate(selected, start=1):
