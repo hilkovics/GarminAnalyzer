@@ -1,0 +1,75 @@
+# "Kokpit" theme (docs/design/kokpit.dc.html). Dark is the design's default; light has the same meanings.
+# Colour tokens: bg / surface / line / text come from the design's token table; the colour families (blue,
+# orange, green, yellow, red, gray) use the same hex values as ui-streamlit/components/theme.py, so a badge
+# and a chart of the same meaning share one colour (readiness yellow included).
+# Fonts are loaded from Google Fonts ("<family>:<css url>"); offline the browser falls back to sans-serif.
+
+[theme]
+font = "Barlow:https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&display=swap"
+headingFont = "Barlow Semi Condensed:https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&display=swap"
+headingFontSizes = ["2rem", "1.5rem", "1.2rem"]
+headingFontWeights = [600, 600, 600]
+baseFontSize = 15
+baseRadius = "14px"
+buttonRadius = "8px"
+showWidgetBorder = true
+metricValueFontSize = "2.4rem"
+metricValueFontWeight = 600
+linkUnderline = false
+
+# Series / status families (one value for both modes; text and background tints differ per mode below).
+blueColor = "#2a78d6"
+orangeColor = "#e2622c"
+greenColor = "#17a673"
+yellowColor = "#d99a00"
+redColor = "#dc4544"
+grayColor = "#8a8983"
+chartCategoricalColors = ["#2a78d6", "#e2622c", "#17a673", "#d99a00", "#dc4544", "#8a8983"]
+
+[theme.dark]
+primaryColor = "#5b9ff0"
+backgroundColor = "#0d0f12"
+secondaryBackgroundColor = "#161a1f"
+textColor = "#e8eaed"
+borderColor = "#232930"
+dataframeBorderColor = "#232930"
+dataframeHeaderBackgroundColor = "#1c2229"
+linkColor = "#8fbdf5"
+blueTextColor = "#8fbdf5"
+blueBackgroundColor = "#1a2a40"
+greenTextColor = "#34c98f"
+greenBackgroundColor = "#173a2d"
+orangeTextColor = "#ffa679"
+yellowTextColor = "#f0b429"
+yellowBackgroundColor = "#2a2412"
+redTextColor = "#ff8a88"
+grayTextColor = "#aab2bc"
+grayBackgroundColor = "#232930"
+
+[theme.dark.sidebar]
+backgroundColor = "#111418"
+secondaryBackgroundColor = "#1c2229"
+
+[theme.light]
+primaryColor = "#2a6fc9"
+backgroundColor = "#f2f4f6"
+secondaryBackgroundColor = "#ffffff"
+textColor = "#12161b"
+borderColor = "#dde1e6"
+dataframeBorderColor = "#dde1e6"
+dataframeHeaderBackgroundColor = "#eef0f3"
+linkColor = "#1d5cae"
+blueTextColor = "#1d5cae"
+blueBackgroundColor = "#e3eefb"
+greenTextColor = "#0b7a52"
+greenBackgroundColor = "#ddf3ea"
+orangeTextColor = "#b8501f"
+yellowTextColor = "#a87700"
+redTextColor = "#b3302f"
+redBackgroundColor = "#fdeeee"
+grayTextColor = "#4a525c"
+grayBackgroundColor = "#eef0f3"
+
+[theme.light.sidebar]
+backgroundColor = "#f7f8fa"
+secondaryBackgroundColor = "#eef0f3"

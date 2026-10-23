@@ -80,19 +80,32 @@ def plan_rows(engine):
 # --- rendering --------------------------------------------------------------------------------------------
 
 
+def plan_figures(at):
+    """(week chart, season chart): the profile of today's workout comes first and is skipped by name."""
+    figs = figures(at)
+    week = next(f for f in figs if "Plán (odhad)" in trace_names(f))
+    return week, figs[-1]
+
+
 def test_page_renders_on_a_seeded_db(seeded):
     at = run_page("plan")
     assert not at.exception and not at.error
     assert at.title[0].value == "Plán"
     assert [s.value for s in at.subheader] == ["Dnešný tréning", "Tento týždeň", "Sezóna"]
-    season, week = figures(at)[1], figures(at)[0]
+    week, season = plan_figures(at)
+    profile = figures(at)[0]
+    assert trace_names(profile) == ["Z1", "Z2", "Z4"] or trace_names(profile)[0].startswith("Z")
     assert trace_names(week) == ["Plán (odhad)", "Skutočnosť"] and len(week["data"][0]["x"]) == 7
     assert "Základ" in trace_names(season)[0] and "Tento týždeň" in trace_names(season)
     assert "Cieľ nie je nastavený" in texts(at)
     assert len(plan_rows(seeded)) == 1  # today was decided by viewing the page
-    table = next(d.value for d in at.dataframe)
-    assert list(table["Deň"].str[:2]) == ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"]
-    assert table["Stav"].iloc[0] == "voľno" and table["Stav"].iloc[2] == "plánované"
+    assert not at.dataframe  # the week is shown as day cards plus a markdown table with status badges
+    rows = next(m.value for m in at.markdown if m.value.startswith("| Deň")).splitlines()
+    assert len(rows) == 2 + 7
+    assert [r.split(" ")[1] for r in rows[2:]] == ["Po", "Ut", "St", "Št", "Pi", "So", "Ne"]
+    assert rows[2].endswith(":gray-badge[voľno] |") and rows[4].endswith(":blue-badge[plánované] |")
+    cards = [m.value for m in at.markdown if m.value.startswith("**")]
+    assert len([c for c in cards if "gray-badge[" in c]) == 7  # one role chip per weekday
 
 
 def test_page_renders_on_an_empty_db(empty):
@@ -111,11 +124,11 @@ def test_page_with_a_goal_shows_the_race_marker_and_all_phases(seeded):
         )
     at = run_page("plan")
     assert not at.exception
-    season = figures(at)[1]
+    season = plan_figures(at)[1]
     names = trace_names(season)
     assert "Preteky" in names and any(n and n.startswith("Ladenie") for n in names)
     assert any(n and n.startswith("Budovanie") for n in names)
-    assert "0:40:00" in texts(at) and "10.0 km" in texts(at)
+    assert "0:40:00" in texts(at) and "10,0 km" in texts(at)
 
 
 # --- buttons ----------------------------------------------------------------------------------------------
@@ -266,10 +279,14 @@ def sample_week() -> WeekPlanDTO:
         WeekDayDTO(
             date=monday + i * DAY,
             weekday=w,
-            role="rest" if i == 0 else "easy",
-            planned=None,
-            actual_load=0.0,
-            activities=0,
+            role="rest" if i == 0 else "q1" if i == 1 else "easy",
+            planned=sample_planned()
+            if i == 1
+            else sample_planned(status="done", name="Ľahký beh")
+            if i == 2
+            else None,
+            actual_load=52.0 if i == 2 else 0.0,
+            activities=1 if i == 2 else 0,
         )
         for i, w in enumerate(("mon", "tue", "wed", "thu", "fri", "sat", "sun"))
     ]
@@ -341,8 +358,14 @@ def test_today_card_text_with_faked_services(monkeypatch):
     assert "Podľa plánu." in text and "Pripravenosť: 77" in text and ":green-badge[zelená]" in text
     assert "07. 11. 2026" in text and "0:40:00" in text
     assert not any(b.label == "Späť na plánované" for b in at.button)
+    # day cards: role chips, today's workout with its estimate, a done day with its actual load
+    cards = "\n".join(m.value for m in at.markdown)
+    assert ":gray-badge[V]" in cards and ":gray-badge[K1]" in cards and ":gray-badge[Ľ]" in cards
+    assert ":material/directions_run: Prahové 5×6" in cards and ":green-badge[hotovo]" in cards
+    captions = "\n".join(c.value for c in at.caption)
+    assert "Odhad 85  \nSkut. –" in captions and "Odhad 85  \nSkut. 52" in captions
     hatched = [
-        t for t in figures(at)[1]["data"] if t.get("marker", {}).get("pattern", {}).get("shape") == "/"
+        t for t in plan_figures(at)[1]["data"] if t.get("marker", {}).get("pattern", {}).get("shape") == "/"
     ]
     assert len(hatched) == 1 and hatched[0]["x"] == ["2026-10-19"]
 

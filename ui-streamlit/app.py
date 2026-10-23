@@ -7,10 +7,12 @@ Structure (no business logic anywhere – pages call `training.services` and ren
 - `sections/`     reusable Streamlit render blocks for the bigger pages (activity detail, settings, …)
 - `components/`   Plotly figure builders and formatters: DTO in, figure/string out, no Streamlit import
 - `_db.py`        DB session helper (`st.cache_resource` engine) and "today"
+- `_style.py`     small CSS layer on top of `.streamlit/config.toml` (the "Kokpit" theme)
 
 Run with `uv run streamlit run ui-streamlit/app.py`. Plán (phase 6) shows the coach plan.
 """
 
+import _style
 import streamlit as st
 
 st.set_page_config(page_title="Tréning", page_icon=":material/directions_run:", layout="wide")
@@ -27,4 +29,5 @@ PAGES = [
     st.Page("views/nastavenia.py", title="Nastavenia", icon=":material/settings:", url_path="nastavenia"),
 ]
 
+_style.inject()
 st.navigation(PAGES).run()

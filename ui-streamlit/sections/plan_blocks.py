@@ -7,7 +7,6 @@ Rendering and service calls only – every plan, target and reason comes from th
 import datetime as dt
 
 import _db
-import pandas as pd
 import streamlit as st
 from components.badges import readiness_badge
 from components.format import (
@@ -20,7 +19,8 @@ from components.format import (
     parse_time_hms,
     sport_label,
 )
-from components.plan import ROLE_LABELS, WEEKDAY_LABELS, phase_text, status_badge, step_lines, week_chart
+from components.plan import ROLE_LABELS, WEEKDAY_LABELS, phase_text, status_badge, step_lines
+from components.profile import workout_profile
 from pydantic import ValidationError
 
 from training.config import get_settings
@@ -33,7 +33,6 @@ from training.services.dto import (
     GoalIn,
     PreferredDayDTO,
     SeasonDTO,
-    WeekPlanDTO,
 )
 from training.services.errors import ServiceError
 from training.services.plan import (
@@ -135,30 +134,6 @@ def goal_editor(goal: GoalDTO | None) -> None:
         _call(plan_service.clear_goal, "Cieľ zmazaný.")
 
 
-# --- week ---------------------------------------------------------------------------------------------------
-
-
-def week_block(week: WeekPlanDTO) -> None:
-    st.caption(
-        f"Fáza: {phase_text(week.phase, week.recovery)} · cieľ {fmt_num(week.target_load)} "
-        f"(beh {fmt_num(week.run_target)}, bicykel {fmt_num(week.bike_target)}) · hotovo "
-        f"{fmt_num(week.done_load)} · zostáva {fmt_num(week.remaining_load)}"
-    )
-    st.plotly_chart(week_chart(week), width="stretch", key="plan_week_chart")
-    rows = [
-        {
-            "Deň": f"{WEEKDAY_LABELS[d.weekday]} {fmt_date(d.date)}",
-            "Rola": ROLE_LABELS.get(d.role, d.role),
-            "Plán": (d.planned.name if d.planned else DASH),
-            "Odhad záťaže": fmt_num(d.planned.estimated_load) if d.planned else DASH,
-            "Skutočná záťaž": fmt_num(d.actual_load) if d.activities else DASH,
-            "Stav": status_badge(d.planned, d.role).text,
-        }
-        for d in week.days
-    ]
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
-
-
 # --- today --------------------------------------------------------------------------------------------------
 
 
@@ -170,6 +145,7 @@ def today_card(decision: DailyDecisionDTO) -> None:
         st.write("Dnes voľno – oddych je súčasť tréningu.")
     else:
         st.caption(f"{sport_label(workout.sport)} · {fmt_duration(workout.duration_s)} h")
+        st.plotly_chart(workout_profile(workout.steps), width="stretch", key="plan_today_profile")
         for line in step_lines(workout.steps):
             st.markdown(f"- {line}")
         c1, c2 = st.columns(2)

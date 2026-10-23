@@ -7,7 +7,7 @@ import plotly.graph_objects as go
 
 from training.services.dto import BestEffortDTO, BestEffortsDTO, CurveDTO
 
-from .format import fmt_date, fmt_pace, fmt_window
+from .format import fmt_date, fmt_pace, fmt_speed_kmh, fmt_window
 from .pace_axis import pace_axis, pace_s
 from .theme import BLUE, GRAY, ORANGE, apply_base_layout, empty_figure
 
@@ -97,7 +97,7 @@ def best_efforts_chart(recent: BestEffortsDTO, all_time: BestEffortsDTO) -> go.F
         values = _effort_traces(fig, recent, all_time, kind, pace_s, fmt_pace)
         pace_axis(fig, values, title="GAP tempo (min/km)")
     else:
-        _effort_traces(fig, recent, all_time, kind, lambda v: v * 3.6, lambda v: f"{v * 3.6:.1f} km/h")
+        _effort_traces(fig, recent, all_time, kind, lambda v: v * 3.6, fmt_speed_kmh)
         fig.update_yaxes(title_text="Rýchlosť (km/h)")
     fig.update_xaxes(title_text="Dĺžka úseku", type="category")
     return apply_base_layout(fig, height=340)

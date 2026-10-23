@@ -25,7 +25,7 @@ _ACWR = {
 }
 _READINESS = {
     "green": Badge("zelená", "green"),
-    "yellow": Badge("žltá", "orange"),
+    "yellow": Badge("žltá", "yellow"),
     "red": Badge("červená", "red"),
 }
 _UNKNOWN = Badge("–", "gray")

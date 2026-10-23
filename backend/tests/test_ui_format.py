@@ -62,29 +62,35 @@ def test_fmt_duration_hms(fmt, seconds, expected):
 
 
 def test_fmt_distance_and_speed(fmt):
-    assert fmt.fmt_km(12345) == "12.3 km"
-    assert fmt.fmt_km(12345, 2) == "12.35 km"
-    assert fmt.fmt_km(0) == "0.0 km"
+    assert fmt.fmt_km(12345) == "12,3 km"
+    assert fmt.fmt_km(12345, 2) == "12,35 km"
+    assert fmt.fmt_km(0) == "0,0 km"
     assert fmt.fmt_km(None) == "–"
-    assert fmt.fmt_speed_kmh(8.0) == "28.8 km/h"
+    assert fmt.fmt_speed_kmh(8.0) == "28,8 km/h"
     assert fmt.fmt_speed_kmh(None) == "–"
-    assert fmt.fmt_speed(8.0, "bike") == "28.8 km/h"
+    assert fmt.fmt_speed(8.0, "bike") == "28,8 km/h"
     assert fmt.fmt_speed(1000 / 300, "run") == "5:00/km"
     assert fmt.fmt_speed(1000 / 300, None) == "5:00/km"
-    assert fmt.fmt_hours(5400) == "1.5 h"
+    assert fmt.fmt_hours(5400) == "1,5 h"
     assert fmt.fmt_hours(None) == "–"
 
 
 def test_fmt_numbers_and_dates(fmt):
     assert fmt.fmt_num(None) == "–"
     assert fmt.fmt_num(math.nan) == "–"
-    assert fmt.fmt_num(48.26, 1) == "48.3"
+    assert fmt.fmt_num(48.26, 1) == "48,3"  # Slovak decimal comma
+    assert fmt.fmt_num(-6.3, 1) == "−6,3"  # real minus sign (U+2212)
+    assert fmt.fmt_num(-0.04, 1) == "0,0"  # no negative zero
     assert fmt.fmt_num(148.4, 0, "bpm") == "148 bpm"
-    assert fmt.fmt_signed(-4.04) == "-4.0"
-    assert fmt.fmt_signed(2.5) == "+2.5"
+    assert fmt.fmt_signed(-4.04) == "−4,0"
+    assert fmt.fmt_signed(2.5) == "+2,5"
+    assert fmt.fmt_signed(-0.01) == "+0,0"
     assert fmt.fmt_signed(None) == "–"
     assert fmt.fmt_pct(0.125) == "12 %"
-    assert fmt.fmt_pct(0.125, 1) == "12.5 %"
+    assert fmt.fmt_pct(0.125, 1) == "12,5 %"
+    assert fmt.fmt_pct_signed(0.0123) == "+1,2 %"
+    assert fmt.fmt_pct_signed(-0.0123) == "−1,2 %"
+    assert fmt.fmt_pct_signed(None) == "–"
     assert fmt.fmt_pct(None) == "–"
     assert fmt.fmt_date(dt.date(2026, 9, 5)) == "05. 09. 2026"
     assert fmt.fmt_date(None) == "–"
@@ -95,12 +101,24 @@ def test_fmt_numbers_and_dates(fmt):
 
 
 def test_fmt_load_marks_unknown_and_low_confidence(fmt):
-    assert fmt.fmt_load(87.4, "hrtss") == "87 (hrtss)"
+    assert fmt.fmt_load(87.4, "hrtss") == "87 (hrTSS)"  # the raw method code never reaches the screen
+    assert fmt.fmt_load(87.4, "rtss") == "87 (rTSS)"
     assert fmt.fmt_load(87.4) == "87"
-    assert fmt.fmt_load(0.0, "hrtss") == "0 (hrtss)"  # a known zero is not "unknown"
+    assert fmt.fmt_load(0.0, "hrtss") == "0 (hrTSS)"  # a known zero is not "unknown"
     assert fmt.fmt_load(None) == "⚠ neznáma"
     assert fmt.fmt_load(None, "hrtss", low_confidence=True) == "⚠ neznáma"
-    assert fmt.fmt_load(87.4, "hrtss", low_confidence=True) == "⚠ 87 (hrtss)"
+    assert fmt.fmt_load(87.4, "hrtss", low_confidence=True) == "⚠ 87 (hrTSS)"
+
+
+def test_code_labels_and_decimal_comma(fmt):
+    assert fmt.threshold_source_label("manual") == "ručne"
+    assert fmt.threshold_source_label("proposal") == "návrh"
+    assert fmt.threshold_source_label("other") == "other" and fmt.threshold_source_label(None) == "–"
+    assert fmt.load_method_label("hrtss") == "hrTSS" and fmt.load_method_label("rtss") == "rTSS"
+    assert fmt.load_method_label("x") == "x" and fmt.load_method_label(None) == "–"
+    assert fmt.decimal_comma("-6.3") == "−6,3"
+    assert fmt.decimal_comma("+0.46 [95 % CI -0.21; +0.65]") == "+0,46 [95 % CI −0,21; +0,65]"
+    assert fmt.decimal_comma("4:10/km") == "4:10/km"
 
 
 def test_fmt_zone_range(fmt):

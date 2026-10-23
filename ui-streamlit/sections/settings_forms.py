@@ -9,7 +9,16 @@ import datetime as dt
 import _db
 import pandas as pd
 import streamlit as st
-from components.format import fmt_date, fmt_num, fmt_pace, fmt_pace_s, fmt_zone_range, parse_pace, sport_label
+from components.format import (
+    fmt_date,
+    fmt_num,
+    fmt_pace,
+    fmt_pace_s,
+    fmt_zone_range,
+    parse_pace,
+    sport_label,
+    threshold_source_label,
+)
 from pydantic import ValidationError
 
 from training.services import settings as settings_service
@@ -106,7 +115,7 @@ def threshold_history(cfg: SettingsDTO) -> None:
             "Platný od": fmt_date(t.valid_from),
             "LTHR (bpm)": fmt_num(t.lthr, 0),
             "Prahové tempo": fmt_pace(t.threshold_speed),
-            "Zdroj": t.source,
+            "Zdroj": threshold_source_label(t.source),
             "Platí dnes": "áno" if t.id in current_ids else "",
         }
         for t in cfg.thresholds

@@ -1,4 +1,4 @@
-"""Dashboard: this week vs the mean of the last 4 weeks, mini PMC, ACWR badge, sync health, weekly report."""
+"""Dashboard: readiness, today's workout, form tiles, week vs last 4, mini PMC, sync health, report."""
 
 import _db
 import pandas as pd
@@ -15,9 +15,10 @@ from components.format import (
 )
 from components.pmc import pmc_chart
 from components.weekly import WEEKLY_METRICS, week_compare_bars
+from sections import dashboard_today
 
 from training.config import get_settings
-from training.services import fitness, report
+from training.services import fitness, plan as plan_service, report, sleep as sleep_service
 from training.services.errors import ServiceError
 
 st.title("Dashboard")
@@ -40,20 +41,44 @@ elif dash.sync_stale:
 else:
     st.caption(f"Posledný sync: {fmt_date(dash.last_sync)}")
 
+# --- readiness and today's workout ----------------------------------------------------------------
+# get_today decides (and stores) today's plan when it does not exist yet, exactly as the Plán page does.
+readiness, readiness_note, decision, decision_note = None, None, None, None
+try:
+    with _db.session() as session:
+        readiness = sleep_service.get_readiness(session, _db.today())
+except ServiceError as exc:
+    readiness_note = str(exc)
+try:
+    with _db.session() as session:
+        decision = plan_service.get_today(session, _db.today())
+except ServiceError as exc:
+    decision_note = str(exc)
+c_ready, c_today = st.columns([1, 2.4])
+with c_ready:
+    dashboard_today.readiness_card(readiness, readiness_note)
+with c_today:
+    dashboard_today.today_card(decision, decision_note)
+
 # --- today's form ---------------------------------------------------------------------------------
 latest = dash.latest
 if latest is None:
     st.info("Zatiaľ žiadne metriky. Spusti sync v Nastaveniach.")
 else:
     c_ctl, c_atl, c_tsb, c_acwr, c_ramp = st.columns(5)
-    c_ctl.metric("CTL (kondícia)", fmt_num(latest.ctl, 1), help="Chronická záťaž, 42-dňový priemer.")
-    c_atl.metric("ATL (únava)", fmt_num(latest.atl, 1), help="Akútna záťaž, 7-dňový priemer.")
-    c_tsb.metric("TSB (sviežosť)", fmt_signed(latest.tsb), help="CTL − ATL z predošlého dňa.")
-    c_acwr.metric("ACWR", fmt_num(latest.acwr, 2), help="Pomer akútnej a chronickej záťaže.")
-    c_acwr.markdown(acwr_badge(latest.acwr_band).markdown)
-    c_ramp.metric("Nárast CTL / týždeň", fmt_signed(latest.ramp_rate))
-    if latest.ramp_warning:
-        c_ramp.markdown(":red-badge[príliš rýchly nárast]")
+    with c_ctl, st.container(border=True, key="tile_ctl"):
+        st.metric("CTL (kondícia)", fmt_num(latest.ctl, 1), help="Chronická záťaž, 42-dňový priemer.")
+    with c_atl, st.container(border=True, key="tile_atl"):
+        st.metric("ATL (únava)", fmt_num(latest.atl, 1), help="Akútna záťaž, 7-dňový priemer.")
+    with c_tsb, st.container(border=True, key="tile_tsb"):
+        st.metric("TSB (sviežosť)", fmt_signed(latest.tsb), help="CTL − ATL z predošlého dňa.")
+    with c_acwr, st.container(border=True, key="tile_acwr"):
+        st.metric("ACWR", fmt_num(latest.acwr, 2), help="Pomer akútnej a chronickej záťaže.")
+        st.markdown(acwr_badge(latest.acwr_band).markdown)
+    with c_ramp, st.container(border=True, key="tile_ramp"):
+        st.metric("Nárast CTL / týždeň", fmt_signed(latest.ramp_rate))
+        if latest.ramp_warning:
+            st.markdown(":red-badge[príliš rýchly nárast]")
     if latest.warming_up:
         st.caption("Séria je ešte v prvých 90 dňoch – CTL a ATL sa zahrievajú a nie sú spoľahlivé.")
 

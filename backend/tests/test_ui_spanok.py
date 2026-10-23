@@ -105,6 +105,16 @@ def test_findings_are_sorted_and_show_the_caveat_and_insufficient_data(seeded):
     assert any(label.startswith("Ďalšie zistenia") for label in labels)
 
 
+def test_findings_have_a_rho_axis_and_uncertain_ones_are_muted(seeded):
+    at = run_page("spanok")
+    assert any("Dni s aktivitou (dataset): Beh: " in c.value for c in at.caption)  # no raw "run:" code
+    svgs = [m.value for m in at.markdown if m.value.startswith("<svg")]
+    assert len(svgs) >= 10  # one mini axis per listed finding (top 10 + the folded ones)
+    assert all('aria-label="ρ = ' in svg and "<circle" in svg for svg in svgs)
+    muted = [m.value for m in at.markdown if m.value.startswith(":gray[**")]
+    assert muted and any(m.value == ":gray-badge[neisté]" for m in at.markdown)
+
+
 def test_range_and_sport_controls(seeded):
     at = run_page("spanok")
     at.radio(key="sleep_range").set_value("30 dní").run()

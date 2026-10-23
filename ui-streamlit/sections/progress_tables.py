@@ -13,6 +13,7 @@ from components.format import (
     fmt_km,
     fmt_num,
     fmt_pace,
+    fmt_pct_signed,
     fmt_signed,
     fmt_time_hms,
     sport_label,
@@ -39,7 +40,7 @@ def predictions_table(dto: PredictionsDTO) -> None:
     st.caption(
         f"Referencia: {fmt_km(ref.distance_m, 2)} za {fmt_time_hms(ref.time_s)} "
         f"({fmt_pace(ref.distance_m / ref.time_s)}), {fmt_date(ref.local_date)}, {source} · "
-        f"VDOT {ref.vdot:.1f}"
+        f"VDOT {fmt_num(ref.vdot, 1)}"
     )
     if dto.stale:
         st.warning("⚠ Referenčný výkon je starší ako 60 dní – predikcie môžu byť zastarané.")
@@ -65,7 +66,7 @@ def _value(p: ProposalDTO, x: float | None) -> str:
 def _change(p: ProposalDTO) -> str:
     if p.change is None:
         return DASH
-    return f"{p.change * 100:+.1f} %" if p.field == "threshold_speed" else f"{fmt_signed(p.change, 0)} bpm"
+    return fmt_pct_signed(p.change) if p.field == "threshold_speed" else f"{fmt_signed(p.change, 0)} bpm"
 
 
 def _garmin(p: ProposalDTO) -> str:

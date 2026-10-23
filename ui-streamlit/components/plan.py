@@ -10,15 +10,15 @@ from training.services.dto import PlannedWorkoutDTO, SeasonDTO, WeekPlanDTO, Wor
 
 from .badges import Badge
 from .format import fmt_pace, fmt_window
-from .theme import AQUA, BLUE, GRAY, ORANGE, RED, YELLOW, apply_base_layout, empty_figure
+from .theme import AQUA, BLUE, GRAY, ORANGE, RED, YELLOW, apply_base_layout, date_axis, empty_figure
 
 PHASE_LABELS = {"base": "Základ", "build": "Budovanie", "peak": "Vrchol", "taper": "Ladenie"}
 PHASE_COLORS = {"base": BLUE, "build": ORANGE, "peak": RED, "taper": AQUA}
-PHASE_LIGHT = {  # recovery weeks: the phase colour, lighter
-    "base": "rgba(42, 120, 214, 0.35)",
-    "build": "rgba(235, 104, 52, 0.35)",
-    "peak": "rgba(227, 73, 72, 0.35)",
-    "taper": "rgba(27, 175, 122, 0.35)",
+PHASE_LIGHT = {  # recovery weeks: the phase colour, translucent, drawn hatched with a 1 px outline
+    "base": "rgba(42, 120, 214, 0.30)",
+    "build": "rgba(226, 98, 44, 0.30)",
+    "peak": "rgba(220, 69, 68, 0.30)",
+    "taper": "rgba(23, 166, 115, 0.30)",
 }
 WEEKDAY_LABELS = {
     "mon": "Po",
@@ -29,6 +29,8 @@ WEEKDAY_LABELS = {
     "sat": "So",
     "sun": "Ne",
 }
+ROLE_SHORT = {"rest": "V", "easy": "Ľ", "long": "D", "q1": "K1", "q2": "K2"}  # role chip on the day cards
+SPORT_ICONS = {"run": ":material/directions_run:", "bike": ":material/directions_bike:"}
 ROLE_LABELS = {
     "rest": "Voľno",
     "easy": "Ľahký",
@@ -129,7 +131,7 @@ def season_chart(season: SeasonDTO) -> go.Figure:
             )
     fig.update_layout(barmode="stack")
     fig.update_yaxes(title_text="Cieľová záťaž týždňa (TSS-ekv.)")
-    return apply_base_layout(fig, height=360)
+    return date_axis(apply_base_layout(fig, height=360))
 
 
 def week_chart(week: WeekPlanDTO) -> go.Figure:
@@ -137,7 +139,7 @@ def week_chart(week: WeekPlanDTO) -> go.Figure:
     labels = [f"{WEEKDAY_LABELS.get(d.weekday, d.weekday)} {d.date.day}. {d.date.month}." for d in week.days]
     planned = [d.planned.estimated_load or 0.0 if d.planned else 0.0 for d in week.days]
     fig = go.Figure()
-    fig.add_bar(x=labels, y=planned, name="Plán (odhad)", marker_color="rgba(42, 120, 214, 0.40)")
+    fig.add_bar(x=labels, y=planned, name="Plán (odhad)", marker_color=GRAY)
     fig.add_bar(x=labels, y=[d.actual_load for d in week.days], name="Skutočnosť", marker_color=BLUE)
     fig.update_layout(barmode="group")
     fig.update_yaxes(title_text="Záťaž (TSS-ekv.)")

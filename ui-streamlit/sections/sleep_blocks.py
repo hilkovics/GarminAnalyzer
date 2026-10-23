@@ -7,7 +7,8 @@ signs are formatted here.
 import pandas as pd
 import streamlit as st
 from components.badges import readiness_badge
-from components.format import DASH, fmt_duration, fmt_num, fmt_pct, fmt_rho, fmt_signed
+from components.format import DASH, fmt_duration, fmt_num, fmt_pct, fmt_rho, fmt_signed, sport_label
+from components.rho import rho_svg
 
 from training.services.dto import CorrelationDTO, CorrelationsDTO, ReadinessComponentDTO, ReadinessDTO
 
@@ -54,20 +55,28 @@ def readiness_block(dto: ReadinessDTO) -> None:
 
 
 def _finding(f: CorrelationDTO) -> None:
-    st.markdown(f"**{f.sentence}**")
-    if f.partial_rho is not None:
-        main = f"parciálne ρ = {fmt_rho(f.partial_rho, f.partial_ci_low, f.partial_ci_high)}"
-        raw = f" · surové ρ = {fmt_rho(f.rho, f.ci_low, f.ci_high)}"
-    else:
-        main = f"ρ = {fmt_rho(f.rho, f.ci_low, f.ci_high)}"
-        raw = ""
-    st.caption(f"n = {f.n} · {main}{raw}")
+    """One finding: sentence and statistics left, the mini ρ axis right; uncertain ones are muted."""
+    with st.container(border=True, key=f"finding_{f.sport}_{f.predictor}_{f.outcome}"):
+        text, axis = st.columns([5, 2], vertical_alignment="center")
+        text.markdown(f":gray[**{f.sentence}**]" if f.uncertain else f"**{f.sentence}**")
+        if f.partial_rho is not None:
+            main = f"parciálne ρ = {fmt_rho(f.partial_rho, f.partial_ci_low, f.partial_ci_high)}"
+            raw = f" · surové ρ = {fmt_rho(f.rho, f.ci_low, f.ci_high)}"
+        else:
+            main = f"ρ = {fmt_rho(f.rho, f.ci_low, f.ci_high)}"
+            raw = ""
+        text.caption(f"n = {f.n} · {main}{raw}")
+        if f.uncertain:
+            text.markdown(":gray-badge[neisté]")
+        svg = rho_svg(f)
+        if svg:
+            axis.markdown(svg, unsafe_allow_html=True)
 
 
 def findings_block(dto: CorrelationsDTO) -> None:
     """The fixed caveat, findings sorted by |ρ| (top 10, the rest folded) and the pairs lacking data."""
     st.info(dto.caveat)
-    days = ", ".join(f"{sport}: {n}" for sport, n in dto.n_days.items())
+    days = ", ".join(f"{sport_label(sport)}: {n}" for sport, n in dto.n_days.items())
     st.caption(f"Dni s aktivitou (dataset): {days}")
     if not dto.findings:
         st.info(f"Zatiaľ žiadne zistenia – každá dvojica potrebuje aspoň {dto.min_n} dní s údajmi.")

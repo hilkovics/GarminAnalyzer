@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 
 from training.services.dto import PmcDTO
 
-from .theme import AQUA, BAND, BLUE, GRAY, ORANGE, apply_base_layout, empty_figure
+from .theme import AQUA, BAND, BLUE, GRAY, ORANGE, apply_base_layout, date_axis, empty_figure
 
 WARMING_UP_NAME = "warming_up"
 _HALF_DAY = dt.timedelta(hours=12)
@@ -83,4 +83,4 @@ def pmc_chart(pmc: PmcDTO, *, compact: bool = False) -> go.Figure:
             font={"size": 11, "color": GRAY},
         )
     fig.update_yaxes(title_text=None if compact else "TSS-ekvivalent")
-    return apply_base_layout(fig, height=260 if compact else 420)
+    return date_axis(apply_base_layout(fig, height=260 if compact else 420))

@@ -5,7 +5,7 @@ import datetime as dt
 import pytest
 from streamlit.testing.v1 import AppTest
 
-from tests.test_ui_plan import patch_plan
+from tests.test_ui_plan import patch_plan, sample_decision, sample_planned
 from tests.test_ui_progres_samples import (
     sample_curves,
     sample_efforts,
@@ -47,14 +47,50 @@ def ui(monkeypatch):
     setup_ui(monkeypatch)
 
 
-def patch_dashboard(monkeypatch, dashboard=None, *, error: Exception | None = None):
+def sample_readiness(day=TODAY, **overrides) -> ReadinessDTO:
+    values = {
+        "date": day,
+        "available": True,
+        "score": 77.4,
+        "band": "green",
+        "components": [],
+        "message": "Trénuj podľa plánu, môžeš pridať.",
+    }
+    return ReadinessDTO(**{**values, **overrides})
+
+
+def patch_dashboard(
+    monkeypatch,
+    dashboard=None,
+    *,
+    error: Exception | None = None,
+    decision=None,
+    decision_error: Exception | None = None,
+    readiness=None,
+    readiness_error: Exception | None = None,
+):
+    """Fake the services of the Dashboard page: the dashboard DTO, today's decision and the readiness."""
+
     def get_dashboard(session, *, today):
         assert today == TODAY
         if error:
             raise error
         return dashboard or sample_dashboard()
 
+    def get_today(session, today):
+        assert today == TODAY
+        if decision_error:
+            raise decision_error
+        return decision or sample_decision()
+
+    def get_readiness(session, day):
+        if readiness_error:
+            raise readiness_error
+        return readiness or sample_readiness(day)
+
     patch_service(monkeypatch, "fitness", get_dashboard=get_dashboard)
+    patch_service(monkeypatch, "plan", get_today=get_today)
+    patch_service(monkeypatch, "sleep", get_readiness=get_readiness)
 
 
 # --- Dashboard ----------------------------------------------------------------------------------------------
@@ -69,11 +105,11 @@ def test_dashboard_renders_form_week_table_and_charts(monkeypatch):
     assert "Posledný sync: 29. 09. 2026" in text
     assert not at.error  # a fresh sync raises no warning
     metrics = {m.label: m.value for m in at.metric}
-    assert metrics["CTL (kondícia)"] == "48.2"
-    assert metrics["ATL (únava)"] == "51.0"
-    assert metrics["TSB (sviežosť)"] == "-4.0"
-    assert metrics["ACWR"] == "1.10"
-    assert metrics["Nárast CTL / týždeň"] == "+2.5"
+    assert metrics["CTL (kondícia)"] == "48,2"  # Slovak decimal comma, real minus sign
+    assert metrics["ATL (únava)"] == "51,0"
+    assert metrics["TSB (sviežosť)"] == "−4,0"
+    assert metrics["ACWR"] == "1,10"
+    assert metrics["Nárast CTL / týždeň"] == "+2,5"
     assert ":green-badge[optimum]" in text
 
     table = at.dataframe[0].value
@@ -81,9 +117,10 @@ def test_dashboard_renders_form_week_table_and_charts(monkeypatch):
     run = table.iloc[0]
     assert (run["Záťaž"], run["Záťaž Ø 4 t"]) == ("220", "205")
     assert (run["Čas"], run["Čas Ø 4 t"]) == ("3:45", "3:30")
-    assert (run["Vzdialenosť"], run["Vzdialenosť Ø 4 t"]) == ("31.0 km", "28.0 km")
+    assert (run["Vzdialenosť"], run["Vzdialenosť Ø 4 t"]) == ("31,0 km", "28,0 km")
 
-    compare, mini_pmc = figures(at)
+    gauge, profile, compare, mini_pmc = figures(at)
+    assert gauge["data"][0]["type"] == "indicator" and profile["data"][0]["type"] == "bar"
     assert trace_names(compare) == ["Tento týždeň", "Ø 4 predch. týždne"]
     assert trace_names(mini_pmc) == ["Denná záťaž", "CTL", "ATL", "TSB"]
     assert len(mini_pmc["data"][1]["x"]) == 42
@@ -94,10 +131,10 @@ def test_dashboard_metric_switch_converts_units(monkeypatch):
     at = run_page("dashboard")
     at.radio(key="dashboard_metric").set_value("duration").run()
     assert not at.exception
-    compare = figures(at)[0]
+    compare = figures(at)[2]  # after the gauge and the workout profile
     assert compare["data"][0]["y"] == [3.75, 1.5]  # run and bike hours this week
     at.radio(key="dashboard_metric").set_value("distance").run()
-    assert figures(at)[0]["data"][0]["y"] == [31.0, 41.0]
+    assert figures(at)[2]["data"][0]["y"] == [31.0, 41.0]
 
 
 def test_dashboard_stale_sync_shows_red_warning(monkeypatch):
@@ -153,6 +190,59 @@ def test_dashboard_shows_service_error_message(monkeypatch):
     assert not at.metric  # nothing else rendered after st.stop()
 
 
+def test_dashboard_today_card_shows_the_workout_profile_and_readiness(monkeypatch):
+    patch_dashboard(monkeypatch)
+    at = run_page("dashboard")
+    assert not at.exception
+    text = texts(at)
+    assert "DNEŠNÝ TRÉNING" in text and "PRIPRAVENOSŤ" in text
+    assert "Prahové 5×6" in text and ":blue-badge[plánované]" in text  # name and Garmin / plan status
+    assert (
+        "Bicykel" not in text and "Beh" in text and "1:15" in text and "85" in text
+    )  # sport, duration, load
+    assert "Rozcvička 15 min Z2" in text and "5× (6 min Z4 / 2 min Z1)" in text
+    assert ":green-badge[zelená]" in text and "Trénuj podľa plánu, môžeš pridať." in text
+    gauge, profile = figures(at)[:2]
+    assert gauge["data"][0]["value"] == 77
+    # 1 warm-up + 5 × (work + recovery) = 11 bars; the 5× bracket is annotated
+    assert sum(len(t["x"]) for t in profile["data"]) == 11
+    assert [a["text"] for a in profile["layout"]["annotations"]] == ["5×"]
+
+
+def test_dashboard_today_card_rest_day_has_no_profile(monkeypatch):
+    rest = sample_decision(workout=sample_planned(sport="rest", name="Voľno", steps=[], duration_s=0))
+    patch_dashboard(monkeypatch, decision=rest)
+    at = run_page("dashboard")
+    assert not at.exception
+    assert "Dnes voľno" in texts(at) and ":gray-badge[voľno]" in texts(at)
+    assert [f["data"][0]["type"] for f in figures(at)[:1]] == ["indicator"]
+    assert len([f for f in figures(at) if f["data"] and f["data"][0]["type"] == "bar"]) == 2  # compare + PMC
+
+
+def test_dashboard_survives_missing_today_plan_and_readiness(monkeypatch):
+    """An empty database: get_today refuses (no thresholds yet) and there is no wellness – no crash."""
+    patch_dashboard(
+        monkeypatch,
+        decision_error=ServiceError("Plán nie je k dispozícii."),
+        readiness_error=ServiceError("Wellness chýba."),
+    )
+    at = run_page("dashboard")
+    assert not at.exception
+    assert not at.error  # the page-level error is reserved for the dashboard service
+    assert {i.value for i in at.info} >= {"Plán nie je k dispozícii.", "Wellness chýba."}
+    assert {m.label for m in at.metric} >= {"CTL (kondícia)"}  # the rest of the page still renders
+
+
+def test_dashboard_unavailable_readiness_is_explained(monkeypatch):
+    patch_dashboard(
+        monkeypatch, readiness=sample_readiness(available=False, score=None, band=None, message="Bez dát.")
+    )
+    at = run_page("dashboard")
+    assert not at.exception
+    assert "Bez dát." in texts(at)
+    assert figures(at)[0]["layout"]["annotations"][0]["text"] == "Pripravenosť dnes nie je k dispozícii."
+
+
 # --- Fitness ------------------------------------------------------------------------------------------------
 
 
@@ -194,10 +284,10 @@ def test_fitness_latest_point_flags(monkeypatch):
     patch_fitness(monkeypatch)
     at = run_page("fitness")
     metrics = {m.label: m.value for m in at.metric}
-    assert metrics["ACWR"] == "1.10"
-    assert metrics["Monotónnosť"] == "1.40"
+    assert metrics["ACWR"] == "1,10"
+    assert metrics["Monotónnosť"] == "1,40"
     assert metrics["Strain"] == "420"
-    assert metrics["Nárast CTL / týždeň"] == "+2.5"
+    assert metrics["Nárast CTL / týždeň"] == "+2,5"
     assert ":green-badge[optimum]" in texts(at)
     assert not at.warning  # no ramp warning, and 200 days > 90 days warming-up
 

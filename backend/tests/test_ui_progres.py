@@ -138,7 +138,7 @@ def test_predictions_table_uses_hms_and_marks_extrapolation(monkeypatch):
     patch_progress(monkeypatch)
     at = run_page("progres")
     text = texts(at)
-    assert "Referencia: 10.00 km za 0:40:00 (4:00/km), 19. 09. 2026, pretek · VDOT 51.9" in text
+    assert "Referencia: 10,00 km za 0:40:00 (4:00/km), 19. 09. 2026, pretek · VDOT 51,9" in text
     table = next(d.value for d in at.dataframe if "Riegel" in d.value.columns)
     assert list(table["Vzdialenosť"]) == ["5 km", "10 km", "Polmaratón", "Maratón"]
     assert list(table["Riegel"]) == ["0:19:10", "0:40:00", "1:27:45", "3:03:20"]
@@ -162,7 +162,7 @@ def test_proposals_table_and_the_button_to_settings(monkeypatch):
     assert list(table["Prah"]) == ["Prahové tempo", "LTHR", "LTHR"]
     assert list(table["Aktuálne"]) == ["4:46/km", "170 bpm", "165 bpm"]
     assert list(table["Odhad"]) == ["4:30/km", "174 bpm", "166 bpm"]
-    assert list(table["Zmena"]) == ["+5.7 %", "+4 bpm", "+1 bpm"]
+    assert list(table["Zmena"]) == ["+5,7 %", "+4 bpm", "+1 bpm"]
     assert list(table["Navrhnúť"]) == ["áno", "áno", "nie"]
     assert table["Garmin"].iloc[0] == "LT tempo 4:38/km · VO2max 52"
     assert table["Garmin"].iloc[1] == "LT tep 171 bpm · VO2max 52"

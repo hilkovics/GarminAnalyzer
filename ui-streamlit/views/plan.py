@@ -3,7 +3,7 @@
 import _db
 import streamlit as st
 from components.plan import season_chart
-from sections import plan_blocks
+from sections import plan_blocks, plan_week
 
 from training.services import plan as plan_service, settings as settings_service
 from training.services.errors import ServiceError
@@ -30,7 +30,7 @@ st.subheader("Dnešný tréning")
 plan_blocks.today_card(decision)
 
 st.subheader("Tento týždeň")
-plan_blocks.week_block(week)
+plan_week.week_block(week, today)
 
 st.subheader("Sezóna")
 plan_blocks.goal_summary(goal, season)

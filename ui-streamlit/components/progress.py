@@ -8,9 +8,9 @@ import plotly.graph_objects as go
 
 from training.services.dto import SeriesDTO
 
-from .format import fmt_date, fmt_pace
+from .format import fmt_date, fmt_num, fmt_pace
 from .pace_axis import pace_axis, pace_s
-from .theme import BLUE, ORANGE, RED, YELLOW, apply_base_layout, empty_figure
+from .theme import BLUE, ORANGE, RED, YELLOW, apply_base_layout, date_axis, empty_figure
 
 DECOUPLING_BANDS = ((5.0, "5 % – dobré", YELLOW), (10.0, "10 % – slabé", RED))  # METRICS §5.3
 
@@ -41,7 +41,7 @@ def _base(series: SeriesDTO, *, y_of, hover, name: str, message: str, height: in
             customdata=[hover(t.value) if t.value is not None else "–" for t in series.trend],
             hovertemplate="%{x|%d. %m. %Y}: %{customdata}<extra></extra>",
         )
-    return apply_base_layout(fig, height=height)
+    return date_axis(apply_base_layout(fig, height=height))
 
 
 def ef_chart(series: SeriesDTO) -> go.Figure:
@@ -49,7 +49,7 @@ def ef_chart(series: SeriesDTO) -> go.Figure:
     fig = _base(
         series,
         y_of=lambda v: v,
-        hover=lambda v: f"{v:.3f}",
+        hover=lambda v: fmt_num(v, 3),
         name="EF (steady-state)",
         message="Zatiaľ žiadne steady-state aktivity s EF.",
         height=340,
@@ -63,7 +63,7 @@ def decoupling_chart(series: SeriesDTO) -> go.Figure:
     fig = _base(
         series,
         y_of=lambda v: v,
-        hover=lambda v: f"{v:.1f} %",
+        hover=lambda v: fmt_num(v, 1, "%"),
         name="Decoupling",
         message="Zatiaľ žiadne steady-state aktivity s decouplingom.",
         height=320,

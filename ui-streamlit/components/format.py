@@ -1,16 +1,21 @@
 """Formatting helpers – the only place where internal units become display strings.
 
 Internal units are seconds, metres, m/s (CLAUDE.md conventions). Everything here is presentation: m/s →
-"m:ss/km", seconds → "h:mm", metres → km. `None` always renders as an en dash. No Streamlit or Plotly
+"m:ss/km", seconds → "h:mm", metres → km. `None` always renders as an en dash. Numbers follow the Slovak
+convention of the design: decimal comma ("12,3 km") and a real minus sign ("−6,3"). No Streamlit or Plotly
 imports, so the helpers are trivial to test.
 """
 
 import datetime as dt
 import math
+import re
 
 DASH = "–"
+MINUS = "−"  # U+2212, not a hyphen
 
 SPORT_LABELS = {"run": "Beh", "bike": "Bicykel", "other": "Iné", "all": "Spolu"}
+LOAD_METHOD_LABELS = {"hrtss": "hrTSS", "rtss": "rTSS", "trimp": "TRIMP"}
+THRESHOLD_SOURCE_LABELS = {"manual": "ručne", "proposal": "návrh"}
 
 # Bounds for a threshold pace typed by the user (input sanity check, not a training rule).
 _MIN_PACE_S = 120  # 2:00 /km
@@ -27,11 +32,31 @@ def sport_label(sport: str | None) -> str:
     return SPORT_LABELS.get(sport, sport)
 
 
+def load_method_label(method: str | None) -> str:
+    """Load method code → display name ("hrtss" → "hrTSS"); unknown codes pass through."""
+    return DASH if method is None else LOAD_METHOD_LABELS.get(method, method)
+
+
+def threshold_source_label(source: str | None) -> str:
+    """Threshold source code → Slovak label ("manual" → "ručne", "proposal" → "návrh")."""
+    return DASH if source is None else THRESHOLD_SOURCE_LABELS.get(source, source)
+
+
+def decimal_comma(text: str) -> str:
+    """Python number text → Slovak: "." becomes "," and a leading/inner "-" before a digit becomes "−"."""
+    return re.sub(r"(?<![\w.])-(?=\d)", MINUS, text).replace(".", ",")
+
+
+def _no_negative_zero(x: float, digits: int) -> float:
+    """-0.04 at one decimal would print as "−0,0"; show it as 0."""
+    return 0.0 if round(x, digits) == 0 else x
+
+
 def fmt_num(x: float | None, digits: int = 0, unit: str = "") -> str:
     """Plain number with a fixed number of decimals and an optional unit; None → "–"."""
     if not _valid(x):
         return DASH
-    text = f"{x:.{digits}f}"
+    text = decimal_comma(f"{_no_negative_zero(x, digits):.{digits}f}")
     return f"{text} {unit}".strip() if unit else text
 
 
@@ -39,14 +64,21 @@ def fmt_signed(x: float | None, digits: int = 1) -> str:
     """Number with an explicit sign (TSB, ramp rate); None → "–"."""
     if not _valid(x):
         return DASH
-    return f"{x:+.{digits}f}"
+    return decimal_comma(f"{_no_negative_zero(x, digits):+.{digits}f}")
+
+
+def fmt_pct_signed(share: float | None, digits: int = 1) -> str:
+    """Fraction (0–1) → signed percent string "+1,2 %"; None → "–"."""
+    if not _valid(share):
+        return DASH
+    return decimal_comma(f"{share * 100:+.{digits}f} %")
 
 
 def fmt_pct(share: float | None, digits: int = 0) -> str:
     """Fraction (0–1) → percent string."""
     if not _valid(share):
         return DASH
-    return f"{share * 100:.{digits}f} %"
+    return decimal_comma(f"{share * 100:.{digits}f} %")
 
 
 def fmt_pace_s(seconds_per_km: float) -> str:
@@ -63,10 +95,10 @@ def fmt_pace(speed_ms: float | None) -> str:
 
 
 def fmt_speed_kmh(speed_ms: float | None) -> str:
-    """m/s → "x.x km/h"; None or negative → "–"."""
+    """m/s → "x,x km/h"; None or negative → "–"."""
     if not _valid(speed_ms) or speed_ms < 0:
         return DASH
-    return f"{speed_ms * 3.6:.1f} km/h"
+    return decimal_comma(f"{speed_ms * 3.6:.1f} km/h")
 
 
 def fmt_speed(speed_ms: float | None, sport: str | None) -> str:
@@ -94,17 +126,17 @@ def fmt_duration_hms(seconds: float | None) -> str:
 
 
 def fmt_km(metres: float | None, digits: int = 1) -> str:
-    """Metres → "12.3 km"; None or negative → "–"."""
+    """Metres → "12,3 km"; None or negative → "–"."""
     if not _valid(metres) or metres < 0:
         return DASH
-    return f"{metres / 1000.0:.{digits}f} km"
+    return decimal_comma(f"{metres / 1000.0:.{digits}f} km")
 
 
 def fmt_hours(seconds: float | None, digits: int = 1) -> str:
-    """Seconds → decimal hours "3.5 h"."""
+    """Seconds → decimal hours "3,5 h"."""
     if not _valid(seconds) or seconds < 0:
         return DASH
-    return f"{seconds / 3600.0:.{digits}f} h"
+    return decimal_comma(f"{seconds / 3600.0:.{digits}f} h")
 
 
 def fmt_date(d: dt.date | None) -> str:
@@ -115,12 +147,12 @@ def fmt_date(d: dt.date | None) -> str:
 
 
 def fmt_load(load: float | None, method: str | None = None, *, low_confidence: bool = False) -> str:
-    """Training load "87 (hrtss)"; a null load is "neznáma" (METRICS §2.1: unknown, not zero).
+    """Training load "87 (hrTSS)"; a null load is "neznáma" (METRICS §2.1: unknown, not zero).
 
     Unknown or low-confidence loads carry the warning marker "⚠".
     """
     unknown = not _valid(load)
-    text = "neznáma" if unknown else f"{load:.0f}" + (f" ({method})" if method else "")
+    text = "neznáma" if unknown else f"{load:.0f}" + (f" ({load_method_label(method)})" if method else "")
     return f"⚠ {text}" if unknown or low_confidence else text
 
 
@@ -176,13 +208,13 @@ def fmt_time_hms(seconds: float | None) -> str:
 
 
 def fmt_rho(rho: float | None, low: float | None = None, high: float | None = None, digits: int = 2) -> str:
-    """Correlation "+0.35" or with its interval "+0.35 [95 % CI −0.10; +0.55]"; None → "–"."""
+    """Correlation "+0,35" or with its interval "+0,35 [95 % CI −0,10; +0,55]"; None → "–"."""
     if not _valid(rho):
         return DASH
     text = f"{rho:+.{digits}f}"
     if _valid(low) and _valid(high):
         text += f" [95 % CI {low:+.{digits}f}; {high:+.{digits}f}]"
-    return text
+    return decimal_comma(text)
 
 
 def parse_time_hms(text: str) -> float | None:

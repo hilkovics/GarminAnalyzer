@@ -104,6 +104,7 @@ def test_settings_page_shows_history_zones_and_athlete(monkeypatch):
     assert list(history["LTHR (bpm)"]) == ["165", "170", "160"]
     assert list(history["Prahové tempo"]) == ["4:23/km", "4:10/km", "–"]
     assert list(history["Platí dnes"]) == ["", "áno", "áno"]
+    assert list(history["Zdroj"]) == ["ručne", "ručne", "ručne"]  # not the raw "manual" code
 
     assert list(hr_run["Rozsah"]) == ["< 130 bpm", "130–150 bpm", "150–162 bpm", "162–175 bpm", "> 175 bpm"]
     assert list(hr_bike["Zóna"]) == ["Z1", "Z2", "Z3", "Z4", "Z5"]
@@ -285,7 +286,7 @@ def test_diagnostics_section(monkeypatch):
         "6",
     )
     assert metrics["Nízka spoľahlivosť"] == "12 %"
-    assert metrics["Pearson r"] == "0.87"
+    assert metrics["Pearson r"] == "0,87"
     text = texts(at)
     assert ":green-badge[dobrá zhoda] · n = 300 aktivít" in text
     assert any("900000123" in w.value for w in at.warning)

@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 from training.services.dto import WeeklyDTO
 
 from .format import sport_label
-from .theme import GRAY, SPORT_COLORS, apply_base_layout, empty_figure
+from .theme import GRAY, SPORT_COLORS, apply_base_layout, date_axis, empty_figure
 
 # metric key → (label, unit, DTO attribute, multiplier for display)
 WEEKLY_METRICS: dict[str, tuple[str, str, str, float]] = {
@@ -54,7 +54,7 @@ def weekly_bars(weeks: list[WeeklyDTO], metric: str = "load") -> go.Figure:
         )
     fig.update_layout(barmode="stack")
     fig.update_yaxes(title_text=f"{label} ({unit})")
-    return apply_base_layout(fig, height=360)
+    return date_axis(apply_base_layout(fig, height=360))
 
 
 def week_compare_bars(

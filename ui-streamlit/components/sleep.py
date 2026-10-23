@@ -12,17 +12,29 @@ import plotly.graph_objects as go
 from training.services.dto import ReadinessDTO, WellnessDayDTO, WellnessDTO
 
 from .format import fmt_duration
-from .theme import AQUA, BAND, BLUE, GRAY, ORANGE, RED, YELLOW, apply_base_layout, empty_figure
+from .theme import (
+    AQUA,
+    BAND,
+    BLUE,
+    GRAY,
+    NUMBER_FONT,
+    ORANGE,
+    RED,
+    YELLOW,
+    apply_base_layout,
+    date_axis,
+    empty_figure,
+)
 
-BAND_COLORS = {"green": AQUA, "yellow": YELLOW, "red": RED}
+BAND_COLORS = {"green": AQUA, "yellow": YELLOW, "red": RED}  # the same yellow as the readiness badge
 BAND_TINTS = {
-    "red": "rgba(227, 73, 72, 0.22)",
-    "yellow": "rgba(237, 161, 0, 0.22)",
-    "green": "rgba(27, 175, 122, 0.22)",
+    "red": "rgba(220, 69, 68, 0.28)",
+    "yellow": "rgba(217, 154, 0, 0.28)",
+    "green": "rgba(23, 166, 115, 0.28)",
 }
 STAGES = (  # (WellnessDayDTO field, label, colour): deep darkest, awake in the warning colour
-    ("deep_s", "Hlboký", "#104281"),
-    ("light_s", "Ľahký", "#6da7ec"),
+    ("deep_s", "Hlboký", "#2f6cc0"),
+    ("light_s", "Ľahký", "#79acee"),
     ("rem_s", "REM", AQUA),
     ("awake_s", "Bdelý", ORANGE),
 )
@@ -38,10 +50,11 @@ def readiness_gauge(dto: ReadinessDTO) -> go.Figure:
         go.Indicator(
             mode="gauge+number",
             value=math.floor(dto.score),  # METRICS §8: shown truncated, so the number matches its band
-            number={"font": {"size": 54}},
+            number={"font": {"size": 54, "family": NUMBER_FONT}},
             gauge={
-                "axis": {"range": [0, 100]},
+                "axis": {"range": [0, 100], "tickvals": [0, 45, 70, 100], "tickfont": {"size": 12}},
                 "bar": {"color": color, "thickness": 0.35},
+                "borderwidth": 0,
                 "steps": [
                     {"range": [0, 45], "color": BAND_TINTS["red"]},
                     {"range": [45, 70], "color": BAND_TINTS["yellow"]},
@@ -50,7 +63,7 @@ def readiness_gauge(dto: ReadinessDTO) -> go.Figure:
             },
         )
     )
-    fig.update_layout(height=260, margin={"l": 24, "r": 24, "t": 24, "b": 8}, paper_bgcolor="rgba(0,0,0,0)")
+    fig.update_layout(height=260, margin={"l": 40, "r": 44, "t": 24, "b": 8}, paper_bgcolor="rgba(0,0,0,0)")
     return fig
 
 
@@ -79,7 +92,7 @@ def sleep_stages_chart(dto: WellnessDTO) -> go.Figure:
         )
     fig.update_layout(barmode="stack")
     fig.update_yaxes(title_text="Spánok (h)")
-    return apply_base_layout(fig, height=340)
+    return date_axis(apply_base_layout(fig, height=340))
 
 
 def _baseline_chart(
@@ -120,7 +133,7 @@ def _baseline_chart(
         hovertemplate="%{customdata}",
     )
     fig.update_yaxes(title_text=unit)
-    return apply_base_layout(fig, height=height)
+    return date_axis(apply_base_layout(fig, height=height))
 
 
 def sleep_score_chart(dto: WellnessDTO) -> go.Figure:
@@ -160,4 +173,4 @@ def sleep_debt_chart(dto: WellnessDTO) -> go.Figure:
     )
     fig.add_hline(y=0, line_width=1, line_dash="dot", line_color=GRAY)
     fig.update_yaxes(title_text="Spánkový dlh (h)")
-    return apply_base_layout(fig, height=280, legend=False)
+    return date_axis(apply_base_layout(fig, height=280, legend=False))

@@ -4,6 +4,24 @@ Last updated: 2026-10-23 (Windows setup session)
 
 ## Done
 
+### Kokpit design in the Streamlit UI (2026-10-23)
+- **Design:** the Claude Design export is in `docs/design/` (with screenshots and its known sample-data mistakes).
+  Streamlit screenshots after the change are in `docs/design/streamlit/`.
+- **Theme:** `.streamlit/config.toml` has dark and light variants. The palette in `components/theme.py` follows
+  the design tokens. Plotly charts use one fixed set, readable on both themes.
+- **Numbers:** Slovak format everywhere in the UI – decimal comma, a real minus sign, `d. m.` date ticks.
+- **Labels:** raw codes replaced (ručne / návrh, hrTSS / rTSS, Beh / Bicykel).
+- **New elements:**
+  - Dashboard: a readiness gauge, a "Dnešný tréning" card and metric tiles with colour bars.
+  - A workout profile chart (Dashboard and Plán).
+  - Plán: the week as 7 day cards.
+  - Spánok: a mini ρ axis on each finding, with uncertain findings muted.
+- **Not matched:**
+  - Cards are outlined, not filled, because Streamlit CSS cannot know the active theme.
+  - Barlow fonts are configured via Google Fonts URLs but could not be verified in the sandbox.
+  - The design's sidebar brand block, sync box and theme toggle are not reproduced.
+  - Text built by services (plan reasons, the Telegram message) still uses a decimal point, e.g. "IF 0.94".
+
 ### Windows compatibility (2026-10-23)
 - Text files are read and written as UTF-8 explicitly (`export-openapi`, `scripts/record_fixtures.py`, `.env`,
   tests); the Windows default code page (cp1250) broke 4 tests and would break non-ASCII fixtures. Generated

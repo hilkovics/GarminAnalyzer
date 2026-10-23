@@ -107,14 +107,14 @@ def test_list_table_formats_units_and_marks_unknown_or_low_confidence_load(monke
     assert first["Dátum"] == "19. 09. 2026"
     assert (first["Šport"], first["Názov"], first["Trvanie"]) == ("Beh", "Ranný beh 1", "1:02")
     assert (first["Vzdialenosť"], first["Tempo / rýchlosť"], first["Záťaž"]) == (
-        "12.35 km",
+        "12,35 km",
         "5:00/km",
-        "87 (hrtss)",
+        "87 (hrTSS)",
     )
     assert (bike["Šport"], bike["Tempo / rýchlosť"], bike["Záťaž"]) == (
         "Bicykel",
-        "28.8 km/h",
-        "⚠ 87 (hrtss)",
+        "28,8 km/h",
+        "⚠ 87 (hrTSS)",
     )
     assert unknown["Záťaž"] == "⚠ neznáma"
     assert not at.get("plotly_chart")  # no detail until an activity is chosen
@@ -192,14 +192,14 @@ def test_detail_via_query_param_renders_every_section(monkeypatch):
     assert "Ranný beh 1 · 19. 09. 2026" in text
     metrics = {m.label: m.value for m in at.metric}
     assert metrics["Trvanie"] == "1:02:05"
-    assert metrics["Vzdialenosť"] == "12.35 km"
+    assert metrics["Vzdialenosť"] == "12,35 km"
     assert metrics["Tempo"] == "5:00/km"
     assert metrics["Priem. tep"] == "148 bpm"
     assert metrics["Prevýšenie"] == "85 m"
     # load breakdown hrTSS / rTSS / TRIMP
     assert (metrics["hrTSS"], metrics["rTSS"], metrics["TRIMP (norm.)"]) == ("87", "82", "90")
-    assert (metrics["IF (tep)"], metrics["IF (tempo)"]) == ("0.86", "0.84")
-    assert "Primárna záťaž: 87 (hrtss)" in text
+    assert (metrics["IF (tep)"], metrics["IF (tempo)"]) == ("0,86", "0,84")
+    assert "Primárna záťaž: 87 (hrTSS)" in text
     assert "Garmin training load: 120" in text
 
     charts = figures(at)
