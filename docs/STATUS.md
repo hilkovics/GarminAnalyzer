@@ -10,6 +10,8 @@ Last updated: 2026-10-23 (Windows setup session)
   docs and fixtures are written with LF line endings on every OS.
 - SQLite URLs use `as_posix()` (`Settings.db_url`, `db/session.py`), so they read `sqlite:///C:/…` on Windows.
 - Full suite on Windows 11: 1787 passed, 5 skipped (no real Garmin fixtures yet).
+- `garminconnect` 0.3.17 → 0.3.19: the first `training login` was rejected with 429 / Cloudflare 403 on every
+  login strategy; retry after a few hours with the new version (or from another network).
 
 ### Phase 7 – push to Garmin, morning message, AI report (code complete; needs a real-account check)
 - **Garmin push** (METRICS §10.8, clarifications proposed):
