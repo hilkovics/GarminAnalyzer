@@ -234,8 +234,8 @@ def test_committed_docs_are_current():
     """Regenerate with `uv run training export-openapi` after changing a route or a DTO."""
     spec = build_spec()
     docs = PROJECT_ROOT / "docs"
-    assert (docs / "openapi.json").read_text() == render_openapi_json(spec)
-    assert (docs / "API.md").read_text() == render_api_md(spec)
+    assert (docs / "openapi.json").read_text(encoding="utf-8") == render_openapi_json(spec)
+    assert (docs / "API.md").read_text(encoding="utf-8") == render_api_md(spec)
 
 
 def test_api_md_lists_endpoints_and_fields():
@@ -250,11 +250,11 @@ def test_api_md_lists_endpoints_and_fields():
 def test_export_openapi_command_writes_both_files(tmp_path):
     result = CliRunner().invoke(cli.app, ["export-openapi", "--out-dir", str(tmp_path / "out")])
     assert result.exit_code == 0, result.output
-    spec = json.loads((tmp_path / "out" / "openapi.json").read_text())
+    spec = json.loads((tmp_path / "out" / "openapi.json").read_text(encoding="utf-8"))
     assert spec["info"]["title"] == "Training analytics" and len(spec["paths"]) == len(
         {p for _, p in EXPECTED_ROUTES}
     )
-    assert (tmp_path / "out" / "API.md").read_text().startswith("# API")
+    assert (tmp_path / "out" / "API.md").read_text(encoding="utf-8").startswith("# API")
 
 
 def test_api_command_is_registered_with_host_and_port_options():

@@ -95,13 +95,13 @@ def test_record_writes_anonymized_files_and_manifest(tmp_path):
     assert {e["method"] for e in manifest["errors"]} == {"get_stress_data"}
 
     fake_lat, fake_lon = rotate_point(ROT, REAL_LAT, REAL_LON)
-    details = json.loads((tmp_path / "activity_01_running_details.json").read_text())
+    details = json.loads((tmp_path / "activity_01_running_details.json").read_text(encoding="utf-8"))
     assert details["activityDetailMetrics"][0]["metrics"] == [
         pytest.approx(fake_lat),
         pytest.approx(fake_lon),
     ]
     assert set(details["geoPolylineDTO"].values()) == {None}  # real-frame bounding box dropped
-    listing = json.loads((tmp_path / "activities_list.json").read_text())
+    listing = json.loads((tmp_path / "activities_list.json").read_text(encoding="utf-8"))
     assert listing[0]["activityName"] == "anonymized"
     assert (listing[0]["startLatitude"], listing[0]["startLongitude"]) == (
         pytest.approx(fake_lat),
@@ -110,11 +110,11 @@ def test_record_writes_anonymized_files_and_manifest(tmp_path):
     # fake activity ids are consistent between the list and the per-activity files
     assert details["activityId"] == listing[0]["activityId"] != 111111111
 
-    everything = "".join(p.read_text() for p in tmp_path.glob("*.json"))
+    everything = "".join(p.read_text(encoding="utf-8") for p in tmp_path.glob("*.json"))
     for secret in ("Real Name", "98765432", "111111111", f"{REAL_LAT}", f"{REAL_LON}"):
         assert secret not in everything
     assert client.calls.count("get_sleep_data") == 2
-    assert json.loads((tmp_path / "manifest.json").read_text())["files"] == manifest["files"]
+    assert json.loads((tmp_path / "manifest.json").read_text(encoding="utf-8"))["files"] == manifest["files"]
 
 
 def test_leak_guard_aborts_before_writing(tmp_path):
@@ -134,8 +134,8 @@ def test_leak_guard_catches_real_name_under_unknown_key(tmp_path):
 
 
 def test_record_clean_removes_only_fixture_files(tmp_path):
-    (tmp_path / "activity_99_old_summary.json").write_text("{}")
-    (tmp_path / "keep_me.json").write_text("{}")
+    (tmp_path / "activity_99_old_summary.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "keep_me.json").write_text("{}", encoding="utf-8")
     record(FakeClient(), tmp_path, today=date(2026, 9, 29), days=1, rotation=ROT)
     assert not (tmp_path / "activity_99_old_summary.json").exists()
     assert (tmp_path / "keep_me.json").exists()
@@ -143,7 +143,7 @@ def test_record_clean_removes_only_fixture_files(tmp_path):
 
 def test_default_rotation_is_random_and_moves_real_points_far_away(tmp_path):
     record(FakeClient(), tmp_path, today=date(2026, 9, 29), days=1)
-    listing = json.loads((tmp_path / "activities_list.json").read_text())
+    listing = json.loads((tmp_path / "activities_list.json").read_text(encoding="utf-8"))
     fake = (listing[0]["startLatitude"], listing[0]["startLongitude"])
     from training.garmin.anonymize import angular_distance_deg
 

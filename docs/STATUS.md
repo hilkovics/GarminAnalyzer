@@ -1,8 +1,15 @@
 # STATUS
 
-Last updated: 2026-09-29 (phase 7 session)
+Last updated: 2026-10-23 (Windows setup session)
 
 ## Done
+
+### Windows compatibility (2026-10-23)
+- Text files are read and written as UTF-8 explicitly (`export-openapi`, `scripts/record_fixtures.py`, `.env`,
+  tests); the Windows default code page (cp1250) broke 4 tests and would break non-ASCII fixtures. Generated
+  docs and fixtures are written with LF line endings on every OS.
+- SQLite URLs use `as_posix()` (`Settings.db_url`, `db/session.py`), so they read `sqlite:///C:/…` on Windows.
+- Full suite on Windows 11: 1787 passed, 5 skipped (no real Garmin fixtures yet).
 
 ### Phase 7 – push to Garmin, morning message, AI report (code complete; needs a real-account check)
 - **Garmin push** (METRICS §10.8, clarifications proposed):
@@ -414,6 +421,9 @@ Last updated: 2026-09-29 (phase 7 session)
 12. **Phase 8** – automation: `training morning` (sync → plan → push → telegram), cron/Docker, logs.
 
 ## Known issues / open questions
+- Plain `uv sync` (without `--extra ai`) makes `uv run pytest` stop at collection: `test_report.py` imports
+  `anthropic` at module level. Use `uv sync --extra ai`, or have the test skip via `pytest.importorskip`.
+- A `%` in the DB path breaks Alembic (`set_main_option` interpolation); escape it as `%%` if it ever matters.
 - Phase 7 (unverified Garmin keys – check on the first real push):
   - The schedule response's id key (`workoutScheduleId` is assumed).
   - The calendar item keys `itemType` / `date` / `workoutId` / `id`, used to recover a lost schedule

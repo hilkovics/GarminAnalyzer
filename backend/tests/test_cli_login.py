@@ -18,7 +18,7 @@ class FakeTokenClient:
     def dump(self, path: str) -> None:
         file = garmin_client.token_file(Path(path))
         file.parent.mkdir(parents=True, exist_ok=True)
-        file.write_text(json.dumps({"di_token": "t"}))
+        file.write_text(json.dumps({"di_token": "t"}), encoding="utf-8")
 
 
 class FakeGarmin:
@@ -68,7 +68,7 @@ def test_login_stores_tokens_and_never_echoes_password(env):
     assert SECRET not in result.output
     token = env / "garmin_tokens.json"
     assert token.exists()
-    assert SECRET not in token.read_text()
+    assert SECRET not in token.read_text(encoding="utf-8")
 
 
 def test_login_skips_credentials_when_tokens_valid(env):
@@ -100,11 +100,11 @@ def test_whoami_prints_name(env):
 
 def test_force_login_failure_keeps_previous_tokens(env):
     runner.invoke(cli.app, ["login"], input=f"me@example.com\n{SECRET}\n123456\n")
-    before = (env / "garmin_tokens.json").read_text()
+    before = (env / "garmin_tokens.json").read_text(encoding="utf-8")
     FakeGarmin.fail_with = garmin_client.GarminConnectAuthenticationError("bad credentials")
     result = runner.invoke(cli.app, ["login", "--force"], input=f"me@example.com\n{SECRET}\n")
     assert result.exit_code == 1
-    assert (env / "garmin_tokens.json").read_text() == before
+    assert (env / "garmin_tokens.json").read_text(encoding="utf-8") == before
     assert not (env / "garmin_tokens.json.bak").exists()
 
 

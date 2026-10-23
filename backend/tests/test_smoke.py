@@ -16,7 +16,7 @@ def test_every_core_module_imports_without_ui_dependencies():
         module = importlib.import_module(mod.name)
         imports = [
             line
-            for line in Path(module.__file__).read_text().splitlines()
+            for line in Path(module.__file__).read_text(encoding="utf-8").splitlines()
             if re.match(r"\s*(import|from)\s", line)
         ]
         assert not any(re.search(r"\bstreamlit\b", line) for line in imports), mod.name

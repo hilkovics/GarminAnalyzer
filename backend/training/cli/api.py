@@ -30,6 +30,6 @@ def export_openapi(
 
     spec = build_spec()
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "openapi.json").write_text(render_openapi_json(spec))
-    (out_dir / "API.md").write_text(render_api_md(spec))
+    (out_dir / "openapi.json").write_text(render_openapi_json(spec), encoding="utf-8", newline="\n")
+    (out_dir / "API.md").write_text(render_api_md(spec), encoding="utf-8", newline="\n")
     console.print(f"Wrote {out_dir / 'openapi.json'} and {out_dir / 'API.md'} ({len(spec['paths'])} paths)")

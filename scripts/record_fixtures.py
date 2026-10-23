@@ -116,7 +116,9 @@ class Recorder:
         leaks = find_leaks(clean, strings=self.sensitive, points=self.real_points)
         if leaks:
             raise LeakError(f"{filename}: {'; '.join(leaks)} after anonymization – not written")
-        (self.out_dir / filename).write_text(json.dumps(clean, indent=1, ensure_ascii=False) + "\n")
+        (self.out_dir / filename).write_text(
+            json.dumps(clean, indent=1, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n"
+        )
         self.files.append(filename)
 
 
@@ -199,7 +201,9 @@ def record(
         "files": sorted(rec.files),
         "errors": rec.errors,
     }
-    (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
+    (out_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=1) + "\n", encoding="utf-8", newline="\n"
+    )
     return manifest
 
 
