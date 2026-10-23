@@ -3,7 +3,6 @@
 import datetime as dt
 from types import SimpleNamespace
 
-import anthropic
 import httpx2 as httpx
 import pytest
 from sqlmodel import Session
@@ -17,6 +16,9 @@ from training.services.errors import InvalidInputError, ServiceError
 
 from .seeding import TODAY, make_client, seeded_db
 from .wellness_seeding import wellness_db
+
+# the optional extra `ai`: without `uv sync --extra ai` this module is skipped, not a collection error
+anthropic = pytest.importorskip("anthropic")
 
 KEY = "sk-ant-SECRET-KEY-123"
 
