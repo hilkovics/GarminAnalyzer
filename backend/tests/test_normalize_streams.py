@@ -23,7 +23,7 @@ T0_MS = 1_789_880_400_000  # 2026-09-20T05:00:00Z
 
 
 def load(name: str) -> dict[str, Any]:
-    return json.loads((SYNTHETIC / name).read_text())
+    return json.loads((SYNTHETIC / name).read_text(encoding="utf-8"))
 
 
 def build_details(samples: list[dict[str, float | None]], keys: list[str] | None = None) -> dict[str, Any]:

@@ -176,8 +176,8 @@ def test_report_is_written_and_read_back(session, tmp_path):
     created = svc.create_weekly_report(session, TODAY, cfg, client_factory=factory(client))
     path = cfg.reports_dir / "2026-W38.md"
     assert created.week == "2026-W38" and path.exists()
-    assert KEY not in path.read_text()
-    assert path.read_text().startswith("---\nweek: 2026-W38\n")
+    assert KEY not in path.read_text(encoding="utf-8")
+    assert path.read_text(encoding="utf-8").startswith("---\nweek: 2026-W38\n")
     assert svc.latest_report(cfg) == created
     assert created.model == "claude-opus-5-5" and "Dobre." in created.markdown
 
@@ -205,7 +205,7 @@ def test_llm_failure_is_a_service_error_and_stores_nothing(session, tmp_path):
 def test_malformed_files_are_skipped(tmp_path):
     cfg = settings(tmp_path)
     cfg.reports_dir.mkdir()
-    (cfg.reports_dir / "2026-W40.md").write_text("no header")
+    (cfg.reports_dir / "2026-W40.md").write_text("no header", encoding="utf-8")
     assert svc.latest_report(cfg) is None
 
 

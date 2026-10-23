@@ -134,3 +134,6 @@
   uses today-6..today and "Tento/Budúci týždeň" = week of today / today+7 (Monday run -> upcoming week).
 - A test that calls the new helper itself (log_redaction.install()) does not prove the wiring (cli/_app.py);
   it passed on the base commit with the module copied in.
+
+## Windows portability
+- [Windows portability checklist](windows_portability.md) - encoding=, .env encoding, alembic %, CRLF artifacts, venv python path

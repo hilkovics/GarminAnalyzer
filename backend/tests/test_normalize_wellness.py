@@ -42,7 +42,7 @@ EXPECTED = {
 
 
 def load(name: str) -> Any:
-    data = json.loads((SYNTHETIC / name).read_text())
+    data = json.loads((SYNTHETIC / name).read_text(encoding="utf-8"))
     data.pop("_synthetic", None)
     return data
 

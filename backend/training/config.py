@@ -15,7 +15,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="TRAINING_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="TRAINING_", env_file=".env", env_file_encoding="utf-8", extra="ignore"
+    )
 
     db_path: Path = Field(default=PROJECT_ROOT / "data" / "training.db")
     garmin_tokens: Path = Field(
@@ -41,7 +43,7 @@ class Settings(BaseSettings):
 
     @property
     def db_url(self) -> str:
-        return f"sqlite:///{self.db_path.expanduser().resolve()}"
+        return f"sqlite:///{self.db_path.expanduser().resolve().as_posix()}"
 
 
 @lru_cache

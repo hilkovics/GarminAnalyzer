@@ -32,7 +32,7 @@ _NO_FIXTURES = "no real Garmin fixtures – run scripts/record_fixtures.py local
 
 
 def _load(path: Path) -> Any:
-    data = json.loads(path.read_text())
+    data = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(data, dict) and data.get("_synthetic") is True and path.parent == FIXTURES:
         pytest.skip(f"{path.name} is synthetic")
     return data
@@ -226,7 +226,7 @@ def test_real_wellness_has_data() -> None:
 
 
 def _synthetic(name: str) -> Any:
-    data = json.loads((SYNTHETIC / name).read_text())
+    data = json.loads((SYNTHETIC / name).read_text(encoding="utf-8"))
     data.pop("_synthetic", None)
     return data
 

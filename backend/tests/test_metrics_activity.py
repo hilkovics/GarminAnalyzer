@@ -302,7 +302,7 @@ def test_invalid_sport_rejected():
 
 
 def test_normalized_fixture_feeds_activity_metrics():
-    details = json.loads((FIXTURES / "activity_run_details.json").read_text())
+    details = json.loads((FIXTURES / "activity_run_details.json").read_text(encoding="utf-8"))
     streams = normalize_streams(details)
     m = run(streams, threshold=ThresholdParams(lthr=150.0, threshold_speed=3.0))
     # §0.2: t = 0 plus 141 s of timer time (sumDuration ends at 141) are running; t = 111..129 are paused.

@@ -25,7 +25,7 @@ def _sqlite_pragmas(dbapi_conn, _record) -> None:  # type: ignore[no-untyped-def
 def make_engine(db_path: Path) -> Engine:
     db_path = db_path.expanduser()
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(f"sqlite:///{db_path.resolve()}")
+    engine = create_engine(f"sqlite:///{db_path.resolve().as_posix()}")
     event.listen(engine, "connect", _sqlite_pragmas)
     return engine
 
@@ -34,7 +34,7 @@ def migrate(db_path: Path) -> None:
     """Bring the database at `db_path` to Alembic head (creates it if missing)."""
     cfg = Config(str(ALEMBIC_INI))
     cfg.attributes["configure_logger"] = False
-    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path.expanduser().resolve()}")
+    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path.expanduser().resolve().as_posix()}")
     db_path.expanduser().parent.mkdir(parents=True, exist_ok=True)
     command.upgrade(cfg, "head")
 
