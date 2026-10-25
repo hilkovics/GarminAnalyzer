@@ -16,6 +16,11 @@ Last updated: 2026-10-25 (phase 8 session)
 - **UI / API:** "dochádzka" tag in the activity list and detail, a radio "automaticky / dochádzka / tréning"
   on the activity detail, `PUT /api/activities/{id}/commute` (`CommuteIn`), `ActivitySummaryDTO.is_commute`.
 - **After pulling:** `uv run training recompute` drops the commutes' best efforts and EF values.
+- **Review fixes:** reclassifying a matched ride as a commute re-opens or re-matches its workout
+  (`planning._unmatch_commutes`, also on every match pass); explicit curve months are written even without
+  runs; `set_commute` rolls back on a recompute error (ServiceError); Plán week card / chart show the commute
+  load; `SeasonWeekDTO` / `WeekPlanDTO` carry `commute_load`; the AI report marks commutes; indoor rides are
+  never commutes by the rule (METRICS §2.6, decided autonomously and reported to the user).
 - Test scenario: the weekly 20-min seeded ride is marked as training (`commute=False`) so the older tests keep
   their meaning; `test_commute.py` covers the rule, pipeline, coach and service.
 
@@ -67,7 +72,7 @@ Last updated: 2026-10-25 (phase 8 session)
   missing because no run reached `if_pace` 0.95 against 5:33 – the new message will confirm.
 - Open: the run threshold-pace proposal (6:40/km, best 30-min GAP of 90 days) is far slower than Garmin's 5:33;
   the user keeps 5:33 (hrTSS and rTSS agree).
-- Tests: 1923 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
+- Tests: 1929 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
 
 ### Phase 8 – automation and operations (code complete; Windows task and Docker image not run yet)
 - **`training morning`** (`training/morning.py`, `cli/morning.py`): sync (+ metrics + nightly plan) → plan →

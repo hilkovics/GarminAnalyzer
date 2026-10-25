@@ -248,6 +248,7 @@ def get_season(session: Session, today: dt.date) -> SeasonDTO:
             target_load=w.target_load,
             run_target=w.run_target,
             bike_target=w.bike_target,
+            commute_load=w.commute_load,
             is_current=w.monday == this_monday,
             is_race_week=w.monday == race_monday,
         )
@@ -312,6 +313,7 @@ def get_week(session: Session, day: dt.date, *, today: dt.date) -> WeekPlanDTO:
         target_load=target.target_load,
         run_target=target.run_target,
         bike_target=target.bike_target,
+        commute_load=target.commute_load,
         done_load=done,
         remaining_load=max(0.0, target.target_load - done),
         days=days,

@@ -141,6 +141,10 @@ def week_chart(week: WeekPlanDTO) -> go.Figure:
     fig = go.Figure()
     fig.add_bar(x=labels, y=planned, name="Plán (odhad)", marker_color=GRAY)
     fig.add_bar(x=labels, y=[d.actual_load for d in week.days], name="Skutočnosť", marker_color=BLUE)
+    if any(d.commute_load for d in week.days):  # §2.6: fatigue, not training
+        fig.add_bar(
+            x=labels, y=[d.commute_load for d in week.days], name="Dochádzka", marker_color=GRAY, opacity=0.45
+        )
     fig.update_layout(barmode="group")
     fig.update_yaxes(title_text="Záťaž (TSS-ekv.)")
     return apply_base_layout(fig, height=300)

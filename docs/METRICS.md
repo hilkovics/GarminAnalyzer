@@ -131,7 +131,9 @@ Expect `r > 0.8`. Below 0.7 → show a warning to review thresholds.
 *Added 2026-10-25 (approved by the user).* Short rides to work are not training, but they are real fatigue.
 - **Rule:** a bike activity whose moving time (`moving_s`, else `duration_s`) is **< 1500 s (25 min)** is a
   commute. A per-activity user override (`commute_override` true / false) wins over the rule, for any sport.
-  Without a moving or total time a bike ride is not a commute.
+  Without a moving or total time a bike ride is not a commute. *Changed 2026-10-25 (Claude, while working
+  autonomously on the user's request; reported to the user):* an indoor ride (`is_indoor`, e.g. a trainer)
+  is never a commute by the rule – a commute is a ride to work.
 - **Counted (fatigue):** a commute keeps its load in `daily_load` (§4: CTL, ATL, TSB, ACWR, monotony, ramp)
   and therefore in readiness (§8, Form) and the §2.5 sanity check.
 - **Not counted (training):**

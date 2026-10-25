@@ -107,6 +107,15 @@ def test_prompt_says_missing_for_absent_data(module_inputs):
     )
 
 
+def test_prompt_marks_commutes(module_inputs):
+    first = module_inputs.activities[0]
+    marked = module_inputs.model_copy(update={"activities": [first.model_copy(update={"is_commute": True})]})
+    _, user = llm.build_weekly_prompt(marked)
+    assert "(dochádzka – únava, nie tréning)" in user
+    _, plain = llm.build_weekly_prompt(module_inputs.model_copy(update={"activities": [first]}))
+    assert "dochádzka" not in plain
+
+
 # --- generation ---------------------------------------------------------------------------------------------
 
 

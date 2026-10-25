@@ -6,12 +6,12 @@ import pytest
 from sqlalchemy import select
 from sqlmodel import Session
 
-from training import pipeline, planning
+from training import pipeline, pipeline_wellness, planning
 from training.coach import season
 from training.commute import COMMUTE_MAX_MOVING_S, commute_expr, is_commute
 from training.db.models import Activity, ActivityMetric, BestEffort, CurveSnapshot, DailyLoad, PlannedWorkout
 from training.db.session import make_engine
-from training.services import activities as svc
+from training.services import activities as svc, plan as plan_svc, progress as progress_svc
 from training.services.dto import CommuteIn
 from training.services.errors import NotFoundError
 
@@ -55,13 +55,23 @@ def test_rule(sport, moving, duration, override, expected):
     assert is_commute(sport, moving, duration, override) is expected
 
 
+def test_indoor_ride_is_never_a_commute_by_the_rule():
+    assert is_commute("bike", 600.0, None, None, is_indoor=True) is False
+    assert is_commute("bike", 600.0, None, True, is_indoor=True) is True  # the override still wins
+
+
 def test_sql_expression_agrees_with_the_rule(session):
     commute(session, 9001, TUESDAY)
     commute(session, 9002, TUESDAY, seconds=1800)
     commute(session, 9003, TUESDAY, commute=True, seconds=1800)
+    indoor = session.get(Activity, commute(session, 9004, TUESDAY))
+    indoor.is_indoor = True
+    session.add(indoor)
+    session.commit()
     rows = session.execute(select(Activity, commute_expr())).all()
     assert rows and all(
-        bool(flag) == is_commute(a.sport, a.moving_s, a.duration_s, a.commute_override) for a, flag in rows
+        bool(flag) == is_commute(a.sport, a.moving_s, a.duration_s, a.commute_override, a.is_indoor)
+        for a, flag in rows
     )
     assert sum(bool(flag) for _, flag in rows) == 2
 
@@ -171,3 +181,46 @@ def test_last_run_becoming_a_commute_empties_its_curve_months(session):
         select(CurveSnapshot).where(CurveSnapshot.month == month, CurveSnapshot.sport == "run")
     ).scalar_one()
     assert snapshot.curve["bins"] == {} and snapshot.curve["pace_at_ref_hr"] is None
+
+
+# --- remaining exclusions (review: one test per filter) ---------------------------------------------------
+
+
+def test_proposal_frame_and_correlation_days_leave_commutes_out(session):
+    activity_id = commute(session, 9001, TUESDAY)
+    assert activity_id not in set(progress_svc._activity_frame(session, "bike")["activity_id"])
+    assert activity_id not in set(pipeline_wellness.correlation_activities(session)["activity_id"])
+    training_id = commute(session, 9002, TUESDAY, commute=False)
+    assert training_id in set(progress_svc._activity_frame(session, "bike")["activity_id"])
+    assert training_id in set(pipeline_wellness.correlation_activities(session)["activity_id"])
+
+
+def test_week_view_shows_training_and_commute_load_apart(session):
+    activity_id = commute(session, 9001, TUESDAY)
+    load = session.get(ActivityMetric, activity_id).load_primary
+    week = plan_svc.get_week(session, TODAY, today=TODAY)
+    tuesday = next(d for d in week.days if d.date == TUESDAY)
+    assert (tuesday.activities, tuesday.actual_load) == (0, 0.0)
+    assert tuesday.commute_load == pytest.approx(load)
+    assert week.done_load == pytest.approx(sum(d.actual_load for d in week.days))
+
+
+def test_season_projection_keeps_t_and_targets_subtract_c():
+    monday = dt.date(2026, 9, 14)
+    plain = season.season_plan(monday, 3, 50.0, None, 0.5)
+    commuting = season.season_plan(monday, 3, 50.0, None, 0.5, commute_load=40.0)
+    assert [w.ctl_start for w in commuting] == pytest.approx([w.ctl_start for w in plain])
+    for a, b in zip(plain, commuting, strict=True):
+        assert b.target_load == pytest.approx(max(0.0, a.target_load - 40.0))
+        assert b.run_target + b.bike_target == pytest.approx(b.target_load)
+        assert b.commute_load == 40.0
+
+
+def test_taper_target_subtracts_c_once():
+    race = dt.date(2026, 10, 1)  # Thursday: the week of 2026-09-28 has d = 3 → taper
+    monday = dt.date(2026, 9, 28)
+    plain = season.season_plan(monday, 1, 50.0, race, 0.5, pre_taper_target=400.0)
+    commuting = season.season_plan(monday, 1, 50.0, race, 0.5, pre_taper_target=400.0, commute_load=30.0)
+    assert plain[0].phase == "taper"
+    assert commuting[0].target_load == pytest.approx(max(0.0, plain[0].target_load - 30.0))
+    assert plain[0].target_load == pytest.approx(200.0)

@@ -39,9 +39,10 @@ class SeasonWeekDTO(BaseModel):
     recovery: bool
     days_to_race: int | None = Field(description="days from this Monday to the race; null without a goal")
     ctl_start: float = Field(description="CTL of the day before the Monday (projected for future weeks)")
-    target_load: float
+    target_load: float = Field(description="training target T_train = max(0, T − commute_load) (§10.2)")
     run_target: float
     bike_target: float
+    commute_load: float = Field(0.0, description="expected weekly commute load C (§2.6, §10.2)")
     is_current: bool = Field(description="the week containing today")
     is_race_week: bool = Field(description="the week containing the goal's race date")
 
@@ -113,10 +114,11 @@ class WeekPlanDTO(BaseModel):
     monday: dt.date
     phase: str
     recovery: bool
-    target_load: float
+    target_load: float = Field(description="training target T_train = max(0, T − commute_load) (§10.2)")
     run_target: float
     bike_target: float
-    done_load: float = Field(description="Σ load_total of the week's days")
+    commute_load: float = Field(0.0, description="expected weekly commute load C (§2.6, §10.2)")
+    done_load: float = Field(description="Σ training load of the week's days (commutes excluded, §2.6)")
     remaining_load: float = Field(description="max(0, target_load − done_load)")
     days: list[WeekDayDTO] = Field(description="Monday … Sunday")
 

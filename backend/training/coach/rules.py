@@ -19,9 +19,10 @@ Clarified 2026-09-29 (phase 6, approved 2026-10-25) – binding:
   today's.
 - Rule 3: today's role gives the slot (rest → rest). If today is `easy` and an earlier `q1`/`q2`/`long` slot
   of this week is unfulfilled, take the earliest of them. A quality (`q1`/`q2`) choice becomes `easy` if
-  yesterday had a done quality workout or an activity with IF ≥ 0.85.
-- Rule 4: `remaining = weekly_target − Σ load_total[Mon … D−1]` (≥ 0); weights long 2.0, q1/q2 1.25,
-  easy 1.0 over today's and the remaining non-rest days of the week; today's target =
+  yesterday had a done quality workout or an activity with IF ≥ 0.85 (commutes ignored, §2.6).
+- Rule 4: `remaining = weekly_target − Σ load_total[Mon … D−1]` (≥ 0) – since 2026-10-25 the training
+  target `T_train` and the week's non-commute load (§2.6, from `planning.build_context`); weights long 2.0,
+  q1/q2 1.25, easy 1.0 over today's and the remaining non-rest days of the week; today's target =
   `remaining · w_today / Σ w`; the parameter whose `estimated_load` is closest wins (ties → the smaller).
 - Rest output = `sport = "rest"`, no steps, `estimated_load = 0`. Reasons are Slovak fixed templates.
 

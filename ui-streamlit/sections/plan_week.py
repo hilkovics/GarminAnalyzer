@@ -41,7 +41,8 @@ def day_card(day: WeekDayDTO, *, is_today: bool) -> None:
             f":gray-badge[{ROLE_SHORT.get(day.role, day.role)}]"
         )
         st.markdown(f"{icon} {name}".strip())
-        st.caption(f"Odhad {_estimate(day)}  \nSkut. {_actual(day)}")
+        commute = f"  \nDoch. {fmt_num(day.commute_load)}" if day.commute_load else ""
+        st.caption(f"Odhad {_estimate(day)}  \nSkut. {_actual(day)}{commute}")
         st.markdown(status_badge(planned, day.role).markdown)
 
 

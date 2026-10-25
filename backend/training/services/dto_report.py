@@ -33,6 +33,7 @@ class ReportActivityDTO(BaseModel):
     sport: str = Field(description='"run" | "bike" | "other"')
     duration_s: float | None
     load: float | None = Field(description="primary load, TSS-equivalent points; null = unknown")
+    is_commute: bool = Field(False, description="METRICS §2.6: fatigue, not training")
 
 
 class ReportPmcDTO(BaseModel):

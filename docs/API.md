@@ -573,9 +573,10 @@ One ISO week of the season plan (METRICS §10.1–§10.2). Loads are TSS-equival
 | `recovery` | boolean |  |
 | `days_to_race` | integer \| null | days from this Monday to the race; null without a goal |
 | `ctl_start` | number | CTL of the day before the Monday (projected for future weeks) |
-| `target_load` | number |  |
+| `target_load` | number | training target T_train = max(0, T − commute_load) (§10.2) |
 | `run_target` | number |  |
 | `bike_target` | number |  |
+| `commute_load` (optional) | number | expected weekly commute load C (§2.6, §10.2) |
 | `is_current` | boolean | the week containing today |
 | `is_race_week` | boolean | the week containing the goal's race date |
 
@@ -718,10 +719,11 @@ GET /plan/week – the ISO week containing the requested date: targets, planned 
 | `monday` | date |  |
 | `phase` | string |  |
 | `recovery` | boolean |  |
-| `target_load` | number |  |
+| `target_load` | number | training target T_train = max(0, T − commute_load) (§10.2) |
 | `run_target` | number |  |
 | `bike_target` | number |  |
-| `done_load` | number | Σ load_total of the week's days |
+| `commute_load` (optional) | number | expected weekly commute load C (§2.6, §10.2) |
+| `done_load` | number | Σ training load of the week's days (commutes excluded, §2.6) |
 | `remaining_load` | number | max(0, target_load − done_load) |
 | `days` | WeekDayDTO[] | Monday … Sunday |
 

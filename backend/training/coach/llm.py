@@ -104,7 +104,9 @@ def build_weekly_prompt(inputs: WeeklyReportInputsDTO) -> tuple[str, str]:
     lines = [f"Dnes je {inputs.today}.", "", "## Hodnotený týždeň – aktivity (dátum, šport, trvanie, záťaž)"]
     if inputs.activities:
         lines += [
-            f"- {a.date}: {a.sport}, {_min(a.duration_s)}, záťaž {_n(a.load)}" for a in inputs.activities
+            f"- {a.date}: {a.sport}{' (dochádzka – únava, nie tréning)' if a.is_commute else ''}, "
+            f"{_min(a.duration_s)}, záťaž {_n(a.load)}"
+            for a in inputs.activities
         ]
     else:
         lines.append("- žiadne aktivity")

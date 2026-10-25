@@ -13,6 +13,8 @@ Pure, deterministic functions; no I/O. Loads are TSS-equivalent points (1 h at t
 # `CTL_now` = CTL of the day before the week's Monday; future weeks project CTL assuming each target is met
 # as a constant daily load `T / 7`. Split: `run_share` = athlete split, else the 28-day run share of
 # `load_run + load_bike`, 1.0 without load; run = `T · run_share`, bike = the rest.
+# Changed 2026-10-25 (§2.6 commutes): `target_load` is `T_train = max(0, T − C)`, the run share comes from
+# non-commute load and the split applies to `T_train`; the CTL projection keeps using `T`.
 #
 # METRICS §4: `CTL[d] = CTL[d−1] + (daily_load[d] − CTL[d−1]) / 42`; `ramp_rate = CTL[d] − CTL[d−7]`.
 """

@@ -4438,7 +4438,8 @@
           },
           "target_load": {
             "type": "number",
-            "title": "Target Load"
+            "title": "Target Load",
+            "description": "training target T_train = max(0, T − commute_load) (§10.2)"
           },
           "run_target": {
             "type": "number",
@@ -4447,6 +4448,12 @@
           "bike_target": {
             "type": "number",
             "title": "Bike Target"
+          },
+          "commute_load": {
+            "type": "number",
+            "title": "Commute Load",
+            "description": "expected weekly commute load C (§2.6, §10.2)",
+            "default": 0.0
           },
           "is_current": {
             "type": "boolean",
@@ -5121,7 +5128,8 @@
           },
           "target_load": {
             "type": "number",
-            "title": "Target Load"
+            "title": "Target Load",
+            "description": "training target T_train = max(0, T − commute_load) (§10.2)"
           },
           "run_target": {
             "type": "number",
@@ -5131,10 +5139,16 @@
             "type": "number",
             "title": "Bike Target"
           },
+          "commute_load": {
+            "type": "number",
+            "title": "Commute Load",
+            "description": "expected weekly commute load C (§2.6, §10.2)",
+            "default": 0.0
+          },
           "done_load": {
             "type": "number",
             "title": "Done Load",
-            "description": "Σ load_total of the week's days"
+            "description": "Σ training load of the week's days (commutes excluded, §2.6)"
           },
           "remaining_load": {
             "type": "number",

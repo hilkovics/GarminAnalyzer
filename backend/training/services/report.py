@@ -55,7 +55,13 @@ def weekly_inputs(session: Session, today: dt.date) -> WeeklyReportInputsDTO:
     first, last = reviewed_week(today)
     listed = activities.list_activities(session, date_from=first, date_to=last, page_size=200)
     acts = [
-        ReportActivityDTO(date=a.local_date, sport=a.sport, duration_s=a.duration_s, load=a.load_primary)
+        ReportActivityDTO(
+            date=a.local_date,
+            sport=a.sport,
+            duration_s=a.duration_s,
+            load=a.load_primary,
+            is_commute=a.is_commute,
+        )
         for a in sorted(listed.items, key=lambda a: a.start_utc)
     ]
     days = [first + dt.timedelta(days=i) for i in range((last - first).days + 1)]
