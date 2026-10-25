@@ -6,6 +6,7 @@ pace (min/km) and h:mm are formatted in the presentation layer, never here.
 """
 
 import datetime as dt
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -460,6 +461,13 @@ class ProposalDTO(BaseModel):
     garmin_lthr: float | None = Field(description="Garmin's own lactate-threshold HR, bpm (if available)")
     garmin_lt_speed: float | None = Field(description="Garmin's lactate-threshold speed, m/s (if available)")
     garmin_vo2max: float | None
+
+
+class ProposalApplyIn(BaseModel):
+    """POST /progress/threshold-proposals/apply body: the proposal to store as a threshold from today."""
+
+    sport: Literal["run", "bike"]
+    field: Literal["threshold_speed", "lthr"]
 
 
 class ProposalGapDTO(BaseModel):

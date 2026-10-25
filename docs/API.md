@@ -40,6 +40,7 @@ docs at `/docs`).
 | GET | `/api/progress/predictions` | – | `PredictionsDTO` | Riegel and Daniels race predictions from the best recent reference |
 | GET | `/api/progress/threshold-proposals` | – | `ProposalDTO[]` | LTHR / threshold-speed proposals (never applied automatically) |
 | GET | `/api/progress/threshold-proposals/missing` | – | `ProposalGapDTO[]` | Why an LTHR / threshold-speed estimate is missing (e.g. no 30 min of HR without a pause) |
+| POST | `/api/progress/threshold-proposals/apply` | body: `ProposalApplyIn` | `ThresholdDTO` | Store one proposal as a threshold valid from today (source "proposal"); recomputes from today |
 | GET | `/api/reports/latest` | – | `ReportDTO` | The newest stored weekly report (404 when there is none) |
 | POST | `/api/reports/weekly` | – | `ReportDTO` | Generate and store this week's report (needs TRAINING_ANTHROPIC_API_KEY; 422 without it) |
 | GET | `/api/settings` | – | `SettingsDTO` | Athlete, threshold history, today's zone bounds |
@@ -465,6 +466,15 @@ A weekday of the template: role and an optional explicit sport (METRICS §10.3).
 |---|---|---|
 | `role` | string | "rest" \| "easy" \| "long" \| "q1" \| "q2" |
 | `sport` (optional) | string \| null | "run" \| "bike" \| null = decided by the coach |
+
+### ProposalApplyIn
+
+POST /progress/threshold-proposals/apply body: the proposal to store as a threshold from today.
+
+| Field | Type | Description |
+|---|---|---|
+| `sport` | string |  |
+| `field` | string |  |
 
 ### ProposalDTO
 

@@ -9,9 +9,11 @@ from training.services.dto import (
     BestEffortsDTO,
     CurveDTO,
     PredictionsDTO,
+    ProposalApplyIn,
     ProposalDTO,
     ProposalGapDTO,
     SeriesDTO,
+    ThresholdDTO,
 )
 
 router = APIRouter(prefix="/progress", tags=["progress"])
@@ -76,3 +78,13 @@ def get_threshold_proposals(session: SessionDep, today: TodayDep) -> list[Propos
 )
 def get_proposal_gaps(session: SessionDep, today: TodayDep) -> list[ProposalGapDTO]:
     return service.get_proposal_gaps(session, today=today)
+
+
+@router.post(
+    "/threshold-proposals/apply",
+    response_model=ThresholdDTO,
+    responses=INVALID,
+    summary='Store one proposal as a threshold valid from today (source "proposal"); recomputes from today',
+)
+def apply_threshold_proposal(body: ProposalApplyIn, session: SessionDep, today: TodayDep) -> ThresholdDTO:
+    return service.apply_proposal(session, sport=body.sport, field=body.field, today=today)

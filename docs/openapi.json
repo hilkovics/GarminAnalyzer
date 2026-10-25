@@ -1218,6 +1218,47 @@
         }
       }
     },
+    "/api/progress/threshold-proposals/apply": {
+      "post": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "Store one proposal as a threshold valid from today (source \"proposal\"); recomputes from today",
+        "operationId": "apply_threshold_proposal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProposalApplyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThresholdDTO"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reports/latest": {
       "get": {
         "tags": [
@@ -3973,6 +4014,33 @@
         ],
         "title": "PreferredDayDTO",
         "description": "A weekday of the template: role and an optional explicit sport (METRICS §10.3)."
+      },
+      "ProposalApplyIn": {
+        "properties": {
+          "sport": {
+            "type": "string",
+            "enum": [
+              "run",
+              "bike"
+            ],
+            "title": "Sport"
+          },
+          "field": {
+            "type": "string",
+            "enum": [
+              "threshold_speed",
+              "lthr"
+            ],
+            "title": "Field"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sport",
+          "field"
+        ],
+        "title": "ProposalApplyIn",
+        "description": "POST /progress/threshold-proposals/apply body: the proposal to store as a threshold from today."
       },
       "ProposalDTO": {
         "properties": {

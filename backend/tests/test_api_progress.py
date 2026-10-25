@@ -162,3 +162,67 @@ def test_put_threshold_accepts_the_proposal_source(client):
     assert client.put("/api/settings/thresholds", json=body).status_code == 422
     del body["source"]
     assert client.put("/api/settings/thresholds", json=body).json()["source"] == "manual"
+
+
+APPLY = "/api/progress/threshold-proposals/apply"
+
+
+def test_apply_proposal_stores_a_threshold_valid_from_today(client):
+    response = client.post(APPLY, json={"sport": "run", "field": "lthr"})
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["sport"], body["valid_from"], body["source"], body["lthr"]) == (
+        "run",
+        TODAY.isoformat(),
+        "proposal",
+        140.0,
+    )
+    assert body["threshold_speed"] == 3.5  # an LTHR proposal keeps the current pace
+    assert body in client.get("/api/settings").json()["thresholds"]
+
+
+def test_apply_bike_proposal(client):
+    response = client.post(APPLY, json={"sport": "bike", "field": "lthr"})
+    assert response.status_code == 200
+    assert (response.json()["sport"], response.json()["threshold_speed"]) == ("bike", None)
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"sport": "swim", "field": "lthr"},
+        {"sport": "other", "field": "lthr"},
+        {"sport": "run", "field": "vo2max"},
+        {"sport": "run"},
+        {"field": "lthr"},
+        {},
+    ],
+)
+def test_apply_proposal_unknown_sport_or_field_is_422(client, body):
+    response = client.post(APPLY, json=body)
+    assert response.status_code == 422
+    assert isinstance(response.json()["detail"], str)
+
+
+def test_apply_proposal_within_tolerance_gives_the_service_error(client):
+    response = client.post(APPLY, json={"sport": "run", "field": "threshold_speed"})
+    assert response.status_code == 422
+    assert "tolerance" in response.json()["detail"]
+
+
+def test_apply_proposal_without_an_estimate_gives_the_service_error(client):
+    response = client.post(APPLY, json={"sport": "bike", "field": "threshold_speed"})
+    assert response.status_code == 422
+    assert "no threshold_speed proposal for bike" in response.json()["detail"]
+
+
+def test_apply_proposal_on_an_empty_database(tmp_path):
+    path = tmp_path / "empty.db"
+    migrate(path)
+    engine = make_engine(path)
+    try:
+        response = make_client(engine).post(APPLY, json={"sport": "run", "field": "lthr"})
+        assert response.status_code == 422
+        assert "not enough data" in response.json()["detail"]
+    finally:
+        engine.dispose()
