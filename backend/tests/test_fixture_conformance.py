@@ -132,6 +132,10 @@ def check_streams(df: pd.DataFrame, *, outdoor: bool, activity: dict[str, Any] |
     distance = activity.get("distance_m")
     if outdoor and distance and len(dist):
         assert abs(dist[-1] - distance) <= max(50.0, 0.03 * distance), (dist[-1], distance)
+    avg_cadence = activity.get("avg_cadence")
+    cadence = df.loc[df["moving"], "cadence"].dropna()
+    if avg_cadence and len(cadence):  # same unit as the summary (steps/min for runs), not half of it
+        assert 0.75 * avg_cadence <= cadence.median() <= 1.35 * avg_cadence, (cadence.median(), avg_cadence)
 
 
 def check_wellness_row(row: dict[str, Any], day: date) -> None:

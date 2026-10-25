@@ -225,6 +225,18 @@ def test_missing_channels_are_nan_and_cadence_fallback():
         assert df[col].isna().all(), col
 
 
+def test_run_cadence_in_steps_per_minute():
+    """Real Garmin runs carry directRunCadence (one foot, ~82) next to directDoubleCadence (~165)."""
+    both = build_details([sample(0, directRunCadence=82.0, directDoubleCadence=165.0)])
+    assert normalize_streams(both)["cadence"].tolist() == [165.0]
+    single = build_details([sample(0, directRunCadence=82.0), sample(1, directRunCadence=83.0)])
+    assert normalize_streams(single)["cadence"].tolist() == [164.0, 166.0]
+    no_double = build_details(
+        [sample(0, directRunCadence=81.0, directDoubleCadence=None)],
+    )
+    assert normalize_streams(no_double)["cadence"].tolist() == [162.0]
+
+
 def test_elapsed_duration_clock_when_no_timestamp():
     details = build_details(
         [

@@ -98,7 +98,7 @@
   },
   {
    "metricsIndex": 10,
-   "key": "directRunCadence",
+   "key": "directDoubleCadence",
    "unit": {
     "id": 91,
     "key": "stepsPerMinute",

@@ -4,6 +4,20 @@ Last updated: 2026-10-25 (phase 8 session)
 
 ## Done
 
+### Real Garmin fixtures (2026-10-25)
+- **Recorded on Windows and committed** (`c335139`): 6 activities (3 runs, 3 rides), 14 days of wellness, body
+  battery, max metrics, training status and the lactate threshold. Anonymized: names, ids and GPS checked.
+- **Conformance tests pass** on them (cloud and Windows), so the phase-1 key guesses are confirmed: the detail
+  descriptor keys, the summary/sleep/stress/body-battery keys and timer-time `duration`.
+- **Fixed: run cadence in the streams was half.** `directRunCadence` counts one foot (~82); the summary's
+  `averageRunCadence` is steps/min (~165). Streams now prefer `directDoubleCadence` and double a lone
+  `directRunCadence`. The conformance test checks the stream median against the summary. Nothing computed
+  uses cadence; `training recompute` rewrites stored streams.
+- **Lactate threshold** `speed` is 0.3 for 3.0 m/s, matching the existing ×10 handling.
+- **Still unverified:** the Garmin push responses (schedule id, calendar item keys). The recording does not call
+  those endpoints; the first real `push-today` shows them (a log warning names the keys if the id is missing).
+- Tests: 1882 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
+
 ### Phase 8 – automation and operations (code complete; Windows task and Docker image not run yet)
 - **`training morning`** (`training/morning.py`, `cli/morning.py`): sync (+ metrics + nightly plan) → plan →
   push → telegram.
@@ -532,7 +546,7 @@ Last updated: 2026-10-25 (phase 8 session)
   positive is easy to recognise; if it happens, tell Claude which path it names.
 - `get_lactate_threshold(latest=True)` makes 2 HTTP requests inside one `GarminClient.call`, so the 0.7 s spacing
   only applies around the pair.
-- **Garmin keys still to verify against real fixtures.** The phase 1 normalizers use keys taken from library source
+- **Garmin keys to verify against real fixtures – confirmed 2026-10-25 (see "Real Garmin fixtures").** The phase 1 normalizers use keys taken from library source
   and Garmin's usual shapes. The conformance test checks them, and the strict checks compare moving seconds and the
   last `sumDistance` against the summary and verify the timezone offset. The main guesses:
   - detail descriptor keys (`directHeartRate`, `directSpeed`, `directElevation`, `directRunCadence` /

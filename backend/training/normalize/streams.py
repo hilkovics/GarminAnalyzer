@@ -57,7 +57,7 @@ CHANNEL_KEYS: dict[str, tuple[str, ...]] = {
     "hr": ("directHeartRate",),
     "speed": ("directSpeed",),
     "alt": ("directElevation",),
-    "cadence": ("directRunCadence", "directBikeCadence"),
+    "cadence": ("directDoubleCadence", "directRunCadence", "directBikeCadence"),
     "lat": ("directLatitude",),
     "lon": ("directLongitude",),
     "distance": ("sumDistance",),
@@ -65,6 +65,9 @@ CHANNEL_KEYS: dict[str, tuple[str, ...]] = {
 TIMER_KEYS = ("sumDuration",)
 TIMESTAMP_KEY = "directTimestamp"  # epoch milliseconds, GMT
 ELAPSED_KEYS = ("sumElapsedDuration",)  # fallback clock (seconds since start) if there is no timestamp
+# Run cadence is stored in steps/min like the summary's `averageRunCadence`; `directRunCadence` counts one
+# foot (strides/min, ~half), so it is doubled when `directDoubleCadence` is missing (real fixtures).
+SINGLE_FOOT_CADENCE_KEY = "directRunCadence"
 
 
 def empty_streams() -> pd.DataFrame:
@@ -96,7 +99,10 @@ def normalize_streams(details: dict) -> pd.DataFrame:
         log.warning("activity details have no %s / elapsed-duration channel; no streams", TIMESTAMP_KEY)
         return empty_streams()
 
-    raw = {col: channel(keys) for col, keys in CHANNEL_KEYS.items()}
+    raw = {
+        col: _cadence(samples, key_to_index) if col == "cadence" else channel(keys)
+        for col, keys in CHANNEL_KEYS.items()
+    }
     timer = channel(TIMER_KEYS)
 
     # Drop samples without a time, order by time (stable), bucket into whole seconds, last one wins.
@@ -175,6 +181,16 @@ def _pick_channel(
         if not np.isnan(values).all():
             return values
     return present[0] if present else None
+
+
+def _cadence(samples: Sequence[Sequence[Any]], key_to_index: Mapping[str, int]) -> np.ndarray | None:
+    """Cadence channel per `CHANNEL_KEYS`, with a single-foot run cadence doubled to steps/min."""
+    for key in CHANNEL_KEYS["cadence"]:
+        if key in key_to_index:
+            values = _column(samples, key_to_index[key])
+            if not np.isnan(values).all():
+                return values * 2.0 if key == SINGLE_FOOT_CADENCE_KEY else values
+    return _pick_channel(samples, key_to_index, CHANNEL_KEYS["cadence"])  # all NaN or absent
 
 
 def _clock_seconds(samples: Sequence[Sequence[Any]], key_to_index: Mapping[str, int]) -> np.ndarray | None:
