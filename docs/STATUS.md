@@ -38,7 +38,7 @@ Last updated: 2026-10-25 (phase 8 session)
   - OPERATIONS.md wording corrected.
 - Open (by design, noted): the run status is red also when only Telegram/push failed; `sync_stale` compares
   dates (24–48 h) while its text says 36 h; manual `training sync` / UI sync don't take the morning lock.
-- Tests: 1853 passed, 5 skipped.
+- Tests: 1852 passed, 5 skipped.
 
 ### Kokpit design in the Streamlit UI (2026-10-23)
 - **Design:** the Claude Design export is in `docs/design/` (with screenshots and its known sample-data mistakes).
