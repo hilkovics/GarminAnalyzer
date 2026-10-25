@@ -1,0 +1,12 @@
+{
+ "speed_and_heart_rate": {
+  "userProfilePK": 900000002,
+  "version": 1791233633917,
+  "calendarDate": "2026-10-05T22:53:53.909",
+  "sequence": 1791233633917,
+  "speed": 0.29999916,
+  "heartRate": 172,
+  "heartRateCycling": null
+ },
+ "power": {}
+}

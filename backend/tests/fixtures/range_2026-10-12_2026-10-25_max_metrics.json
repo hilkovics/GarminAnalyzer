@@ -1,0 +1,32 @@
+[
+ {
+  "userId": 900000002,
+  "generic": {
+   "calendarDate": "2026-10-17",
+   "vo2MaxPreciseValue": 46.1,
+   "vo2MaxValue": 46.0,
+   "fitnessAge": null,
+   "fitnessAgeDescription": null,
+   "maxMetCategory": 0
+  },
+  "cycling": null,
+  "heatAltitudeAcclimation": {
+   "calendarDate": "2026-10-17",
+   "altitudeAcclimationDate": "2026-10-17",
+   "previousAltitudeAcclimationDate": "2026-10-17",
+   "heatAcclimationDate": "2026-10-17",
+   "previousHeatAcclimationDate": "2026-10-17",
+   "altitudeAcclimation": 0,
+   "previousAltitudeAcclimation": 0,
+   "heatAcclimationPercentage": 0,
+   "previousHeatAcclimationPercentage": 0,
+   "heatTrend": null,
+   "altitudeTrend": null,
+   "currentAltitude": null,
+   "previousAltitude": null,
+   "acclimationPercentage": null,
+   "previousAcclimationPercentage": null,
+   "altitudeAcclimationLocalTimestamp": "2026-10-17T18:51:26.0"
+  }
+ }
+]

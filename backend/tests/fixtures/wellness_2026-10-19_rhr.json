@@ -1,0 +1,16 @@
+{
+ "userProfileId": 900000002,
+ "statisticsStartDate": "2026-10-19",
+ "statisticsEndDate": "2026-10-19",
+ "allMetrics": {
+  "metricsMap": {
+   "WELLNESS_RESTING_HEART_RATE": [
+    {
+     "value": 57.0,
+     "calendarDate": "2026-10-19"
+    }
+   ]
+  }
+ },
+ "groupedMetrics": null
+}
