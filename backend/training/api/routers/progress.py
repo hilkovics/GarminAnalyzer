@@ -5,7 +5,14 @@ from fastapi import APIRouter
 from training.api.deps import SessionDep, TodayDep
 from training.api.errors import INVALID
 from training.services import progress as service
-from training.services.dto import BestEffortsDTO, CurveDTO, PredictionsDTO, ProposalDTO, SeriesDTO
+from training.services.dto import (
+    BestEffortsDTO,
+    CurveDTO,
+    PredictionsDTO,
+    ProposalDTO,
+    ProposalGapDTO,
+    SeriesDTO,
+)
 
 router = APIRouter(prefix="/progress", tags=["progress"])
 
@@ -60,3 +67,12 @@ def get_predictions(session: SessionDep, today: TodayDep) -> PredictionsDTO:
 )
 def get_threshold_proposals(session: SessionDep, today: TodayDep) -> list[ProposalDTO]:
     return service.get_threshold_proposals(session, today=today)
+
+
+@router.get(
+    "/threshold-proposals/missing",
+    response_model=list[ProposalGapDTO],
+    summary="Why an LTHR / threshold-speed estimate is missing (e.g. no 30 min of HR without a pause)",
+)
+def get_proposal_gaps(session: SessionDep, today: TodayDep) -> list[ProposalGapDTO]:
+    return service.get_proposal_gaps(session, today=today)

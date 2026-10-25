@@ -369,6 +369,7 @@ def test_app_navigation_reaches_every_page(monkeypatch):
         get_best_efforts=lambda session, *, range="90d", sport="run", **kwargs: sample_efforts(range, sport),
         get_predictions=lambda session, **kwargs: sample_predictions(),
         get_threshold_proposals=lambda session, **kwargs: sample_proposals(),
+        get_proposal_gaps=lambda session, **kwargs: [],
     )
     patch_service(
         monkeypatch,

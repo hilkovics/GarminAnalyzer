@@ -31,7 +31,8 @@ Interpretation choices (literal where the text is silent):
 - `best_per_window` and the proposals ignore rows dated after `today`; ties → the earliest `local_date`.
 - The 2 % / 3 bpm rules compare the rounded estimate with `current` (so the reported numbers agree with
   the decision), with a 1e-9 tolerance against floating-point residue at the exact boundary.
-- Percentile: numpy's default linear interpolation over the rides with a valid hrTSS/h.
+- Percentile: numpy's default linear interpolation over the rides with a 1800 s HR effort and a valid hrTSS/h
+  (changed 2026-10-25; avg HR when none has an hrTSS/h).
 
 Pure functions, no I/O.
 """
@@ -253,44 +254,14 @@ def propose_lthr(
 
     `efforts`: HR efforts (`activity_id, local_date, value`; rows of another kind / window are ignored when
     those columns exist). `activities`: this sport's activities (`activity_id, local_date, if_pace, hrtss,
-    moving_s`; filtered by a `sport` column if present). Qualifying activities of the trailing 90 days:
-    run `if_pace ≥ 0.95`; bike hrTSS/h ≥ its 90th percentile – or, when no ride has an hrTSS/h (no bike
-    threshold yet), `avg_hr` ≥ its 90th percentile (optional `avg_hr` column; changed 2026-10-25). Estimate =
-    max 1800 s HR effort among them, rounded to whole bpm; `change` = estimate − current; proposed when
-    `|change| > 3` or without current.
+    moving_s`, optional `avg_hr`; filtered by a `sport` column if present). Qualifying activities of the
+    trailing 90 days: run `if_pace ≥ 0.95`; bike – among the rides **with a 1800 s HR effort** – hrTSS/h ≥
+    its 90th percentile, or `avg_hr` ≥ its 90th percentile when none of them has an hrTSS/h (no bike
+    threshold yet; both changed 2026-10-25). Estimate = max 1800 s HR effort among them, rounded to whole
+    bpm; `change` = estimate − current; proposed when `|change| > 3` or without current.
+    `lthr_missing_reason` says why the result is None.
     """
-    if sport not in ("run", "bike"):
-        raise ValueError(f"lthr proposals are defined for 'run' and 'bike', got {sport!r}")
-    eff = _in_window(efforts, today, TRAILING_DAYS)
-    if "kind" in eff.columns:
-        eff = eff[eff["kind"] == "hr"]
-    if "window_s" in eff.columns:
-        eff = eff[eff["window_s"] == LTHR_WINDOW]
-    eff = eff[pd.to_numeric(eff["value"], errors="coerce").notna()]
-    acts = _in_window(activities, today, TRAILING_DAYS)
-    if "sport" in acts.columns:
-        acts = acts[acts["sport"] == sport]
-
-    if sport == "run":
-        qualifying = acts[pd.to_numeric(acts["if_pace"], errors="coerce") >= RUN_MIN_IF_PACE]
-        selection = f"{len(qualifying)} run(s) with if_pace ≥ {RUN_MIN_IF_PACE}"
-    else:
-        hrtss = pd.to_numeric(acts["hrtss"], errors="coerce").to_numpy(dtype=float)
-        moving = pd.to_numeric(acts["moving_s"], errors="coerce").to_numpy(dtype=float)
-        with np.errstate(divide="ignore", invalid="ignore"):
-            rate = np.where(moving > 0, hrtss / (moving / 3600.0), np.nan)
-        ranking = "hrTSS/h"
-        if not np.isfinite(rate).any() and "avg_hr" in acts.columns:  # bootstrap: no bike LTHR yet
-            rate = pd.to_numeric(acts["avg_hr"], errors="coerce").to_numpy(dtype=float)
-            ranking = "average HR (no bike threshold yet)"
-        valid = np.isfinite(rate)
-        if not valid.any():
-            return None
-        cutoff = min(float(np.percentile(rate[valid], BIKE_TOP_PERCENTILE)), float(rate[valid].max()))
-        qualifying = acts[valid & (rate >= cutoff)]
-        selection = f"{len(qualifying)} top-decile {ranking} ride(s) of {int(valid.sum())}"
-
-    eff = eff[eff["activity_id"].isin(qualifying["activity_id"])]
+    eff, selection = _lthr_selection(sport, efforts, activities, today)
     row = _best_row(eff, None)
     if row is None:
         return None
@@ -308,6 +279,88 @@ def propose_lthr(
         change=change,
         propose=propose,
         basis=f"max {LTHR_WINDOW} s HR effort ({row['local_date'].isoformat()}) of {selection}",
+    )
+
+
+def lthr_missing_reason(
+    sport: str, efforts: pd.DataFrame, activities: pd.DataFrame, *, today: date
+) -> str | None:
+    """Why `propose_lthr` gives no estimate (None when it gives one) – for the user, not part of §6.3."""
+    eff, text = _lthr_selection(sport, efforts, activities, today)
+    return None if _best_row(eff, None) is not None else text
+
+
+def speed_missing_reason(efforts: pd.DataFrame, *, today: date) -> str | None:
+    """Why `propose_threshold_speed` gives no estimate (None when it gives one)."""
+    df = _in_window(efforts, today, TRAILING_DAYS)
+    if "kind" in df.columns:
+        df = df[df["kind"] == "gap_speed"]
+    if _best_row(df, SPEED_WINDOW) is not None or _best_row(df, SPEED_FALLBACK_WINDOW) is not None:
+        return None
+    return (
+        f"no run of the last {TRAILING_DAYS} days has {SPEED_FALLBACK_WINDOW // 60} min of GAP "
+        "without a pause"
+    )
+
+
+def _lthr_selection(
+    sport: str, efforts: pd.DataFrame, activities: pd.DataFrame, today: date
+) -> tuple[pd.DataFrame, str]:
+    """(1800 s HR efforts of the qualifying activities, selection text). With no efforts left the text is
+    the reason, e.g. "none of 12 rides has 30 min of HR without a pause"."""
+    if sport not in ("run", "bike"):
+        raise ValueError(f"lthr proposals are defined for 'run' and 'bike', got {sport!r}")
+    eff = _in_window(efforts, today, TRAILING_DAYS)
+    if "kind" in eff.columns:
+        eff = eff[eff["kind"] == "hr"]
+    if "window_s" in eff.columns:
+        eff = eff[eff["window_s"] == LTHR_WINDOW]
+    eff = eff[pd.to_numeric(eff["value"], errors="coerce").notna()]
+    acts = _in_window(activities, today, TRAILING_DAYS)
+    if "sport" in acts.columns:
+        acts = acts[acts["sport"] == sport]
+    noun = "run" if sport == "run" else "ride"
+    minutes = LTHR_WINDOW // 60
+    if acts.empty:
+        return eff.iloc[0:0], f"no {noun}s in the last {TRAILING_DAYS} days"
+
+    if sport == "run":
+        if_pace = pd.to_numeric(acts["if_pace"], errors="coerce")
+        qualifying = acts[if_pace >= RUN_MIN_IF_PACE]
+        if qualifying.empty:
+            best = (
+                "no if_pace (no threshold pace)" if if_pace.isna().all() else f"highest {if_pace.max():.2f}"
+            )
+            return eff.iloc[0:0], (f"none of {len(acts)} runs reached if_pace ≥ {RUN_MIN_IF_PACE} ({best})")
+        eff = eff[eff["activity_id"].isin(qualifying["activity_id"])]
+        if eff.empty:
+            return eff, (
+                f"{len(qualifying)} run(s) with if_pace ≥ {RUN_MIN_IF_PACE}, none with {minutes} min of HR "
+                "without a pause"
+            )
+        return eff, f"{len(qualifying)} run(s) with if_pace ≥ {RUN_MIN_IF_PACE}"
+
+    rides = acts[acts["activity_id"].isin(eff["activity_id"])]  # changed 2026-10-25: rides with the effort
+    if rides.empty:
+        return eff.iloc[0:0], f"none of {len(acts)} rides has {minutes} min of HR without a pause"
+    hrtss = pd.to_numeric(rides["hrtss"], errors="coerce").to_numpy(dtype=float)
+    moving = pd.to_numeric(rides["moving_s"], errors="coerce").to_numpy(dtype=float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        rate = np.where(moving > 0, hrtss / (moving / 3600.0), np.nan)
+    ranking = "hrTSS/h"
+    if not np.isfinite(rate).any() and "avg_hr" in rides.columns:  # bootstrap: no bike LTHR yet
+        rate = pd.to_numeric(rides["avg_hr"], errors="coerce").to_numpy(dtype=float)
+        ranking = "average HR (no bike threshold yet)"
+    valid = np.isfinite(rate)
+    if not valid.any():
+        return eff.iloc[
+            0:0
+        ], f"{len(rides)} ride(s) with {minutes} min of HR, none with hrTSS or an average HR"
+    cutoff = min(float(np.percentile(rate[valid], BIKE_TOP_PERCENTILE)), float(rate[valid].max()))
+    qualifying = rides[valid & (rate >= cutoff)]
+    eff = eff[eff["activity_id"].isin(qualifying["activity_id"])]
+    return eff, (
+        f"{len(qualifying)} top-decile {ranking} ride(s) of {int(valid.sum())} with {minutes} min of HR"
     )
 
 

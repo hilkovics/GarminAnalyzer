@@ -38,6 +38,7 @@ docs at `/docs`).
 | GET | `/api/progress/best-efforts` | `sport`?, `range`? | `BestEffortsDTO` | Best effort per (kind, window) over the last 90 days or all time |
 | GET | `/api/progress/predictions` | – | `PredictionsDTO` | Riegel and Daniels race predictions from the best recent reference |
 | GET | `/api/progress/threshold-proposals` | – | `ProposalDTO[]` | LTHR / threshold-speed proposals (never applied automatically) |
+| GET | `/api/progress/threshold-proposals/missing` | – | `ProposalGapDTO[]` | Why an LTHR / threshold-speed estimate is missing (e.g. no 30 min of HR without a pause) |
 | GET | `/api/reports/latest` | – | `ReportDTO` | The newest stored weekly report (404 when there is none) |
 | POST | `/api/reports/weekly` | – | `ReportDTO` | Generate and store this week's report (needs TRAINING_ANTHROPIC_API_KEY; 422 without it) |
 | GET | `/api/settings` | – | `SettingsDTO` | Athlete, threshold history, today's zone bounds |
@@ -470,6 +471,16 @@ GET /progress/threshold-proposals (§6.3) – never auto-applied.
 | `garmin_lthr` | number \| null | Garmin's own lactate-threshold HR, bpm (if available) |
 | `garmin_lt_speed` | number \| null | Garmin's lactate-threshold speed, m/s (if available) |
 | `garmin_vo2max` | number \| null |  |
+
+### ProposalGapDTO
+
+GET /progress/threshold-proposals/missing – why an estimate is missing (not part of §6.3).
+
+| Field | Type | Description |
+|---|---|---|
+| `sport` | string |  |
+| `field` | string | "threshold_speed" \| "lthr" |
+| `reason` | string |  |
 
 ### PushResultDTO
 

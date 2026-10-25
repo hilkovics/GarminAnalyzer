@@ -1131,6 +1131,31 @@
         }
       }
     },
+    "/api/progress/threshold-proposals/missing": {
+      "get": {
+        "tags": [
+          "progress"
+        ],
+        "summary": "Why an LTHR / threshold-speed estimate is missing (e.g. no 30 min of HR without a pause)",
+        "operationId": "get_proposal_gaps",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProposalGapDTO"
+                  },
+                  "type": "array",
+                  "title": "Response Get Proposal Gaps"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/reports/latest": {
       "get": {
         "tags": [
@@ -3944,6 +3969,31 @@
         ],
         "title": "ProposalDTO",
         "description": "GET /progress/threshold-proposals (§6.3) – never auto-applied."
+      },
+      "ProposalGapDTO": {
+        "properties": {
+          "sport": {
+            "type": "string",
+            "title": "Sport"
+          },
+          "field": {
+            "type": "string",
+            "title": "Field",
+            "description": "\"threshold_speed\" | \"lthr\""
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sport",
+          "field",
+          "reason"
+        ],
+        "title": "ProposalGapDTO",
+        "description": "GET /progress/threshold-proposals/missing – why an estimate is missing (not part of §6.3)."
       },
       "PushResultDTO": {
         "properties": {

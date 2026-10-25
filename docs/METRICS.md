@@ -255,6 +255,11 @@ window has a valid hrTSS/h, the rides are ranked by their average HR (`avg_hr`) 
 rule (90th percentile, linear interpolation, capped at the maximum, at least one ride); the proposal's basis
 says so. Once a bike threshold exists, the hrTSS/h rule applies again. (Runs need no bootstrap: the
 threshold-speed proposal gives `if_pace`.)
+*Changed 2026-10-25 (approved by the user):* **bike population.** Only rides of the window that **have an
+1800 s HR best effort** (30 min of HR without a pause, §6.2) enter the percentile – of hrTSS/h, or of `avg_hr`
+in the bootstrap above. Before, the top 10 % could consist only of short or often-paused rides without that
+effort, and then no proposal appeared at all. When no proposal appears, the app states why (no rides, none
+with 30 min of HR without a pause, runs below `if_pace` 0.95, …); this explanation is not part of the formula.
 
 ## 7. Race predictions (runs)
 

@@ -33,6 +33,7 @@ try:
         all_time = progress.get_best_efforts(session, sport=sport, range="all", today=today)
         predictions = progress.get_predictions(session, today=today)
         proposals = progress.get_threshold_proposals(session, today=today)
+        gaps = progress.get_proposal_gaps(session, today=today)
 except ServiceError as exc:
     st.error(str(exc))
     st.stop()
@@ -79,4 +80,5 @@ if sport == "run":
 
 st.subheader("Návrhy prahov")
 progress_tables.proposals_table(proposals)
+progress_tables.proposal_gaps(gaps)
 progress_tables.proposals_link(proposals)

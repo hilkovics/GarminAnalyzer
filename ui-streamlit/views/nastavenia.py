@@ -33,10 +33,11 @@ with tab_thresholds:
     try:
         with _db.session() as session:
             proposals = progress_service.get_threshold_proposals(session, today=_db.today())
+            gaps = progress_service.get_proposal_gaps(session, today=_db.today())
     except ServiceError as exc:
         st.error(str(exc))
     else:
-        progress_tables.apply_actions(proposals)
+        progress_tables.apply_actions(proposals, gaps)
 
 with tab_sync:
     st.markdown("##### Sync")

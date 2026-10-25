@@ -14,7 +14,7 @@ from tests.test_ui_progres_samples import (
     sample_series,
 )
 from tests.test_ui_support import TODAY, figures, patch_service, run_page, setup_ui, texts, trace_names
-from training.services.dto import BestEffortsDTO, PredictionsDTO
+from training.services.dto import BestEffortsDTO, PredictionsDTO, ProposalGapDTO
 from training.services.errors import InvalidInputError, ServiceError
 
 
@@ -38,6 +38,7 @@ def patch_progress(
     efforts=None,
     predictions=None,
     proposals=None,
+    gaps=None,
     error: Exception | None = None,
     apply_error: Exception | None = None,
 ) -> Calls:
@@ -67,6 +68,9 @@ def patch_progress(
     def get_threshold_proposals(session, *, today):
         return sample_proposals() if proposals is None else proposals
 
+    def get_proposal_gaps(session, *, today):
+        return [] if gaps is None else gaps
+
     def apply_proposal(session, *, sport, field, today):
         calls.applied.append({"sport": sport, "field": field, "today": today})
         if apply_error:
@@ -80,6 +84,7 @@ def patch_progress(
         get_best_efforts=get_best_efforts,
         get_predictions=get_predictions,
         get_threshold_proposals=get_threshold_proposals,
+        get_proposal_gaps=get_proposal_gaps,
         apply_proposal=apply_proposal,
     )
     return calls
@@ -280,3 +285,14 @@ def test_settings_without_proposals_has_no_apply_buttons(monkeypatch):
     at = run_page("nastavenia")
     assert not [b for b in at.button if b.label.startswith("Použiť:")]
     assert "Zatiaľ žiadne návrhy prahov" in texts(at)
+
+
+def test_missing_proposals_show_their_reason_on_both_pages(monkeypatch):
+    gap = ProposalGapDTO(
+        sport="bike", field="lthr", reason="none of 12 rides has 30 min of HR without a pause"
+    )
+    expected = "Bez návrhu – Bicykel, LTHR: none of 12 rides has 30 min of HR without a pause"
+    patch_settings(monkeypatch)
+    patch_progress(monkeypatch, gaps=[gap])
+    assert expected in texts(run_page("nastavenia"))
+    assert expected in texts(run_page("progres"))

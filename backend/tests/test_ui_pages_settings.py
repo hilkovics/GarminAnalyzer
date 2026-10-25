@@ -70,7 +70,12 @@ def patch_settings(
         add_threshold=add_threshold,
     )
     patch_service(monkeypatch, "sync", run_sync=run_sync)
-    patch_service(monkeypatch, "progress", get_threshold_proposals=lambda session, *, today: [])
+    patch_service(
+        monkeypatch,
+        "progress",
+        get_threshold_proposals=lambda session, *, today: [],
+        get_proposal_gaps=lambda session, *, today: [],
+    )
     patch_service(
         monkeypatch, "diagnostics", get_diagnostics=lambda session: diagnostics or sample_diagnostics()
     )

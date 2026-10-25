@@ -213,6 +213,7 @@ EXPECTED_ROUTES = {
     ("get", "/api/progress/best-efforts"),
     ("get", "/api/progress/predictions"),
     ("get", "/api/progress/threshold-proposals"),
+    ("get", "/api/progress/threshold-proposals/missing"),
     ("get", "/api/plan/today"),
     ("post", "/api/plan/today/regenerate"),
     ("post", "/api/plan/today/push"),

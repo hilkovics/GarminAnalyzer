@@ -37,9 +37,16 @@ Last updated: 2026-10-25 (phase 8 session)
   **Fixed** (METRICS §6.3 changed 2026-10-25, approved): without any ride hrTSS in the window the rides are ranked
   by `avg_hr` (same top-10 % rule); the basis says "average HR (no bike threshold yet)".
 - **Approved 2026-10-25:** the METRICS clarifications of phase 5 (§8–§9), phase 6 (§10) and phase 7 (§10.8).
+- **Bike LTHR population** (METRICS §6.3 changed 2026-10-25, approved): only rides with an 1800 s HR best
+  effort enter the top-10 % selection. On real data no bike proposal appeared with the old rule; the likely
+  cause (unverified) is that the top rides lacked 30 min of HR without a pause.
+- **Why a proposal is missing:** `lthr_missing_reason` / `speed_missing_reason` (`metrics/efforts.py`) →
+  `services.progress.get_proposal_gaps` (`ProposalGapDTO`) → `GET /api/progress/threshold-proposals/missing`,
+  `training propose-thresholds` and a caption on Nastavenia / Progres. Real data: the run LTHR is presumably
+  missing because no run reached `if_pace` 0.95 against 5:33 – the new message will confirm.
 - Open: the run threshold-pace proposal (6:40/km, best 30-min GAP of 90 days) is far slower than Garmin's 5:33;
   the user keeps 5:33 (hrTSS and rTSS agree).
-- Tests: 1891 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
+- Tests: 1899 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
 
 ### Phase 8 – automation and operations (code complete; Windows task and Docker image not run yet)
 - **`training morning`** (`training/morning.py`, `cli/morning.py`): sync (+ metrics + nightly plan) → plan →

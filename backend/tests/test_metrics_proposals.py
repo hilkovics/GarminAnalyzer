@@ -18,7 +18,13 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from training.metrics.efforts import ThresholdProposal, propose_lthr, propose_threshold_speed
+from training.metrics.efforts import (
+    ThresholdProposal,
+    lthr_missing_reason,
+    propose_lthr,
+    propose_threshold_speed,
+    speed_missing_reason,
+)
 
 TODAY = date(2026, 9, 29)
 
@@ -299,9 +305,19 @@ def test_bike_population_only_window_and_valid_rate():
     assert p is not None and p.estimate == 160.0
 
 
-def test_bike_top_rides_without_1800_effort_none():
+def test_bike_only_rides_with_1800_effort_enter_the_percentile():
+    # changed 2026-10-25: the 80/h ride has no 30-min HR effort, so it cannot block the 50/h ride
     acts = bike_acts([50.0, 80.0])
-    assert propose_lthr("bike", hr_efforts([(1, 5, 170.0)]), acts, current=None, today=TODAY) is None
+    p = propose_lthr("bike", hr_efforts([(1, 5, 170.0)]), acts, current=None, today=TODAY)
+    assert p is not None and p.estimate == 170.0
+    assert p.basis.endswith("1 top-decile hrTSS/h ride(s) of 1 with 30 min of HR")
+
+
+def test_bike_without_any_1800_effort_none():
+    acts = bike_acts([50.0, 80.0])
+    assert (
+        propose_lthr("bike", hr_efforts([(1, 5, 170.0)]).iloc[0:0], acts, current=None, today=TODAY) is None
+    )
 
 
 def test_bike_delta_rule():
@@ -352,3 +368,40 @@ def test_bike_hrtss_rule_wins_when_any_ride_has_hrtss():
 def test_bike_no_hrtss_and_no_avg_hr_column_none():
     acts = activities([(1, 5, np.nan, np.nan, 3600)])
     assert propose_lthr("bike", hr_efforts([(1, 5, 160.0)]), acts, current=None, today=TODAY) is None
+
+
+# ------------------------------------------------------------ why a proposal is missing (not part of §6.3)
+
+
+def test_missing_reason_is_none_when_there_is_a_proposal():
+    assert lthr_missing_reason("bike", hr_efforts([(1, 5, 160.0)]), bike_acts([40.0]), today=TODAY) is None
+    assert speed_missing_reason(gap_efforts([(5, 1800, 3.0)]), today=TODAY) is None
+
+
+def test_missing_reasons_for_rides():
+    assert lthr_missing_reason("bike", hr_efforts([]), activities([]), today=TODAY) == (
+        "no rides in the last 90 days"
+    )
+    reason = lthr_missing_reason("bike", hr_efforts([(9, 5, 160.0)]), bike_acts([40.0, 60.0]), today=TODAY)
+    assert reason == "none of 2 rides has 30 min of HR without a pause"
+
+
+def test_missing_reasons_for_runs():
+    slow = activities([(1, 5, 0.80, 50.0, 3600), (2, 5, 0.87, 50.0, 3600)])
+    assert lthr_missing_reason("run", hr_efforts([(1, 5, 150.0)]), slow, today=TODAY) == (
+        "none of 2 runs reached if_pace ≥ 0.95 (highest 0.87)"
+    )
+    no_threshold = activities([(1, 5, np.nan, 50.0, 3600)])
+    assert "no if_pace (no threshold pace)" in lthr_missing_reason(
+        "run", hr_efforts([]), no_threshold, today=TODAY
+    )
+    fast = activities([(1, 5, 0.97, 80.0, 1500)])
+    assert lthr_missing_reason("run", hr_efforts([]), fast, today=TODAY) == (
+        "1 run(s) with if_pace ≥ 0.95, none with 30 min of HR without a pause"
+    )
+
+
+def test_speed_missing_reason():
+    assert speed_missing_reason(gap_efforts([(5, 600, 3.0)]), today=TODAY) == (
+        "no run of the last 90 days has 20 min of GAP without a pause"
+    )

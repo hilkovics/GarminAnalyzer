@@ -20,8 +20,10 @@ from training.metrics.efforts import (
     TRAILING_DAYS,
     ThresholdProposal,
     best_per_window,
+    lthr_missing_reason,
     propose_lthr,
     propose_threshold_speed,
+    speed_missing_reason,
 )
 from training.metrics.predictions import is_stale, pick_reference, predict
 from training.services.dto import (
@@ -32,6 +34,7 @@ from training.services.dto import (
     PredictionDTO,
     PredictionsDTO,
     ProposalDTO,
+    ProposalGapDTO,
     ReferenceDTO,
     SeriesDTO,
     SeriesPointDTO,
@@ -312,28 +315,45 @@ def _proposal_dto(
 def get_threshold_proposals(session: Session, *, today: dt.date) -> list[ProposalDTO]:
     """Run threshold speed, run LTHR and bike LTHR estimates (§6.3) against the thresholds valid today.
 
-    Estimates without enough data are left out. Nothing is applied here (see `apply_proposal`).
+    Estimates without enough data are left out (`get_proposal_gaps` says why). Nothing is applied here
+    (see `apply_proposal`).
     """
     current = {s: pipeline.resolve_threshold(session, s, today) for s in SERIES_SPORTS}
     garmin = garmin_values(session)
-    run_efforts = _effort_frame(session, "run")
+    run_efforts, inputs = _proposal_inputs(session)
     found: list[ThresholdProposal | None] = [
         propose_threshold_speed(
             run_efforts, current=current["run"].threshold_speed if current["run"] else None, today=today
         )
     ]
+    for sport, (hr_efforts, activities) in inputs.items():
+        lthr = current[sport].lthr if current[sport] else None
+        found.append(propose_lthr(sport, hr_efforts, activities, current=lthr, today=today))
+    return [_proposal_dto(p, garmin) for p in found if p is not None]
+
+
+def get_proposal_gaps(session: Session, *, today: dt.date) -> list[ProposalGapDTO]:
+    """For each estimate `get_threshold_proposals` leaves out: the reason (no rides, no 30 min of HR, …)."""
+    run_efforts, inputs = _proposal_inputs(session)
+    gaps = []
+    reason = speed_missing_reason(run_efforts, today=today)
+    if reason is not None:
+        gaps.append(ProposalGapDTO(sport="run", field="threshold_speed", reason=reason))
+    for sport, (hr_efforts, activities) in inputs.items():
+        reason = lthr_missing_reason(sport, hr_efforts, activities, today=today)
+        if reason is not None:
+            gaps.append(ProposalGapDTO(sport=sport, field="lthr", reason=reason))
+    return gaps
+
+
+def _proposal_inputs(session: Session) -> tuple[pd.DataFrame, dict[str, tuple[pd.DataFrame, pd.DataFrame]]]:
+    """Run efforts, and per sport (HR efforts, activities) for `propose_lthr`."""
+    run_efforts = _effort_frame(session, "run")
+    inputs = {}
     for sport in SERIES_SPORTS:
         efforts = run_efforts if sport == "run" else _effort_frame(session, sport)
-        found.append(
-            propose_lthr(
-                sport,
-                efforts[efforts["kind"] == "hr"],
-                _activity_frame(session, sport),
-                current=current[sport].lthr if current[sport] else None,
-                today=today,
-            )
-        )
-    return [_proposal_dto(p, garmin) for p in found if p is not None]
+        inputs[sport] = (efforts[efforts["kind"] == "hr"], _activity_frame(session, sport))
+    return run_efforts, inputs
 
 
 def apply_proposal(session: Session, *, sport: str, field: str, today: dt.date) -> ThresholdDTO:

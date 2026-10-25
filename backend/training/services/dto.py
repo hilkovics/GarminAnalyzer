@@ -450,3 +450,11 @@ class ProposalDTO(BaseModel):
     garmin_lthr: float | None = Field(description="Garmin's own lactate-threshold HR, bpm (if available)")
     garmin_lt_speed: float | None = Field(description="Garmin's lactate-threshold speed, m/s (if available)")
     garmin_vo2max: float | None
+
+
+class ProposalGapDTO(BaseModel):
+    """GET /progress/threshold-proposals/missing – why an estimate is missing (not part of §6.3)."""
+
+    sport: str
+    field: str = Field(description='"threshold_speed" | "lthr"')
+    reason: str

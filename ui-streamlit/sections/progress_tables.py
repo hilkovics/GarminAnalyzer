@@ -20,7 +20,7 @@ from components.format import (
 )
 
 from training.services import progress as progress_service
-from training.services.dto import PredictionsDTO, ProposalDTO
+from training.services.dto import PredictionsDTO, ProposalDTO, ProposalGapDTO
 from training.services.errors import ServiceError
 
 FLASH_KEY = "settings_flash"  # shown by the Nastavenia page after a rerun
@@ -101,17 +101,26 @@ def proposals_table(proposals: list[ProposalDTO]) -> None:
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
 
 
+def proposal_gaps(gaps: list[ProposalGapDTO]) -> None:
+    """Why an estimate is missing (e.g. no ride with 30 min of HR without a pause)."""
+    for gap in gaps:
+        st.caption(
+            f"Bez návrhu – {sport_label(gap.sport)}, {FIELD_LABELS.get(gap.field, gap.field)}: {gap.reason}"
+        )
+
+
 def proposals_link(proposals: list[ProposalDTO]) -> None:
     """On Progres: a button leading to Nastavenia, where a proposal is applied."""
     if any(p.propose for p in proposals) and st.button("Použiť návrh v Nastaveniach", key="goto_settings"):
         st.switch_page("views/nastavenia.py")
 
 
-def apply_actions(proposals: list[ProposalDTO]) -> None:
+def apply_actions(proposals: list[ProposalDTO], gaps: list[ProposalGapDTO]) -> None:
     """On Nastavenia: one button per proposed change, storing it as a threshold valid from today."""
     st.markdown("##### Návrhy prahov z posledných 90 dní")
     st.caption("Návrhy sa nikdy nepoužijú automaticky. Použitie uloží nový prah platný od dnes.")
     proposals_table(proposals)
+    proposal_gaps(gaps)
     for p in (p for p in proposals if p.propose):
         what = f"{FIELD_LABELS.get(p.field, p.field)} {_value(p, p.estimate)}"
         label = f"Použiť: {sport_label(p.sport)} – {what} od dnes"

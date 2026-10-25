@@ -8,7 +8,7 @@ from rich.table import Table
 from training.cli._app import app, console
 from training.cli.metrics import _db_session, format_pace
 from training.services.dto import ProposalDTO
-from training.services.progress import get_threshold_proposals
+from training.services.progress import get_proposal_gaps, get_threshold_proposals
 
 
 def _value(p: ProposalDTO, x: float | None) -> str:
@@ -36,11 +36,9 @@ def propose_thresholds() -> None:
     """Print LTHR / threshold-pace proposals from the last 90 days (never applied automatically)."""
     with _db_session() as session:
         proposals = get_threshold_proposals(session, today=_today())
+        gaps = get_proposal_gaps(session, today=_today())
     if not proposals:
-        console.print(
-            "No proposals yet: not enough best efforts in the last 90 days (run `training recompute`)."
-        )
-        return
+        console.print("No proposals yet: not enough best efforts in the last 90 days.")
     table = Table("sport", "field", "current", "estimate", "change", "propose", "basis", show_lines=False)
     for p in proposals:
         table.add_row(
@@ -52,7 +50,11 @@ def propose_thresholds() -> None:
             "[green]yes[/]" if p.propose else "no",
             escape(p.basis),
         )
-    console.print(table)
+    if proposals:
+        console.print(table)
+    for gap in gaps:
+        label = "threshold pace" if gap.field == "threshold_speed" else "LTHR"
+        console.print(f"no {gap.sport} {label} proposal: {escape(gap.reason)}")
     garmin = next((p for p in proposals if p.sport == "run"), None)
     if garmin and any(
         v is not None for v in (garmin.garmin_lthr, garmin.garmin_lt_speed, garmin.garmin_vo2max)
@@ -61,4 +63,5 @@ def propose_thresholds() -> None:
             f"Garmin: lactate-threshold HR {_fmt(garmin.garmin_lthr, 0)} · "
             f"LT pace {format_pace(garmin.garmin_lt_speed)} · VO2max {_fmt(garmin.garmin_vo2max, 1)}"
         )
-    console.print("Apply one with `training threshold add ...` or in the Nastavenia page.")
+    if proposals:
+        console.print("Apply one with `training threshold add ...` or in the Nastavenia page.")
