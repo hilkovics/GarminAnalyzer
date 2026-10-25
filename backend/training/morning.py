@@ -21,7 +21,7 @@ from pathlib import Path
 
 from sqlmodel import Session
 
-from training import planning
+from training import localtime, planning
 from training.config import Settings
 from training.db import repo
 from training.db.state_keys import MORNING_RUNS, TELEGRAM_SENT_DATE
@@ -304,7 +304,7 @@ def ran_on(session: Session, day: dt.date) -> bool:
             started = dt.datetime.fromisoformat(run["started_at"])
         except (KeyError, TypeError, ValueError):
             continue
-        local = started.astimezone() if started.tzinfo else started
+        local = localtime.to_local(started)
         if local.date() == day:
             return True
     return False

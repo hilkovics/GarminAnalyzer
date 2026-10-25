@@ -2,7 +2,7 @@
 
 `training morning` appends one JSON object per run (newest first, at most 30). The reader tolerates a missing
 key and any malformed content: unreadable runs or steps are dropped, it never raises. Local times use the
-system local zone (`datetime.astimezone()`), the same zone the Streamlit page displays.
+system local zone (`training.localtime`), the same zone the Streamlit page displays.
 """
 
 import datetime as dt
@@ -13,6 +13,7 @@ from typing import Any
 from pydantic import ValidationError
 from sqlmodel import Session
 
+from training import localtime
 from training.db import repo
 from training.db.state_keys import MORNING_RUNS
 from training.services.dto import MorningRunDTO, MorningStepDTO
@@ -67,7 +68,7 @@ def last_errors(runs: list[MorningRunDTO], limit: int = RECENT_RUNS) -> list[str
 
 def local_stamp(moment: dt.datetime) -> str:
     """ "23. 10. 2026 6:01" in the system local zone."""
-    local = moment.astimezone()
+    local = localtime.to_local(moment)
     return f"{local.day}. {local.month}. {local.year} {local.hour}:{local.minute:02d}"
 
 

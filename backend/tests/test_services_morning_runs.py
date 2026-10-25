@@ -2,11 +2,12 @@
 
 import datetime as dt
 import json
-import time
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlmodel import Session
 
+from training import localtime
 from training.db import repo
 from training.db.session import make_engine
 from training.db.state_keys import MORNING_RUNS
@@ -29,11 +30,9 @@ def session(tmp_path):
 @pytest.fixture(autouse=True)
 def prague_zone():
     """`astimezone()` follows the process zone; pin it so the local-time assertions are deterministic."""
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setenv("TZ", "Europe/Bratislava")
-        time.tzset()
+    with pytest.MonkeyPatch.context() as mp:  # no time.tzset: it does not exist on Windows
+        mp.setattr(localtime, "local_zone", lambda: ZoneInfo("Europe/Bratislava"))
         yield
-    time.tzset()
 
 
 def step(name: str, status: str = "ok", message: str = "", duration_s: float = 1.0) -> dict:

@@ -10,6 +10,8 @@ import datetime as dt
 import math
 import re
 
+from training import localtime
+
 DASH = "–"
 MINUS = "−"  # U+2212, not a hyphen
 
@@ -149,11 +151,11 @@ def fmt_date(d: dt.date | None) -> str:
 def fmt_datetime(moment: dt.datetime | None, sep: str = " ") -> str:
     """Timestamp → local "23. 10. 2026 6:01" (`sep` between date and time); None → "–".
 
-    Converted with `astimezone()`, i.e. to the system local zone; a naive value is taken as local already.
+    Converted to the system local zone (`training.localtime`); a naive value is taken as local already.
     """
     if moment is None:
         return DASH
-    local = moment.astimezone()
+    local = localtime.to_local(moment)
     return f"{local.day}. {local.month}. {local.year}{sep}{local.hour}:{local.minute:02d}"
 
 

@@ -1,7 +1,7 @@
 """AppTest runs of the morning-run health: the Dashboard status line and the Nastavenia "Ranné behy" table."""
 
 import datetime as dt
-import time
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -9,6 +9,7 @@ from tests.test_ui_pages import patch_dashboard
 from tests.test_ui_pages_settings import frames, patch_settings
 from tests.test_ui_samples import sample_dashboard, sample_diagnostics, sample_run
 from tests.test_ui_support import run_page, setup_ui, texts
+from training import localtime
 
 UTC = dt.UTC
 # 2026-10-23 04:01:30 UTC is 6:01:30 in Europe/Bratislava (CEST)
@@ -18,11 +19,9 @@ FINISHED = dt.datetime(2026, 10, 23, 4, 1, 30, tzinfo=UTC)
 @pytest.fixture(autouse=True)
 def ui(monkeypatch):
     setup_ui(monkeypatch)
-    with pytest.MonkeyPatch.context() as mp:
-        mp.setenv("TZ", "Europe/Bratislava")
-        time.tzset()
+    with pytest.MonkeyPatch.context() as mp:  # no time.tzset: it does not exist on Windows
+        mp.setattr(localtime, "local_zone", lambda: ZoneInfo("Europe/Bratislava"))
         yield
-    time.tzset()
 
 
 def health(**fields) -> dict:
