@@ -5,6 +5,8 @@ Extras on top of the eight weeks of 1200 s runs (LTHR 170 bpm, 3.5 m/s flat, thr
   EF = 3.5 · 60 / 140 = 1.5, decoupling 0, ref HR 136 bpm falls in their band → pace at ref HR 3.5 m/s;
 - one 3000 s ride at 132 bpm (0.8 · 165) and 8 m/s on 2026-09-09 (steady, EF = 8 · 60 / 132);
 - one 3000 s hard ride at 170 bpm on 2026-09-13 (not steady; the bike LTHR proposal comes from it);
+- one 3000 s tempo ride at 0.9 · 165 bpm on 2026-09-05 (above the steady band, below the hard ride's hrTSS/h),
+  so the §6.3 bike population has the 3 rides it needs;
 - a 10 km race in 40:00 on 2026-08-30 (VDOT ≈ 51.94), no stream needed;
 - raw Garmin lactate-threshold and max-metrics payloads.
 """
@@ -26,6 +28,7 @@ from .seeding import BIKE_LTHR, TODAY, add_activity, seed_scenario
 
 EASY_DAYS = (dt.date(2026, 9, 1), dt.date(2026, 9, 11))
 RIDE_DAY = dt.date(2026, 9, 9)
+TEMPO_RIDE_DAY = dt.date(2026, 9, 5)
 RACE_DAY = dt.date(2026, 8, 30)
 HARD_RIDE_HR = 170.0  # 1.03 · bike LTHR: the top hrTSS/h ride, the only one that qualifies for §6.3
 EASY_HR, EASY_EF = 140.0, 3.5 * 60.0 / 140.0
@@ -41,6 +44,7 @@ def seed_progress(session: Session) -> None:
         add_activity(session, 500 + i, day, sport="run", hr=EASY_HR, seconds=3000, hour=7)
     add_activity(session, 600, RIDE_DAY, sport="bike", hr=BIKE_LTHR * 0.8, seconds=3000)
     add_activity(session, 601, dt.date(2026, 9, 13), sport="bike", hr=HARD_RIDE_HR, seconds=3000)
+    add_activity(session, 602, TEMPO_RIDE_DAY, sport="bike", hr=BIKE_LTHR * 0.9, seconds=3000)
     race = add_activity(session, 700, RACE_DAY, sport="run", seconds=600, name="Race")
     activity = session.get(Activity, race)
     assert activity is not None

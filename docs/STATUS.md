@@ -40,6 +40,12 @@ Last updated: 2026-10-25 (phase 8 session)
 - **Bike LTHR population** (METRICS §6.3 changed 2026-10-25, approved): only rides with an 1800 s HR best
   effort enter the top-10 % selection. On real data no bike proposal appeared with the old rule; the likely
   cause (unverified) is that the top rides lacked 30 min of HR without a pause.
+- **At least 3 rides** (METRICS §6.3 changed 2026-10-25, approved): the bike population needs 3 rides with an
+  1800 s HR effort, else no proposal ("only N ride(s) … (at least 3 needed)"). On real data the old rule
+  proposed 151 bpm from the single ride of the last 90 days with 30 min of HR without a pause.
+- **Real data explains the missing efforts:** the recorded activities are 13–40 min of timer time, several with
+  pauses of 4–20 min in the middle (e.g. a run with 40 min moving and a 7-min stop); HR has no dropouts and the
+  samples are 2–7 s apart. A 30-min effort without stopping (field test) is needed for HR-based proposals.
 - **Why a proposal is missing:** `lthr_missing_reason` / `speed_missing_reason` (`metrics/efforts.py`) →
   `services.progress.get_proposal_gaps` (`ProposalGapDTO`) → `GET /api/progress/threshold-proposals/missing`,
   `training propose-thresholds` and a caption on Nastavenia / Progres. Real data: the run LTHR is presumably

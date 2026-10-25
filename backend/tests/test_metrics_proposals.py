@@ -264,15 +264,35 @@ def test_bike_top_decile_of_eleven_takes_two():
     assert p is not None and p.estimate == 168.0
 
 
-def test_bike_single_activity_qualifies():
-    acts = bike_acts([40.0])
-    p = propose_lthr("bike", hr_efforts([(1, 5, 160.0)]), acts, current=None, today=TODAY)
-    assert p is not None and p.estimate == 160.0
+def fill(
+    acts: pd.DataFrame, efforts: pd.DataFrame, *, hrtss: float = 1.0
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Add 2 easy rides (hrTSS/h 1, avg HR 100, 30-min HR 100) so a test meets the 3-ride minimum without
+    changing which ride is on top."""
+    easy = activities([(101, 5, np.nan, hrtss, 3600), (102, 5, np.nan, hrtss, 3600)]).assign(avg_hr=100.0)
+    return (
+        pd.concat([acts, easy], ignore_index=True),
+        pd.concat([efforts, hr_efforts([(101, 5, 100.0), (102, 5, 100.0)])], ignore_index=True),
+    )
+
+
+def test_bike_needs_at_least_3_rides():
+    # changed 2026-10-25: one or two rides with a 30-min HR effort give no proposal, three do
+    one = (hr_efforts([(1, 5, 160.0)]), bike_acts([40.0]))
+    two = (hr_efforts([(1, 5, 160.0), (2, 5, 150.0)]), bike_acts([40.0, 50.0]))
+    assert propose_lthr("bike", *one, current=None, today=TODAY) is None
+    assert propose_lthr("bike", *two, current=None, today=TODAY) is None
+    assert lthr_missing_reason("bike", *two, today=TODAY) == (
+        "only 2 ride(s) with 30 min of HR without a pause and hrTSS (at least 3 needed)"
+    )
+    three = (hr_efforts([(1, 5, 160.0), (2, 5, 150.0), (3, 5, 158.0)]), bike_acts([40.0, 50.0, 60.0]))
+    p = propose_lthr("bike", *three, current=None, today=TODAY)
+    assert p is not None and p.estimate == 158.0
 
 
 def test_bike_two_activities_only_the_higher():
-    acts = bike_acts([50.0, 80.0])
-    p = propose_lthr("bike", hr_efforts([(1, 5, 170.0), (2, 5, 160.0)]), acts, current=None, today=TODAY)
+    acts, efforts = fill(bike_acts([50.0, 80.0]), hr_efforts([(1, 5, 170.0), (2, 5, 160.0)]))
+    p = propose_lthr("bike", efforts, acts, current=None, today=TODAY)
     assert p is not None and p.estimate == 160.0
 
 
@@ -285,8 +305,10 @@ def test_bike_equal_rates_all_qualify():
 
 def test_bike_rate_is_per_hour():
     # ride 1: 50 hrTSS in 30 min = 100/h; ride 2: 90 hrTSS in 2 h = 45/h → ride 1 is the top one.
-    acts = activities([(1, 5, np.nan, 50.0, 1800), (2, 5, np.nan, 90.0, 7200)])
-    efforts = hr_efforts([(1, 5, 158.0), (2, 5, 170.0)])
+    acts, efforts = fill(
+        activities([(1, 5, np.nan, 50.0, 1800), (2, 5, np.nan, 90.0, 7200)]),
+        hr_efforts([(1, 5, 158.0), (2, 5, 170.0)]),
+    )
     p = propose_lthr("bike", efforts, acts, current=None, today=TODAY)
     assert p is not None and p.estimate == 158.0
 
@@ -301,16 +323,17 @@ def test_bike_population_only_window_and_valid_rate():
         ignore_index=True,
     )
     efforts = hr_efforts([(1, 5, 170.0), (2, 5, 160.0), (3, 90, 190.0), (4, 5, 185.0), (5, 5, 186.0)])
+    acts, efforts = fill(acts, efforts)
     p = propose_lthr("bike", efforts, acts, current=None, today=TODAY)
     assert p is not None and p.estimate == 160.0
 
 
 def test_bike_only_rides_with_1800_effort_enter_the_percentile():
     # changed 2026-10-25: the 80/h ride has no 30-min HR effort, so it cannot block the 50/h ride
-    acts = bike_acts([50.0, 80.0])
-    p = propose_lthr("bike", hr_efforts([(1, 5, 170.0)]), acts, current=None, today=TODAY)
+    acts, efforts = fill(bike_acts([50.0, 80.0]), hr_efforts([(1, 5, 170.0)]))
+    p = propose_lthr("bike", efforts, acts, current=None, today=TODAY)
     assert p is not None and p.estimate == 170.0
-    assert p.basis.endswith("1 top-decile hrTSS/h ride(s) of 1 with 30 min of HR")
+    assert p.basis.endswith("1 top-decile hrTSS/h ride(s) of 3 with 30 min of HR")
 
 
 def test_bike_without_any_1800_effort_none():
@@ -321,8 +344,8 @@ def test_bike_without_any_1800_effort_none():
 
 
 def test_bike_delta_rule():
-    acts = bike_acts([40.0])
-    p = propose_lthr("bike", hr_efforts([(1, 5, 160.0)]), acts, current=156.0, today=TODAY)
+    acts, efforts = fill(bike_acts([40.0]), hr_efforts([(1, 5, 160.0)]))
+    p = propose_lthr("bike", efforts, acts, current=156.0, today=TODAY)
     assert p is not None and p.propose is True and p.change == 4.0
 
 
@@ -351,6 +374,7 @@ def test_bike_bootstrap_ignores_rides_outside_window_and_without_avg_hr():
     )
     acts.loc[len(acts)] = {**acts.iloc[0].to_dict(), "activity_id": 4, "avg_hr": np.nan}
     efforts = hr_efforts([(1, 5, 171.0), (2, 5, 163.0), (3, 90, 185.0), (4, 5, 189.0)])
+    acts, efforts = fill(acts, efforts, hrtss=np.nan)
     p = propose_lthr("bike", efforts, acts, current=None, today=TODAY)
     assert p is not None and p.estimate == 163.0
 
@@ -360,7 +384,7 @@ def test_bike_hrtss_rule_wins_when_any_ride_has_hrtss():
     acts = activities([(1, 5, np.nan, 60.0, 3600), (2, 5, np.nan, np.nan, 3600)]).assign(
         avg_hr=[140.0, 170.0]
     )
-    efforts = hr_efforts([(1, 5, 158.0), (2, 5, 180.0)])
+    acts, efforts = fill(acts, hr_efforts([(1, 5, 158.0), (2, 5, 180.0)]))
     p = propose_lthr("bike", efforts, acts, current=None, today=TODAY)
     assert p is not None and p.estimate == 158.0 and "hrTSS/h" in p.basis
 
@@ -374,7 +398,8 @@ def test_bike_no_hrtss_and_no_avg_hr_column_none():
 
 
 def test_missing_reason_is_none_when_there_is_a_proposal():
-    assert lthr_missing_reason("bike", hr_efforts([(1, 5, 160.0)]), bike_acts([40.0]), today=TODAY) is None
+    acts, efforts = fill(bike_acts([40.0]), hr_efforts([(1, 5, 160.0)]))
+    assert lthr_missing_reason("bike", efforts, acts, today=TODAY) is None
     assert speed_missing_reason(gap_efforts([(5, 1800, 3.0)]), today=TODAY) is None
 
 

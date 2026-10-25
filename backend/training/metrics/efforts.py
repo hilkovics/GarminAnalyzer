@@ -21,8 +21,9 @@ Trailing 90 days = `local_date` in [today − 89, today].)
 `hrtss / (moving_s / 3600)` is ≥ the 90th percentile (at least one activity) among the sport's activities
 of the window. No qualifying data → no proposal. Without a current threshold the estimate is always
 proposed. Proposals round: speed to 0.01 m/s, LTHR to whole bpm.)
-(Changed 2026-10-25: only rides with an 1800 s HR effort enter the bike percentile; when no ride of the
-window has a valid hrTSS/h (no bike threshold yet), those rides are ranked by `avg_hr` instead.)
+(Changed 2026-10-25: only rides with an 1800 s HR effort enter the bike percentile, and at least 3 of them
+are needed; when no ride of the window has a valid hrTSS/h (no bike threshold yet), those rides are ranked
+by `avg_hr` instead.)
 
 Interpretation choices (literal where the text is silent):
 - Effort distance: "contiguous" previous sample is decided by `t` alone (a NaN value at first − 1 does not
@@ -61,6 +62,7 @@ LTHR_WINDOW = 1800  # §6.3 lthr_est
 LTHR_PROPOSE_BPM = 3.0  # §6.3: propose when |Δ| > 3 bpm
 RUN_MIN_IF_PACE = 0.95  # §6.3 run activity filter
 BIKE_TOP_PERCENTILE = 90.0  # §6.3 bike: top decile of hrTSS/h
+BIKE_MIN_RIDES = 3  # §6.3 changed 2026-10-25: at least 3 rides in the population
 _EPS = 1e-9
 
 BEST_COLUMNS: list[str] = ["kind", "window_s", "value", "local_date", "activity_id"]
@@ -258,9 +260,10 @@ def propose_lthr(
     those columns exist). `activities`: this sport's activities (`activity_id, local_date, if_pace, hrtss,
     moving_s`, optional `avg_hr`; filtered by a `sport` column if present). Qualifying activities of the
     trailing 90 days: run `if_pace ≥ 0.95`; bike – among the rides **with a 1800 s HR effort** – hrTSS/h ≥
-    its 90th percentile, or `avg_hr` ≥ its 90th percentile when none of them has an hrTSS/h (no bike
-    threshold yet; both changed 2026-10-25). Estimate = max 1800 s HR effort among them, rounded to whole
-    bpm; `change` = estimate − current; proposed when `|change| > 3` or without current.
+    its 90th percentile, or `avg_hr` ≥ its 90th percentile when no ride of the window has an hrTSS/h (no
+    bike threshold yet); at least 3 rides in that population (all changed 2026-10-25). Estimate = max 1800 s
+    HR effort among them, rounded to whole bpm; `change` = estimate − current; proposed when `|change| > 3`
+    or without current.
     `lthr_missing_reason` says why the result is None.
     """
     eff, selection = _lthr_selection(sport, efforts, activities, today)
@@ -366,6 +369,12 @@ def _lthr_selection(
     valid = np.isfinite(rate)
     if not valid.any():
         reason = f"{len(rides)} ride(s) with {minutes} min of HR, none with {missing}"
+        return eff.iloc[0:0], reason
+    if valid.sum() < BIKE_MIN_RIDES:
+        reason = (
+            f"only {int(valid.sum())} ride(s) with {minutes} min of HR without a pause and {missing} "
+            f"(at least {BIKE_MIN_RIDES} needed)"
+        )
         return eff.iloc[0:0], reason
     cutoff = min(float(np.percentile(rate[valid], BIKE_TOP_PERCENTILE)), float(rate[valid].max()))
     qualifying = rides[valid & (rate >= cutoff)]

@@ -260,6 +260,10 @@ threshold-speed proposal gives `if_pace`.)
 in the bootstrap above. Before, the top 10 % could consist only of short or often-paused rides without that
 effort, and then no proposal appeared at all. When no proposal appears, the app states why (no rides, none
 with 30 min of HR without a pause, runs below `if_pace` 0.95, …); this explanation is not part of the formula.
+*Changed 2026-10-25 (approved by the user):* **at least 3 rides.** The bike population (rides of the window with
+an 1800 s HR effort and a valid hrTSS/h, or `avg_hr` in the bootstrap) must contain **at least 3 rides**;
+otherwise there is no proposal. A single ride would make its own 30-min HR the "threshold", even after an
+easy ride.
 
 ## 7. Race predictions (runs)
 
