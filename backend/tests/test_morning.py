@@ -1,0 +1,225 @@
+"""training morning (PLAN phase 8): step chain, idempotency, run log, lock, schedule, exit codes. Offline."""
+
+import datetime as dt
+import json
+import logging
+import os
+import time
+
+import pytest
+from sqlmodel import Session
+from typer.testing import CliRunner
+
+from training import cli, log_redaction, morning
+from training.config import Settings, get_settings
+from training.db import repo
+from training.db.session import make_engine
+from training.db.state_keys import LAST_ACTIVITY_SYNC, LAST_WELLNESS_DATE, MORNING_RUNS
+from training.services import notify, plan_push, sync as sync_service
+from training.services.dto import PushResultDTO, SyncResultDTO
+from training.services.errors import ServiceError
+
+from .seeding import TODAY, seeded_db
+
+SECRET = "123456789:AAE-SECRET_token"
+
+
+def _sync_ok(session, *, settings, today):
+    repo.set_state(session, LAST_ACTIVITY_SYNC, today.isoformat())  # what a real sync leaves behind
+    repo.set_state(session, LAST_WELLNESS_DATE, today.isoformat())
+    session.commit()
+    return SyncResultDTO(
+        activities_new=1,
+        activities_updated=0,
+        activities_unchanged=5,
+        activities_pending=0,
+        activities_failed=0,
+        wellness_days=2,
+        metrics_computed=1,
+        pmc_days=10,
+        errors=[],
+    )
+
+
+@pytest.fixture
+def engine(tmp_path):
+    eng = make_engine(seeded_db(tmp_path))
+    yield eng
+    eng.dispose()
+
+
+@pytest.fixture
+def settings(tmp_path):
+    return Settings(db_path=tmp_path / "training.db", log_dir=tmp_path / "logs", rate_limit_s=0)
+
+
+@pytest.fixture
+def fakes(monkeypatch):
+    calls = {"push": 0, "telegram": 0}
+
+    def push_day(session, day, *, settings, dry_run=False):
+        calls["push"] += 1
+        return [PushResultDTO(planned_id=1, action="uploaded" if calls["push"] == 1 else "unchanged")]
+
+    def send(session, today, settings):
+        calls["telegram"] += 1
+        return True
+
+    monkeypatch.setattr(sync_service, "run_sync", _sync_ok)
+    monkeypatch.setattr(plan_push, "push_day", push_day)
+    monkeypatch.setattr(notify, "is_configured", lambda settings: True)
+    monkeypatch.setattr(notify, "send_morning", send)
+    return calls
+
+
+def _statuses(run):
+    return {s.name: s.status for s in run.steps}
+
+
+def test_a_full_run_and_a_second_run_the_same_day(engine, settings, fakes):
+    with Session(engine) as session:
+        first = morning.run_morning(session, settings, TODAY)
+        assert first.ok and _statuses(first) == {"sync": "ok", "plan": "ok", "push": "ok", "telegram": "ok"}
+        second = morning.run_morning(session, settings, TODAY)
+        assert second.ok
+        assert second.step("push").message == "unchanged"  # the push sends nothing new
+        assert second.step("telegram").status == "skipped"  # the message goes out once a day
+        assert fakes == {"push": 2, "telegram": 1}
+        runs = repo.get_state_json(session, MORNING_RUNS)
+    assert [r["ok"] for r in runs] == [True, True]
+    assert [s["name"] for s in runs[0]["steps"]] == ["sync", "plan", "push", "telegram"]
+    assert runs[0]["started_at"] >= runs[1]["started_at"]  # newest first
+
+
+def test_a_failed_sync_plans_provisionally_and_does_not_push(engine, settings, fakes, monkeypatch):
+    def boom(session, *, settings, today):
+        raise ServiceError("Garmin is rate-limiting requests (429). Progress is saved; try again in a while.")
+
+    monkeypatch.setattr(sync_service, "run_sync", boom)
+    with Session(engine) as session:
+        repo.set_state(session, LAST_WELLNESS_DATE, (TODAY - dt.timedelta(days=1)).isoformat())
+        session.commit()
+        run = morning.run_morning(session, settings, TODAY)
+    assert not run.ok
+    assert _statuses(run) == {"sync": "failed", "plan": "ok", "push": "skipped", "telegram": "ok"}
+    assert "429" in run.step("sync").message
+    assert "predbežný" in run.step("plan").message
+    assert fakes["push"] == 0 and fakes["telegram"] == 1
+
+
+def test_an_unexpected_error_is_recorded_by_class_only(engine, settings, fakes, monkeypatch):
+    def boom(session, day, *, settings, dry_run=False):
+        raise RuntimeError(f"https://api.example/bot{SECRET}/x")
+
+    monkeypatch.setattr(plan_push, "push_day", boom)
+    with Session(engine) as session:
+        run = morning.run_morning(session, settings, TODAY)
+        stored = json.dumps(repo.get_state_json(session, MORNING_RUNS))
+    assert run.step("push").status == "failed" and "RuntimeError" in run.step("push").message
+    assert SECRET not in stored and run.step("telegram").status == "ok"  # later steps still run
+
+
+def test_switches_and_unconfigured_telegram(engine, settings, fakes, monkeypatch):
+    monkeypatch.setattr(notify, "is_configured", lambda settings: False)
+    with Session(engine) as session:
+        run = morning.run_morning(session, settings, TODAY, push=False)
+    assert run.ok and run.step("push").message.startswith("vypnuté")
+    assert run.step("telegram").status == "skipped" and fakes["push"] == 0
+
+
+def test_a_failed_telegram_fails_the_run_and_is_retried(engine, settings, fakes, monkeypatch):
+    monkeypatch.setattr(notify, "send_morning", lambda session, today, settings: False)
+    with Session(engine) as session:
+        assert not morning.run_morning(session, settings, TODAY).ok
+        monkeypatch.setattr(notify, "send_morning", lambda session, today, settings: True)
+        assert morning.run_morning(session, settings, TODAY).step("telegram").status == "ok"
+
+
+def test_run_log_is_capped_and_survives_garbage(engine, settings, fakes):
+    with Session(engine) as session:
+        repo.set_state(session, MORNING_RUNS, "{not json")
+        session.commit()
+        morning.run_morning(session, settings, TODAY)  # malformed value replaced, no crash
+        for _ in range(morning.KEEP_RUNS + 2):
+            morning.record_run(session, morning.MorningRun(started_at=dt.datetime.now(dt.UTC)))
+        assert len(repo.get_state_json(session, MORNING_RUNS)) == morning.KEEP_RUNS
+
+
+def test_run_lock(tmp_path):
+    path = tmp_path / "logs" / morning.LOCK_FILE
+    with morning.RunLock(path):
+        assert path.exists()
+        with pytest.raises(morning.AlreadyRunning), morning.RunLock(path):
+            pass
+    assert not path.exists()
+    path.parent.mkdir(exist_ok=True)
+    path.write_text("999 old\n", encoding="utf-8")
+    old = time.time() - 4 * 3600
+    os.utime(path, (old, old))
+    with morning.RunLock(path):  # a stale lock (crashed run) is taken over
+        pass
+
+
+def test_schedule_helpers():
+    at = dt.time(6, 0)
+    assert morning.next_run_at(dt.datetime(2026, 10, 25, 5, 59), at) == dt.datetime(2026, 10, 25, 6, 0)
+    assert morning.next_run_at(dt.datetime(2026, 10, 25, 6, 0), at) == dt.datetime(2026, 10, 26, 6, 0)
+    assert morning.parse_time("6:30") == dt.time(6, 30)
+    with pytest.raises(ValueError, match="HH:MM"):
+        morning.parse_time("six")
+
+
+def test_json_log_file_is_structured_and_redacted(tmp_path):
+    path = log_redaction.add_file_handler(tmp_path)
+    assert log_redaction.add_file_handler(tmp_path) == path  # idempotent
+    logger = logging.getLogger("training.morning")
+    old = logger.level
+    logger.setLevel(logging.INFO)
+    try:
+        logger.info(
+            "push: failed – bot%s", SECRET, extra={"step": "push", "status": "failed", "duration_s": 1.5}
+        )
+    finally:
+        logger.setLevel(old)
+        root = logging.getLogger()
+        for handler in [h for h in root.handlers if getattr(h, "baseFilename", "") == str(path.resolve())]:
+            root.removeHandler(handler)
+            handler.close()
+    line = json.loads(path.read_text(encoding="utf-8").strip().splitlines()[-1])
+    assert line["step"] == "push" and line["status"] == "failed" and line["duration_s"] == 1.5
+    assert SECRET not in json.dumps(line) and "bot<redacted>" in line["msg"]
+
+
+@pytest.mark.parametrize(("ok", "code"), [(True, 0), (False, morning.EXIT_FAILED)])
+def test_cli_exit_codes(engine, tmp_path, monkeypatch, fakes, ok, code):
+    monkeypatch.setenv("TRAINING_DB_PATH", engine.url.database)
+    monkeypatch.setenv("TRAINING_LOG_DIR", str(tmp_path / "logs"))
+    if not ok:
+        monkeypatch.setattr(notify, "send_morning", lambda session, today, settings: False)
+    get_settings.cache_clear()
+    try:
+        result = CliRunner().invoke(cli.app, ["morning"])
+    finally:
+        get_settings.cache_clear()
+        root = logging.getLogger()
+        for handler in [h for h in root.handlers if "training.log" in getattr(h, "baseFilename", "")]:
+            root.removeHandler(handler)
+            handler.close()
+    assert result.exit_code == code, result.output
+    assert "sync" in result.output and "telegram" in result.output
+
+
+def test_cli_reports_a_held_lock(engine, tmp_path, monkeypatch, fakes):
+    monkeypatch.setenv("TRAINING_DB_PATH", engine.url.database)
+    monkeypatch.setenv("TRAINING_LOG_DIR", str(tmp_path / "logs"))
+    get_settings.cache_clear()
+    try:
+        with morning.RunLock(tmp_path / "logs" / morning.LOCK_FILE):
+            result = CliRunner().invoke(cli.app, ["morning"])
+    finally:
+        get_settings.cache_clear()
+        root = logging.getLogger()
+        for handler in [h for h in root.handlers if "training.log" in getattr(h, "baseFilename", "")]:
+            root.removeHandler(handler)
+            handler.close()
+    assert result.exit_code == morning.EXIT_LOCKED

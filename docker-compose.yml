@@ -1,0 +1,30 @@
+# Optional always-on setup (Raspberry Pi / NAS / home server) – PLAN phase 8.
+#
+#   1. On the host, log in once:   uv run training login     (tokens → ~/.garminconnect)
+#   2. docker compose up -d --build
+#   3. UI on http://<host>:8501 ; the morning run happens daily at MORNING_AT (default 06:00, TZ below)
+#
+# data/ (SQLite DB, logs) and the token directory are bind mounts, so rebuilding the image loses nothing.
+# Secrets (Telegram, Anthropic) go into an optional .env next to this file – never into this file.
+x-common: &common
+  build: .
+  image: garmin-analyzer:latest
+  restart: unless-stopped
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    TZ: ${TZ:-Europe/Bratislava}
+  volumes:
+    - ./data:/app/data
+    - ${GARMIN_TOKENS_DIR:-${HOME}/.garminconnect}:/tokens
+
+services:
+  ui:
+    <<: *common
+    ports:
+      - "8501:8501"
+
+  morning:
+    <<: *common
+    command: ["uv", "run", "--no-sync", "training", "morning", "--loop", "--at", "${MORNING_AT:-06:00}"]

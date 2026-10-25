@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     anthropic_api_key: SecretStr | None = Field(default=None, description="Enables the weekly AI report.")
     ai_model: str = Field(default="claude-opus-5-5", description="Model of the weekly AI report.")
     reports_dir: Path = Field(default=PROJECT_ROOT / "docs" / "reports")
+    log_dir: Path = Field(default=PROJECT_ROOT / "data" / "logs", description="`training morning` JSON logs.")
 
     @property
     def tokens_dir(self) -> Path:

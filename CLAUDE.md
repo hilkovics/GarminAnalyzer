@@ -33,6 +33,9 @@ uv run training recompute                # recompute all metrics from stored raw
 uv run training threshold add --sport run --lthr 170 --pace 4:10 --valid-from 2026-01-01   # historical thresholds
 uv run training athlete --sex male --max-hr 190   # TRIMP inputs (rest HR = 28-day median Garmin RHR)
 uv run training diagnostics              # sync state + load sanity check vs Garmin training load (§2.5)
+uv run training plan-today              # today's rule-based workout (§10.4)
+uv run training push-today [--dry-run]  # push it to the Garmin Connect calendar (§10.8)
+uv run training morning                 # daily run: sync → plan → push → telegram (cron; docs/OPERATIONS.md)
 uv run training api                      # FastAPI on :8000
 uv run streamlit run ui-streamlit/app.py # Streamlit UI on :8501
 uv run pytest -q                         # tests

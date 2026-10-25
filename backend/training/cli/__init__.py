@@ -12,6 +12,7 @@ from training.cli import (  # noqa: F401  (register commands)
     auth,
     ingest,
     metrics,
+    morning,
     notify,
     plan,
     progress,
