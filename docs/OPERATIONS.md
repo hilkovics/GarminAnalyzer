@@ -2,6 +2,33 @@
 
 Ako aplikácia beží každý deň sama, kde sú logy a čo robiť, keď niečo zlyhá. Všetky príkazy spúšťaj v priečinku projektu.
 
+## 0. Aplikácia na počítači
+
+Aplikácia beží u teba: lokálny server (`uv run training api`) servíruje webovú aplikáciu aj API na
+`http://127.0.0.1:8000`. Dáta neopúšťajú počítač a server nie je dostupný z iných zariadení (API nemá prihlásenie).
+
+**Ikona na ploche (Windows), raz:**
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_shortcut_windows.ps1            # ikona na plochu a do Štartu
+powershell -ExecutionPolicy Bypass -File scripts\install_shortcut_windows.ps1 -Remove    # odstrániť
+```
+Dvojklik na **Training Analytics**:
+- spustí server, ak ešte nebeží (minimalizované okno „Training Analytics server“; jeho zatvorenie server vypne);
+- otvorí aplikáciu ako samostatné okno v Microsoft Edge (inak v predvolenom prehliadači).
+
+Ručne: `powershell -ExecutionPolicy Bypass -File scripts\start_app.ps1` (spustiť a otvoriť), s `-Stop` server vypne.
+Výstup servera: `data\logs\app.out`. Prvé spustenie môže trvať dlhšie (uv inštaluje balíčky, databáza sa aktualizuje).
+
+**Bez ikony:** `uv run training api` a v prehliadači `http://127.0.0.1:8000`.
+Stará Streamlit verzia zostáva do odvolania: `uv run streamlit run ui-streamlit/app.py` (port 8501).
+
+**Mobil:** aplikácia je pripravená ako PWA (ikona na plochu telefónu), ale telefón sa k serveru na počítači
+nedostane – server počúva len na tomto počítači a inštalácia PWA vyžaduje HTTPS. Bezpečná cesta je napríklad
+Tailscale (`tailscale serve`), nastavíme ju, keď budeš chcieť.
+
+**Úpravy frontendu (len pre vývoj):** `cd frontend && npm ci && npm run dev` (port 5173, API cez proxy) a pred
+commitom `npm run build` – priečinok `frontend/dist` je v gite, aby aplikácia bežala aj bez Node.js.
+
 ## 1. Denný beh: `training morning`
 
 Jeden príkaz urobí celé ráno v tomto poradí:

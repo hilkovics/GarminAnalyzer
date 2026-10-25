@@ -15,7 +15,7 @@ source of truth) before starting any phase. Keep `docs/STATUS.md` updated at the
   `garmin_tokens.json`; it no longer uses `garth`).
   Everything is JSON from Garmin Connect – **no FIT files, no manual exports**.
 - Metrics: pandas, numpy, scipy, statsmodels. Pure functions, no I/O.
-- API: FastAPI (`backend/training/api/`). UI v1: Streamlit (`ui-streamlit/`). UI v2 (later): React + Vite + TS (`frontend/`).
+- API: FastAPI (`backend/training/api/`). UI v1: Streamlit (`ui-streamlit/`, kept until the user retires it). UI v2: React + Vite + TS (`frontend/`, phase 9, served by FastAPI).
 - CLI: Typer (`uv run training <command>`).
 - Lint/format: ruff. Tests: pytest.
 
@@ -37,7 +37,10 @@ uv run training diagnostics              # sync state + load sanity check vs Gar
 uv run training plan-today              # today's rule-based workout (§10.4)
 uv run training push-today [--dry-run]  # push it to the Garmin Connect calendar (§10.8)
 uv run training morning                 # daily run: sync → plan → push → telegram (cron; docs/OPERATIONS.md)
-uv run training api                      # FastAPI on :8000
+uv run training api                      # FastAPI on :8000, also serves the React app (frontend/dist) at /
+powershell -File scripts\start_app.ps1   # Windows: start the server if needed and open the app (desktop icon: install_shortcut_windows.ps1)
+cd frontend && npm ci && npm run dev     # React dev server :5173 (proxies /api); `npm run build` → commit frontend/dist
+cd frontend && npx tsc -b && npx vitest run   # frontend typecheck + tests
 uv run streamlit run ui-streamlit/app.py # Streamlit UI on :8501
 uv run pytest -q                         # tests
 uv run ruff check . && uv run ruff format .
