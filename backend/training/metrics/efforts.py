@@ -21,6 +21,8 @@ Trailing 90 days = `local_date` in [today − 89, today].)
 `hrtss / (moving_s / 3600)` is ≥ the 90th percentile (at least one activity) among the sport's activities
 of the window. No qualifying data → no proposal. Without a current threshold the estimate is always
 proposed. Proposals round: speed to 0.01 m/s, LTHR to whole bpm.)
+(Changed 2026-10-25: only rides with an 1800 s HR effort enter the bike percentile; when no ride of the
+window has a valid hrTSS/h (no bike threshold yet), those rides are ranked by `avg_hr` instead.)
 
 Interpretation choices (literal where the text is silent):
 - Effort distance: "contiguous" previous sample is decided by `t` alone (a NaN value at first − 1 does not
@@ -297,6 +299,8 @@ def speed_missing_reason(efforts: pd.DataFrame, *, today: date) -> str | None:
         df = df[df["kind"] == "gap_speed"]
     if _best_row(df, SPEED_WINDOW) is not None or _best_row(df, SPEED_FALLBACK_WINDOW) is not None:
         return None
+    if df.empty:
+        return f"no runs with GAP efforts in the last {TRAILING_DAYS} days"
     return (
         f"no run of the last {TRAILING_DAYS} days has {SPEED_FALLBACK_WINDOW // 60} min of GAP "
         "without a pause"
@@ -307,7 +311,8 @@ def _lthr_selection(
     sport: str, efforts: pd.DataFrame, activities: pd.DataFrame, today: date
 ) -> tuple[pd.DataFrame, str]:
     """(1800 s HR efforts of the qualifying activities, selection text). With no efforts left the text is
-    the reason, e.g. "none of 12 rides has 30 min of HR without a pause"."""
+    the reason, e.g. "none of 12 rides has 30 min of HR without a pause". (Qualifying rides always have an
+    effort, so the last bike text is never a reason.)"""
     if sport not in ("run", "bike"):
         raise ValueError(f"lthr proposals are defined for 'run' and 'bike', got {sport!r}")
     eff = _in_window(efforts, today, TRAILING_DAYS)
@@ -329,7 +334,9 @@ def _lthr_selection(
         qualifying = acts[if_pace >= RUN_MIN_IF_PACE]
         if qualifying.empty:
             best = (
-                "no if_pace (no threshold pace)" if if_pace.isna().all() else f"highest {if_pace.max():.2f}"
+                "no if_pace (no threshold pace)"
+                if if_pace.isna().all()
+                else f"highest {math.floor(if_pace.max() * 1000) / 1000:.3f}"
             )
             return eff.iloc[0:0], (f"none of {len(acts)} runs reached if_pace ≥ {RUN_MIN_IF_PACE} ({best})")
         eff = eff[eff["activity_id"].isin(qualifying["activity_id"])]
@@ -340,22 +347,26 @@ def _lthr_selection(
             )
         return eff, f"{len(qualifying)} run(s) with if_pace ≥ {RUN_MIN_IF_PACE}"
 
+    def rate_per_hour(frame: pd.DataFrame) -> np.ndarray:
+        hrtss = pd.to_numeric(frame["hrtss"], errors="coerce").to_numpy(dtype=float)
+        moving = pd.to_numeric(frame["moving_s"], errors="coerce").to_numpy(dtype=float)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.where(moving > 0, hrtss / (moving / 3600.0), np.nan)
+
+    # bootstrap: decided on every ride of the window (no bike LTHR yet), not only on the population below
+    bootstrap = not np.isfinite(rate_per_hour(acts)).any() and "avg_hr" in acts.columns
     rides = acts[acts["activity_id"].isin(eff["activity_id"])]  # changed 2026-10-25: rides with the effort
     if rides.empty:
         return eff.iloc[0:0], f"none of {len(acts)} rides has {minutes} min of HR without a pause"
-    hrtss = pd.to_numeric(rides["hrtss"], errors="coerce").to_numpy(dtype=float)
-    moving = pd.to_numeric(rides["moving_s"], errors="coerce").to_numpy(dtype=float)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        rate = np.where(moving > 0, hrtss / (moving / 3600.0), np.nan)
-    ranking = "hrTSS/h"
-    if not np.isfinite(rate).any() and "avg_hr" in rides.columns:  # bootstrap: no bike LTHR yet
+    if bootstrap:
         rate = pd.to_numeric(rides["avg_hr"], errors="coerce").to_numpy(dtype=float)
-        ranking = "average HR (no bike threshold yet)"
+        ranking, missing = "average HR (no bike threshold yet)", "an average HR"
+    else:
+        rate, ranking, missing = rate_per_hour(rides), "hrTSS/h", "hrTSS"
     valid = np.isfinite(rate)
     if not valid.any():
-        return eff.iloc[
-            0:0
-        ], f"{len(rides)} ride(s) with {minutes} min of HR, none with hrTSS or an average HR"
+        reason = f"{len(rides)} ride(s) with {minutes} min of HR, none with {missing}"
+        return eff.iloc[0:0], reason
     cutoff = min(float(np.percentile(rate[valid], BIKE_TOP_PERCENTILE)), float(rate[valid].max()))
     qualifying = rides[valid & (rate >= cutoff)]
     eff = eff[eff["activity_id"].isin(qualifying["activity_id"])]

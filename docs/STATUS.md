@@ -46,7 +46,7 @@ Last updated: 2026-10-25 (phase 8 session)
   missing because no run reached `if_pace` 0.95 against 5:33 – the new message will confirm.
 - Open: the run threshold-pace proposal (6:40/km, best 30-min GAP of 90 days) is far slower than Garmin's 5:33;
   the user keeps 5:33 (hrTSS and rTSS agree).
-- Tests: 1899 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
+- Tests: 1903 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
 
 ### Phase 8 – automation and operations (code complete; Windows task and Docker image not run yet)
 - **`training morning`** (`training/morning.py`, `cli/morning.py`): sync (+ metrics + nightly plan) → plan →

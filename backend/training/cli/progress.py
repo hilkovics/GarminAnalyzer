@@ -34,9 +34,10 @@ def _today() -> dt.date:
 @app.command("propose-thresholds")
 def propose_thresholds() -> None:
     """Print LTHR / threshold-pace proposals from the last 90 days (never applied automatically)."""
+    today = _today()
     with _db_session() as session:
-        proposals = get_threshold_proposals(session, today=_today())
-        gaps = get_proposal_gaps(session, today=_today())
+        proposals = get_threshold_proposals(session, today=today)
+        gaps = get_proposal_gaps(session, today=today)
     if not proposals:
         console.print("No proposals yet: not enough best efforts in the last 90 days.")
     table = Table("sport", "field", "current", "estimate", "change", "propose", "basis", show_lines=False)

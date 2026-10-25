@@ -389,7 +389,7 @@ def test_missing_reasons_for_rides():
 def test_missing_reasons_for_runs():
     slow = activities([(1, 5, 0.80, 50.0, 3600), (2, 5, 0.87, 50.0, 3600)])
     assert lthr_missing_reason("run", hr_efforts([(1, 5, 150.0)]), slow, today=TODAY) == (
-        "none of 2 runs reached if_pace ≥ 0.95 (highest 0.87)"
+        "none of 2 runs reached if_pace ≥ 0.95 (highest 0.870)"
     )
     no_threshold = activities([(1, 5, np.nan, 50.0, 3600)])
     assert "no if_pace (no threshold pace)" in lthr_missing_reason(
@@ -405,3 +405,35 @@ def test_speed_missing_reason():
     assert speed_missing_reason(gap_efforts([(5, 600, 3.0)]), today=TODAY) == (
         "no run of the last 90 days has 20 min of GAP without a pause"
     )
+
+
+def test_highest_if_pace_is_not_rounded_up_to_the_limit():
+    almost = activities([(1, 5, 0.9499, 50.0, 3600)])
+    assert lthr_missing_reason("run", hr_efforts([]), almost, today=TODAY).endswith("(highest 0.949)")
+
+
+def test_no_runs_at_all_for_the_speed_estimate():
+    assert (
+        speed_missing_reason(gap_efforts([]), today=TODAY) == "no runs with GAP efforts in the last 90 days"
+    )
+
+
+def test_bike_bootstrap_is_decided_on_every_ride_of_the_window():
+    # ride 1 has hrTSS (a threshold exists) but no 30-min effort; rides 2–3 have the effort but no hrTSS
+    # (threshold valid from mid-window) → no bootstrap, and the population has no hrTSS/h → no proposal
+    acts = activities(
+        [(1, 5, np.nan, 60.0, 3600), (2, 5, np.nan, np.nan, 3600), (3, 5, np.nan, np.nan, 3600)]
+    )
+    acts = acts.assign(avg_hr=[150.0, 160.0, 170.0])
+    efforts = hr_efforts([(2, 5, 165.0), (3, 5, 172.0)])
+    assert propose_lthr("bike", efforts, acts, current=165.0, today=TODAY) is None
+    assert (
+        lthr_missing_reason("bike", efforts, acts, today=TODAY)
+        == "2 ride(s) with 30 min of HR, none with hrTSS"
+    )
+
+
+def test_bike_bootstrap_reason_without_avg_hr():
+    acts = rides_without_hrtss([np.nan, np.nan])
+    reason = lthr_missing_reason("bike", hr_efforts([(1, 5, 160.0)]), acts, today=TODAY)
+    assert reason == "1 ride(s) with 30 min of HR, none with an average HR"

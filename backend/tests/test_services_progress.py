@@ -419,7 +419,7 @@ def test_bike_proposal_without_a_bike_threshold_ranks_by_average_hr(session):
 def test_proposal_gaps_explain_every_missing_estimate(empty_session):
     gaps = svc.get_proposal_gaps(empty_session, today=TODAY)
     assert [(g.sport, g.field, g.reason) for g in gaps] == [
-        ("run", "threshold_speed", "no run of the last 90 days has 20 min of GAP without a pause"),
+        ("run", "threshold_speed", "no runs with GAP efforts in the last 90 days"),
         ("run", "lthr", "no runs in the last 90 days"),
         ("bike", "lthr", "no rides in the last 90 days"),
     ]

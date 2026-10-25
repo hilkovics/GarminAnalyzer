@@ -478,9 +478,9 @@ GET /progress/threshold-proposals/missing – why an estimate is missing (not pa
 
 | Field | Type | Description |
 |---|---|---|
-| `sport` | string |  |
+| `sport` | string | "run" \| "bike" |
 | `field` | string | "threshold_speed" \| "lthr" |
-| `reason` | string |  |
+| `reason` | string | why no estimate exists, e.g. no ride with 30 min of HR without a pause |
 
 ### PushResultDTO
 

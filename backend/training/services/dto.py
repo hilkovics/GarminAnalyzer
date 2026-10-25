@@ -455,6 +455,6 @@ class ProposalDTO(BaseModel):
 class ProposalGapDTO(BaseModel):
     """GET /progress/threshold-proposals/missing – why an estimate is missing (not part of §6.3)."""
 
-    sport: str
+    sport: str = Field(description='"run" | "bike"')
     field: str = Field(description='"threshold_speed" | "lthr"')
-    reason: str
+    reason: str = Field(description="why no estimate exists, e.g. no ride with 30 min of HR without a pause")

@@ -160,3 +160,15 @@
 - Once-per-day markers (TELEGRAM_SENT_DATE) set after sending a provisional decision: the final plan of a later
   successful run is never announced. Check what the "once" message contained.
 - dto.py 452 lines (still > 400). STATUS was updated this phase (first time since phase 4).
+
+## §6.3 bike population / missing reasons (2026-10-25)
+- New pattern: when a spec change narrows a POPULATION (rides with an 1800 s HR effort), the code also moved
+  a separate CONDITION evaluated over the old population (bootstrap "no bike activity of the window has
+  hrTSS/h" became "none of the rides WITH the effort"). Scratch: ride with hrTSS but no effort + effort rides
+  without hrTSS -> avg_hr bootstrap and basis says "no bike threshold yet" although one exists. For every
+  population change, list each predicate in the spec paragraph and check which set it is evaluated on.
+- "Reason iff None" helpers: good design is reusing the same selection function (_lthr_selection) as the
+  proposal; fuzz-check with random frames (scratch check_boot.py approach, 4000 cases, 0 mismatches).
+- Formatted thresholds in user text (`{x:.2f}`) can round across the boundary ("highest 0.95" for 0.949 in
+  "none reached >= 0.95"). Check every reason/caption that prints a value next to its cutoff.
+- STATUS.md not updated again; dto.py 460 lines.

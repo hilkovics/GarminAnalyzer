@@ -3974,7 +3974,8 @@
         "properties": {
           "sport": {
             "type": "string",
-            "title": "Sport"
+            "title": "Sport",
+            "description": "\"run\" | \"bike\""
           },
           "field": {
             "type": "string",
@@ -3983,7 +3984,8 @@
           },
           "reason": {
             "type": "string",
-            "title": "Reason"
+            "title": "Reason",
+            "description": "why no estimate exists, e.g. no ride with 30 min of HR without a pause"
           }
         },
         "type": "object",
