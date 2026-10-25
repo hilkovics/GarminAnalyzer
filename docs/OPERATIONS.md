@@ -31,6 +31,7 @@ uv run training morning --force-telegram # pošli správu aj druhýkrát v ten i
 - **Kde vidieť výsledok:**
   - Dashboard – riadok „Ranný beh“, červený pri chybe alebo keď 36 hodín nebežal úspešne.
   - Nastavenia → Sync a diagnostika – posledných 10 behov a posledné chyby.
+- **Časy** v aplikácii sú v lokálnom časovom pásme počítača (v Dockeri podľa `TZ`). V logu a v databáze sú uložené v UTC.
 
 ## 2. Automatické spúšťanie
 

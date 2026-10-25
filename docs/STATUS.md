@@ -1,8 +1,32 @@
 # STATUS
 
-Last updated: 2026-10-23 (Windows setup session)
+Last updated: 2026-10-25 (phase 8 session)
 
 ## Done
+
+### Phase 8 – automation and operations (code complete; Windows task and Docker image not run yet)
+- **`training morning`** (`training/morning.py`, `cli/morning.py`): sync (+ metrics + nightly plan) → plan →
+  push → telegram.
+  - Each step is isolated. A failed sync keeps the plan provisional, so it is not pushed.
+  - Telegram is sent once per day (`TELEGRAM_SENT_DATE`).
+  - Runs are recorded under `MORNING_RUNS` (≤ 30).
+  - Exit code: 0 = ok, 1 = a failed step, 3 = locked (`data/logs/morning.lock`, taken over after 3 h).
+  - `--loop --at HH:MM` for Docker.
+- **Logs:** `data/logs/training.log` – JSON lines, rotated, every line passes the credential redaction filter.
+- **Schedulers:**
+  - `scripts/install_task_windows.ps1` (Task Scheduler: runs when available, so a laptop that slept still runs
+    it) – not run in the cloud, there is no PowerShell here.
+  - `scripts/install_cron.sh` – tested with a fake crontab.
+- **Docker:** `Dockerfile` + `docker-compose.yml` (ui + morning loop, `./data` and the token directory mounted,
+  secrets in an optional `.env`). The compose file validates; the image build is untested (no Docker daemon
+  here).
+- **Health:**
+  - Dashboard "Ranný beh" line: red after a failed run or 36 h without a successful one.
+  - Nastavenia → Sync a diagnostika: the last 10 runs and the latest errors (`services/morning_runs.py`,
+    `dto_health.py`).
+- `docs/OPERATIONS.md`: the daily run, schedulers, Docker token bootstrap, the Garmin login-breakage playbook,
+  backup and recovery, common situations.
+- Tests: 1846 passed, 5 skipped.
 
 ### Kokpit design in the Streamlit UI (2026-10-23)
 - **Design:** the Claude Design export is in `docs/design/` (with screenshots and its known sample-data mistakes).
