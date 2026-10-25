@@ -4,6 +4,28 @@ Last updated: 2026-10-25 (phase 8 session)
 
 ## Done
 
+### Phase 9 – React app (2026-10-25; code complete, Streamlit kept until the user retires it)
+- **Stack:** `frontend/` – Vite 6, React 18, TypeScript, Tailwind 4, TanStack Query + Router, Recharts, PWA
+  (vite-plugin-pwa), fonts bundled (offline). Types generated from `docs/openapi.json` (`npm run gen:api`).
+- **Served by FastAPI** (`training api`): `frontend/dist` at `/` with an SPA fallback, `/api`, `/docs` untouched;
+  CORS only for the Vite dev server. `frontend/dist` is committed so the app runs without Node;
+  `test_api_frontend.py` fails when dist is older than the sources (rebuild: `cd frontend && npm run build`).
+- **Pages:** Dashboard, Aktivity (list + detail with synced HR/pace/altitude charts, zones, laps, load, RPE form,
+  commute switch), Fitness, Progres, Spánok, Plán (today actions, Garmin push, week, season, goal, preferred
+  days), Nastavenia (athlete, thresholds, zones, proposals with apply, sync, diagnostics, morning runs). Dark,
+  light and auto themes; sidebar on desktop, bottom navigation on phones. Built by the orchestrator (foundation,
+  Dashboard, Fitness) and 5 parallel ui-page-builder agents (one page each, merged without conflicts).
+- **API additions:** `POST /api/progress/threshold-proposals/apply` (`ProposalApplyIn`).
+- **Fixed on the way:** parallel first requests raced inside Alembic (KeyError / segfault) – migrations and the
+  API engine creation are now serialized (`db/session.py`, `api/deps.py`).
+- **Desktop icon (Windows):** `scripts/install_shortcut_windows.ps1` → "Training Analytics" on the desktop and in
+  Start; `scripts/start_app.ps1` starts `uv run training api` if needed and opens an Edge app window. The
+  scripts are parse-checked with PowerShell 7 here; not run on Windows yet.
+- **Not done / open:** the phone cannot reach the PC server (127.0.0.1 only, no auth; PWA needs HTTPS – e.g.
+  Tailscale serve, to be set up with the user); Streamlit is not deleted (PLAN says after parity – waiting for
+  the user's go after trying the React app); date inputs follow the browser locale.
+- Tests: Python 1951 passed; frontend vitest 40 passed, `tsc -b` clean.
+
 ### Commutes (2026-10-25, METRICS §2.6 – approved by the user)
 - **Rule:** a bike ride with < 25 min of moving time is a commute; a per-activity override
   (`activity.commute_override`, migration 0004) wins. `training/commute.py` holds the rule (`is_commute`) and
