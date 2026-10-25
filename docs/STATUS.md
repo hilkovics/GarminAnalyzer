@@ -16,7 +16,21 @@ Last updated: 2026-10-25 (phase 8 session)
 - **Lactate threshold** `speed` is 0.3 for 3.0 m/s, matching the existing ×10 handling.
 - **Still unverified:** the Garmin push responses (schedule id, calendar item keys). The recording does not call
   those endpoints; the first real `push-today` shows them (a log warning names the keys if the id is missing).
-- Tests: 1882 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
+- **Demo data found in the real DB** (`db-stats` / `diagnostics` on Windows): 139 activities with garmin ids
+  9000000xx, 238 wellness days and the demo thresholds (run 168 bpm / 4:15, bike 160) came from
+  `scripts/seed_demo.py` run into `data/training.db` (the bash `VAR=… uv run` form does not work in PowerShell).
+  Backfill skipped the real wellness of those days because a row already existed.
+  - New `training purge-demo [--yes]` (`db/demo.py`): removes only rows without a raw Garmin payload (demo-range
+    id + "Demo " name for activities; no raw wellness for a day; exact demo threshold values), then recomputes.
+    The athlete row is only reported.
+  - `seed_demo.py` now writes `data/demo.db` by default (`--db`), never writes into a DB with raw payloads, and
+    documents the PowerShell form.
+  - After the purge: `backfill --months 24 --restart` fetches the missing wellness days; real thresholds and
+    athlete values have to be entered.
+- Garmin push on the real account: `push-today` twice → "unchanged", workout id returned. Calendar entry still
+  to be confirmed by the user.
+- Diagnostics before the purge: load vs Garmin training load r = 0.84 (n = 289), good.
+- Tests: 1886 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
 
 ### Phase 8 – automation and operations (code complete; Windows task and Docker image not run yet)
 - **`training morning`** (`training/morning.py`, `cli/morning.py`): sync (+ metrics + nightly plan) → plan →

@@ -1,4 +1,4 @@
-"""`training recompute` / `threshold` / `athlete` / `diagnostics`."""
+"""`training recompute` / `purge-demo` / `threshold` / `athlete` / `diagnostics`."""
 
 import datetime as dt
 
@@ -10,6 +10,7 @@ from sqlmodel import Session
 from training import pipeline
 from training.cli._app import app, console
 from training.config import get_settings
+from training.db import demo
 from training.db.session import get_engine
 from training.services.diagnostics import get_diagnostics
 
@@ -55,6 +56,38 @@ def recompute(
     )
     for line in result.errors[:10]:
         console.print(f"  [yellow]- {escape(line)}[/]")
+
+
+@app.command("purge-demo")
+def purge_demo(
+    yes: bool = typer.Option(False, "--yes", help="Delete (without it only lists what would go)."),
+) -> None:
+    """Remove `scripts/seed_demo.py` rows from a real database (rows without a raw Garmin payload)."""
+    with _db_session() as session:
+        rows = demo.find_demo_rows(session)
+        days = rows.wellness_dates
+        span = f" ({days[0]} – {days[-1]})" if days else ""
+        console.print(
+            f"demo activities: {len(rows.activity_ids)} · wellness days without Garmin data: "
+            f"{len(days)}{span} · demo thresholds: {len(rows.threshold_ids)}"
+        )
+        if rows.athlete_is_demo:
+            console.print("[yellow]athlete still has the demo values – set yours with `training athlete`[/]")
+        if rows.empty:
+            console.print("nothing to remove")
+            return
+        if not yes:
+            console.print("dry run – add --yes to delete, then recompute runs automatically")
+            return
+        demo.purge_demo_rows(session, rows)
+        result = pipeline.recompute(session, renormalize=False, end=dt.date.today())
+    console.print(f"removed · metrics for {result.metrics_computed} · PMC {result.daily_load_days} days")
+    if days:
+        console.print("fetch the real wellness of those days: `training backfill --months 24 --restart`")
+    if rows.threshold_ids:
+        console.print(
+            "add your thresholds: `training threshold add --sport run --lthr … --pace m:ss --valid-from …`"
+        )
 
 
 threshold_app = typer.Typer(help="Time-versioned LTHR / threshold pace (METRICS §1).", no_args_is_help=True)

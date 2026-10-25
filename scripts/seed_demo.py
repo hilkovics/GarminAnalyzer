@@ -1,14 +1,17 @@
 """Seed a DEMO database with synthetic activities + wellness so the UI/API can be tried without Garmin.
 
-    TRAINING_DB_PATH=data/demo.db uv run python scripts/seed_demo.py --days 150
-    TRAINING_DB_PATH=data/demo.db uv run streamlit run ui-streamlit/app.py
+    uv run python scripts/seed_demo.py --days 150          # writes data/demo.db (--db for another file)
+    TRAINING_DB_PATH=data/demo.db uv run streamlit run ui-streamlit/app.py      # bash
+    $env:TRAINING_DB_PATH="data/demo.db"; uv run streamlit run ui-streamlit/app.py   # PowerShell
 
-Refuses to touch a database that already contains activities unless --force is given. Everything is synthetic
-(random but seeded); nothing is fetched from Garmin. Metrics are computed through training.pipeline.
+Never writes into a database with Garmin data (raw payloads), and refuses one that already contains activities
+unless --force is given. Everything is synthetic (random but seeded); nothing is fetched from Garmin. Metrics
+are computed through training.pipeline. Demo rows mixed into a real DB: `training purge-demo`.
 """
 
 import datetime as dt
 import logging
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -17,13 +20,19 @@ from sqlalchemy import func, select
 from sqlmodel import Session
 
 from training import pipeline
-from training.config import get_settings
+from training.config import PROJECT_ROOT, Settings
 from training.db import repo
-from training.db.models import Activity, ActivityMetric
+from training.db.demo import (
+    BIKE_LTHR,
+    DEMO_ATHLETE,
+    DEMO_GARMIN_IDS,
+    DEMO_NAME_PREFIX,
+    RUN_LTHR,
+    RUN_THRESHOLD_SPEED,
+)
+from training.db.models import Activity, ActivityMetric, RawGarmin
 from training.db.session import get_engine
 from training.db.state_keys import LAST_ACTIVITY_SYNC, LAST_WELLNESS_DATE
-
-RUN_LTHR, BIKE_LTHR, RUN_THRESHOLD_SPEED = 168.0, 160.0, 1000 / 255  # 4:15 /km
 
 # weekday → (sport, kind); kind picks duration and intensity
 WEEK = {
@@ -65,27 +74,29 @@ def main(
     days: int = typer.Option(240, help="History length in days (ending today)."),
     seed: int = typer.Option(7, help="Random seed."),
     force: bool = typer.Option(False, help="Allow seeding a DB that already has activities."),
+    db: Path = typer.Option(PROJECT_ROOT / "data" / "demo.db", help="Demo database file."),
 ) -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    settings = get_settings()
+    settings = Settings(db_path=db)
     rng = np.random.default_rng(seed)
     today = dt.date.today()
     with Session(get_engine(settings)) as session:
+        if session.execute(select(func.count()).select_from(RawGarmin)).scalar_one():
+            typer.echo(f"{settings.db_path} holds real Garmin data – the demo never writes there.")
+            raise typer.Exit(1)
         existing = session.execute(select(func.count()).select_from(Activity)).scalar_one()
         if existing and not force:
             typer.echo(
                 f"{settings.db_path} already has {existing} activities – use a separate TRAINING_DB_PATH."
             )
             raise typer.Exit(1)
-        pipeline.set_athlete(
-            session, sex="male", max_hr=190.0, birth_year=1988, weight_kg=72.0, run_bike_split=0.6
-        )
+        pipeline.set_athlete(session, **DEMO_ATHLETE)
         start = today - dt.timedelta(days=days - 1)
         pipeline.set_threshold(
             session, sport="run", valid_from=start, lthr=RUN_LTHR, threshold_speed=RUN_THRESHOLD_SPEED
         )
         pipeline.set_threshold(session, sport="bike", valid_from=start, lthr=BIKE_LTHR)
-        garmin_id = 900_000_000
+        garmin_id = DEMO_GARMIN_IDS.start
         for i in range(days):
             day = start + dt.timedelta(days=i)
             sleep_s = float(rng.normal(7.2, 0.6) * 3600)
@@ -119,7 +130,7 @@ def main(
                     "garmin_id": garmin_id,
                     "sport": sport,
                     "sub_sport": "running" if sport == "run" else "road_biking",
-                    "name": f"Demo {kind} {sport}",
+                    "name": f"{DEMO_NAME_PREFIX}{kind} {sport}",
                     "start_utc": dt.datetime.combine(day, dt.time(6, 30), tzinfo=dt.UTC),
                     "tz": "Europe/Bratislava",
                     "local_date": day,
