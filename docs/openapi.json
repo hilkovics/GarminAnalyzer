@@ -2807,6 +2807,37 @@
             "type": "boolean",
             "title": "Sync Stale",
             "description": "last successful sync older than 36 h (PLAN phase 8 health)"
+          },
+          "last_successful_run": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Successful Run",
+            "description": "UTC finish of the newest ok `training morning` run; null if none"
+          },
+          "last_run_ok": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Run Ok",
+            "description": "outcome of the newest morning run; null when there never was one"
+          },
+          "morning_run_stale": {
+            "type": "boolean",
+            "title": "Morning Run Stale",
+            "description": "morning runs exist but none succeeded in the last 36 h (false when there never was one)",
+            "default": false
           }
         },
         "type": "object",
@@ -2923,6 +2954,22 @@
             "type": "array",
             "title": "Hrtss Rtss Divergent",
             "description": "runs where hrTSS and rTSS differ by > 40 % of the smaller value (threshold check)"
+          },
+          "recent_runs": {
+            "items": {
+              "$ref": "#/components/schemas/MorningRunDTO"
+            },
+            "type": "array",
+            "title": "Recent Runs",
+            "description": "last 10 `training morning` runs, newest first"
+          },
+          "last_errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Last Errors",
+            "description": "failed-step messages of those runs, newest first, prefixed with the local start time"
           }
         },
         "type": "object",
@@ -3229,6 +3276,109 @@
         ],
         "title": "LoadSanityDTO",
         "description": "METRICS §2.5: Pearson r between load_primary and Garmin training load."
+      },
+      "MorningRunDTO": {
+        "properties": {
+          "started_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Started At",
+            "description": "UTC"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At",
+            "description": "UTC; null when the run did not finish"
+          },
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/MorningStepDTO"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S",
+            "description": "seconds from start to finish; null when unfinished",
+            "readOnly": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "started_at",
+          "ok",
+          "duration_s"
+        ],
+        "title": "MorningRunDTO",
+        "description": "One stored run of `training morning` (sync_state key `morning_runs`, newest first)."
+      },
+      "MorningStepDTO": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "sync",
+              "plan",
+              "push",
+              "telegram"
+            ],
+            "title": "Name"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "failed",
+              "skipped"
+            ],
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "short text, never secrets",
+            "default": ""
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S",
+            "description": "seconds"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "status"
+        ],
+        "title": "MorningStepDTO",
+        "description": "One step of a `training morning` run."
       },
       "PlannedWorkoutDTO": {
         "properties": {

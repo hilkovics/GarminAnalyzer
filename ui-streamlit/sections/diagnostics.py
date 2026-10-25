@@ -10,11 +10,11 @@ import _db
 import pandas as pd
 import streamlit as st
 from components.badges import load_sanity_badge
-from components.format import fmt_date, fmt_num, fmt_pct, sport_label
+from components.format import fmt_date, fmt_datetime, fmt_duration_hms, fmt_num, fmt_pct, sport_label
 
 from training.config import get_settings
 from training.services import diagnostics as diagnostics_service, sync
-from training.services.dto import SyncResultDTO
+from training.services.dto import MorningRunDTO, SyncResultDTO
 from training.services.errors import ServiceError
 
 
@@ -56,6 +56,35 @@ def _sync_result(result: SyncResultDTO) -> None:
         st.warning(message)
 
 
+STEP_COLUMNS = {"sync": "Sync", "plan": "Plán", "push": "Garmin", "telegram": "Telegram"}
+STEP_MARKS = {"ok": "✓", "failed": "✗", "skipped": "–"}
+
+
+def morning_runs(runs: list[MorningRunDTO], errors: list[str]) -> None:
+    """ "Ranné behy": the last runs of `training morning` (local times) and the failed-step messages."""
+    st.markdown("##### Ranné behy")
+    if not runs:
+        st.caption("Automatický ranný beh zatiaľ nebežal – návod v docs/OPERATIONS.md.")
+    else:
+        rows = []
+        for run in runs:
+            marks = {s.name: STEP_MARKS.get(s.status, "–") for s in run.steps}
+            rows.append(
+                {
+                    "Začiatok": fmt_datetime(run.started_at),
+                    "Trvanie": fmt_duration_hms(run.duration_s),
+                    "Výsledok": "OK" if run.ok else "Chyba",
+                    **{label: marks.get(name, "–") for name, label in STEP_COLUMNS.items()},
+                }
+            )
+        st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    st.markdown("##### Posledné chyby")
+    if not errors:
+        st.caption("Žiadne chyby.")
+    for message in errors:
+        st.warning(message)
+
+
 def diagnostics() -> None:
     """Sync state, queues, data quality and the METRICS §2.5 load sanity check."""
     try:
@@ -81,6 +110,8 @@ def diagnostics() -> None:
     c3.metric("Bez prahu", d.activities_without_threshold)
     c4.metric("Bez záťaže", d.activities_without_load)
     c5.metric("Nízka spoľahlivosť", fmt_pct(d.low_confidence_share))
+
+    morning_runs(d.recent_runs, d.last_errors)
 
     sanity = d.load_sanity
     st.markdown("##### Kontrola záťaže vs. Garmin training load")

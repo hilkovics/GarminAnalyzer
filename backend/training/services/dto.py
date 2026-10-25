@@ -9,6 +9,12 @@ import datetime as dt
 
 from pydantic import BaseModel, Field
 
+# phase-8 DTOs live in dto_health.py
+from training.services.dto_health import (
+    MorningRunDTO as MorningRunDTO,
+    MorningStepDTO as MorningStepDTO,
+)
+
 # phase-6 DTOs live in dto_plan.py
 from training.services.dto_plan import (
     DailyDecisionDTO as DailyDecisionDTO,
@@ -268,6 +274,16 @@ class DashboardDTO(BaseModel):
     latest: PmcPointDTO | None
     last_sync: dt.date | None
     sync_stale: bool = Field(description="last successful sync older than 36 h (PLAN phase 8 health)")
+    last_successful_run: dt.datetime | None = Field(
+        default=None, description="UTC finish of the newest ok `training morning` run; null if none"
+    )
+    last_run_ok: bool | None = Field(
+        default=None, description="outcome of the newest morning run; null when there never was one"
+    )
+    morning_run_stale: bool = Field(
+        default=False,
+        description="morning runs exist but none succeeded in the last 36 h (false when there never was one)",
+    )
 
 
 # --- sync / diagnostics ------------------------------------------------------------------------------------
@@ -322,6 +338,13 @@ class DiagnosticsDTO(BaseModel):
     load_sanity: LoadSanityDTO
     hrtss_rtss_divergent: list[LoadDivergenceDTO] = Field(
         description="runs where hrTSS and rTSS differ by > 40 % of the smaller value (threshold check)"
+    )
+    recent_runs: list[MorningRunDTO] = Field(
+        default_factory=list, description="last 10 `training morning` runs, newest first"
+    )
+    last_errors: list[str] = Field(
+        default_factory=list,
+        description="failed-step messages of those runs, newest first, prefixed with the local start time",
     )
 
 

@@ -15,6 +15,7 @@ from training.db import repo
 from training.db.models import Activity, ActivityMetric, DailyLoad
 from training.db.state_keys import LAST_ACTIVITY_SYNC
 from training.metrics.pmc import HR_ZONES, RAMP_WARNING_ABOVE, acwr_band, weekly_aggregates
+from training.services import morning_runs
 from training.services.dto import DashboardDTO, PmcDTO, PmcPointDTO, PolarizationDTO, WeeklyDTO
 from training.services.errors import InvalidInputError
 
@@ -68,12 +69,12 @@ def get_weekly(session: Session, *, weeks: int = 12, today: dt.date) -> list[Wee
     return out
 
 
-def get_dashboard(session: Session, *, today: dt.date) -> DashboardDTO:
+def get_dashboard(session: Session, *, today: dt.date, now: dt.datetime | None = None) -> DashboardDTO:
     """This ISO week vs the mean of the 4 previous weeks, the last 42 days of PMC and the sync freshness.
 
     `last4_avg` rows are per-week means (zeros count); `n_activities` is that mean rounded to an integer, its
     `week_start` is the Monday of the oldest of the four weeks, and its polarization is that of the four weeks
-    together.
+    together. `now` (default: the wall clock) only feeds `morning_run_stale` (36 h rule).
     """
     monday = _monday(today)
     window_start = monday - dt.timedelta(weeks=PREVIOUS_WEEKS)
@@ -82,6 +83,7 @@ def get_dashboard(session: Session, *, today: dt.date) -> DashboardDTO:
     collapsed = weekly_aggregates(window.assign(local_date=window_start))
     pmc = get_pmc(session, date_from=today - dt.timedelta(days=DASHBOARD_PMC_DAYS - 1), date_to=today)
     last_sync = repo.get_state_date(session, LAST_ACTIVITY_SYNC)
+    runs = morning_runs.load_morning_runs(session)
     return DashboardDTO(
         today=today,
         week_start=monday,
@@ -91,6 +93,9 @@ def get_dashboard(session: Session, *, today: dt.date) -> DashboardDTO:
         latest=pmc.latest,
         last_sync=last_sync,
         sync_stale=last_sync is None or (today - last_sync).days >= STALE_AFTER_DAYS,
+        last_successful_run=morning_runs.last_successful_run(runs),
+        last_run_ok=runs[0].ok if runs else None,
+        morning_run_stale=morning_runs.is_stale(runs, now or dt.datetime.now(dt.UTC)),
     )
 
 

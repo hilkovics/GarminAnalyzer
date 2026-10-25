@@ -255,6 +255,9 @@ GET /plan/today – the day's planned workout with the inputs the decision used 
 | `latest` | PmcPointDTO \| null |  |
 | `last_sync` | date \| null |  |
 | `sync_stale` | boolean | last successful sync older than 36 h (PLAN phase 8 health) |
+| `last_successful_run` (optional) | date-time \| null | UTC finish of the newest ok `training morning` run; null if none |
+| `last_run_ok` (optional) | boolean \| null | outcome of the newest morning run; null when there never was one |
+| `morning_run_stale` (optional) | boolean | morning runs exist but none succeeded in the last 36 h (false when there never was one) |
 
 ### DiagnosticsDTO
 
@@ -274,6 +277,8 @@ GET /plan/today – the day's planned workout with the inputs the decision used 
 | `low_confidence_share` | number \| null | share of activities flagged low_confidence (0–1) |
 | `load_sanity` | LoadSanityDTO |  |
 | `hrtss_rtss_divergent` | LoadDivergenceDTO[] | runs where hrTSS and rTSS differ by > 40 % of the smaller value (threshold check) |
+| `recent_runs` (optional) | MorningRunDTO[] | last 10 `training morning` runs, newest first |
+| `last_errors` (optional) | string[] | failed-step messages of those runs, newest first, prefixed with the local start time |
 
 ### ErrorBody
 
@@ -336,6 +341,29 @@ METRICS §2.5: Pearson r between load_primary and Garmin training load.
 | `r` | number \| null | Pearson correlation coefficient, null if n < 3 |
 | `n` | integer | activities with both values |
 | `status` | string | "good" (r > 0.8) \| "fair" \| "warning" (r < 0.7) \| "insufficient" |
+
+### MorningRunDTO
+
+One stored run of `training morning` (sync_state key `morning_runs`, newest first).
+
+| Field | Type | Description |
+|---|---|---|
+| `started_at` | date-time | UTC |
+| `finished_at` (optional) | date-time \| null | UTC; null when the run did not finish |
+| `ok` | boolean |  |
+| `steps` (optional) | MorningStepDTO[] |  |
+| `duration_s` | number \| null | seconds from start to finish; null when unfinished |
+
+### MorningStepDTO
+
+One step of a `training morning` run.
+
+| Field | Type | Description |
+|---|---|---|
+| `name` | string |  |
+| `status` | string |  |
+| `message` (optional) | string | short text, never secrets |
+| `duration_s` (optional) | number \| null | seconds |
 
 ### PlannedWorkoutDTO
 

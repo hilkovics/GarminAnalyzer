@@ -15,7 +15,9 @@ from training.api.errors import register_error_handlers
 from training.api.export import build_spec, render_api_md, render_openapi_json
 from training.api.main import create_app
 from training.config import PROJECT_ROOT, Settings, get_settings
+from training.db import repo
 from training.db.session import make_engine, migrate
+from training.db.state_keys import MORNING_RUNS
 from training.garmin import client as garmin_client
 from training.garmin.client import GarminConnectAuthenticationError, GarminConnectTooManyRequestsError
 from training.services import diagnostics
@@ -78,6 +80,61 @@ def test_diagnostics_of_an_empty_database(fresh):
     body = make_client(fresh).get("/api/diagnostics").json()
     assert body["activities"] == 0 and body["load_sanity"]["status"] == "insufficient"
     assert body["last_activity_sync"] is None and body["failed_activities"] == []
+
+
+def store_runs(engine, runs: list[dict]) -> None:
+    with Session(engine) as session:
+        repo.set_state_json(session, MORNING_RUNS, runs)
+        session.commit()
+
+
+def morning_run(started: dt.datetime, *, ok: bool = True) -> dict:
+    status = "ok" if ok else "failed"
+    return {
+        "started_at": started.isoformat(),
+        "finished_at": (started + dt.timedelta(seconds=60)).isoformat(),
+        "ok": ok,
+        "steps": [
+            {"name": "sync", "status": status, "message": "" if ok else "Garmin 502", "duration_s": 5.0}
+        ],
+    }
+
+
+def test_diagnostics_includes_morning_runs_and_errors(engine):
+    assert make_client(engine).get("/api/diagnostics").json()["recent_runs"] == []  # nothing stored yet
+    now = dt.datetime.now(dt.UTC)
+    store_runs(engine, [morning_run(now, ok=False), morning_run(now - dt.timedelta(days=1))])
+    client = make_client(engine)
+    body = client.get("/api/diagnostics").json()
+    with Session(engine) as session:
+        assert body == diagnostics.get_diagnostics(session).model_dump(mode="json")
+    assert [r["ok"] for r in body["recent_runs"]] == [False, True]
+    assert body["recent_runs"][0]["duration_s"] == 60.0
+    assert body["recent_runs"][0]["steps"][0] == {
+        "name": "sync",
+        "status": "failed",
+        "message": "Garmin 502",
+        "duration_s": 5.0,
+    }
+    assert len(body["last_errors"]) == 1 and body["last_errors"][0].endswith("sync: Garmin 502")
+
+
+def test_dashboard_includes_morning_run_health(engine):
+    client = make_client(engine)
+    body = client.get("/api/fitness/dashboard").json()
+    assert (body["last_successful_run"], body["last_run_ok"], body["morning_run_stale"]) == (
+        None,
+        None,
+        False,
+    )
+    now = dt.datetime.now(dt.UTC)
+    store_runs(
+        engine,
+        [morning_run(now - dt.timedelta(hours=1), ok=False), morning_run(now - dt.timedelta(hours=40))],
+    )
+    body = make_client(engine).get("/api/fitness/dashboard").json()
+    assert body["last_run_ok"] is False and body["morning_run_stale"] is True
+    assert body["last_successful_run"] is not None
 
 
 # --- sync ---------------------------------------------------------------------------------------------------

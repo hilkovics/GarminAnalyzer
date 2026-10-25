@@ -146,6 +146,17 @@ def fmt_date(d: dt.date | None) -> str:
     return f"{d.day:02d}. {d.month:02d}. {d.year}"
 
 
+def fmt_datetime(moment: dt.datetime | None, sep: str = " ") -> str:
+    """Timestamp → local "23. 10. 2026 6:01" (`sep` between date and time); None → "–".
+
+    Converted with `astimezone()`, i.e. to the system local zone; a naive value is taken as local already.
+    """
+    if moment is None:
+        return DASH
+    local = moment.astimezone()
+    return f"{local.day}. {local.month}. {local.year}{sep}{local.hour}:{local.minute:02d}"
+
+
 def fmt_load(load: float | None, method: str | None = None, *, low_confidence: bool = False) -> str:
     """Training load "87 (hrTSS)"; a null load is "neznáma" (METRICS §2.1: unknown, not zero).
 

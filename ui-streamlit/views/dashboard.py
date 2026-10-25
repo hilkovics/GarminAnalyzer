@@ -6,6 +6,7 @@ import streamlit as st
 from components.badges import acwr_badge
 from components.format import (
     fmt_date,
+    fmt_datetime,
     fmt_duration,
     fmt_km,
     fmt_load,
@@ -40,6 +41,20 @@ elif dash.sync_stale:
     )
 else:
     st.caption(f"Posledný sync: {fmt_date(dash.last_sync)}")
+
+# --- morning run health (PLAN phase 8); times are shown in the system local zone ----------------------
+if dash.last_run_ok is None:
+    st.caption("Automatický ranný beh zatiaľ nebežal – návod v docs/OPERATIONS.md.")
+elif not dash.last_run_ok:
+    st.error("Posledný ranný beh zlyhal – pozri Nastavenia → Sync a diagnostika")
+elif dash.morning_run_stale:
+    st.error(
+        "Posledný úspešný ranný beh je starší ako 36 hodín "
+        f"(posledný: {fmt_datetime(dash.last_successful_run, ', ')}). "
+        "Pozri Nastavenia → Sync a diagnostika."
+    )
+else:
+    st.caption(f"Posledný úspešný ranný beh: {fmt_datetime(dash.last_successful_run, ', ')}")
 
 # --- readiness and today's workout ----------------------------------------------------------------
 # get_today decides (and stores) today's plan when it does not exist yet, exactly as the Plán page does.

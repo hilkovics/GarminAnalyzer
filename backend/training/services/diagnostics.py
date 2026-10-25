@@ -18,6 +18,7 @@ from training.db.state_keys import (
     PENDING_WELLNESS,
 )
 from training.metrics.load import load_sanity
+from training.services import morning_runs
 from training.services.dto import DiagnosticsDTO, LoadDivergenceDTO, LoadSanityDTO
 
 DIVERGENCE_PCT = 40.0
@@ -61,6 +62,7 @@ def get_diagnostics(session: Session) -> DiagnosticsDTO:
                         diff_pct=round(diff, 1),
                     )
                 )
+    runs = morning_runs.load_morning_runs(session)
     return DiagnosticsDTO(
         last_activity_sync=repo.get_state_date(session, LAST_ACTIVITY_SYNC),
         last_wellness_date=repo.get_state_date(session, LAST_WELLNESS_DATE),
@@ -76,4 +78,6 @@ def get_diagnostics(session: Session) -> DiagnosticsDTO:
         low_confidence_share=(sum(1 for r in rows if r.low_confidence) / len(rows)) if rows else None,
         load_sanity=LoadSanityDTO(r=sanity.r, n=sanity.n, status=sanity.status),
         hrtss_rtss_divergent=sorted(divergent, key=lambda d: -d.diff_pct),
+        recent_runs=runs[: morning_runs.RECENT_RUNS],
+        last_errors=morning_runs.last_errors(runs),
     )

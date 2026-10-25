@@ -13,6 +13,8 @@ from training.services.dto import (
     LapDTO,
     LoadDivergenceDTO,
     LoadSanityDTO,
+    MorningRunDTO,
+    MorningStepDTO,
     PmcDTO,
     PmcPointDTO,
     PolarizationDTO,
@@ -96,7 +98,13 @@ def sample_weekly(weeks: int = 4, *, end_monday: dt.date = MONDAY) -> list[Weekl
     return rows
 
 
-def sample_dashboard(*, sync_stale: bool = False, last_sync: dt.date | None = TODAY, **latest_overrides):
+def sample_dashboard(
+    *,
+    sync_stale: bool = False,
+    last_sync: dt.date | None = TODAY,
+    health: dict | None = None,
+    **latest_overrides,
+):
     pmc = sample_pmc(42, **latest_overrides)
     return DashboardDTO(
         today=TODAY,
@@ -115,7 +123,37 @@ def sample_dashboard(*, sync_stale: bool = False, last_sync: dt.date | None = TO
         latest=pmc.latest,
         last_sync=last_sync,
         sync_stale=sync_stale,
+        **(health or {}),
     )
+
+
+def sample_run(
+    started: dt.datetime | None = None, *, ok: bool = True, failed: str | None = None, **overrides
+) -> MorningRunDTO:
+    """A morning run of 62 s; `failed` names the step that failed (the later ones are skipped)."""
+    start = started or dt.datetime(2026, 9, 29, 4, 0, 1, tzinfo=dt.UTC)
+    names = ["sync", "plan", "push", "telegram"]
+    steps = []
+    for name in names:
+        if failed in names and names.index(name) > names.index(failed):
+            status = "skipped"
+        else:
+            status = "failed" if name == failed else "ok"
+        steps.append(
+            MorningStepDTO(
+                name=name,
+                status=status,
+                message="Garmin odmietol prihlásenie" if status == "failed" else "ok",
+                duration_s=15.5,
+            )
+        )
+    values = {
+        "started_at": start,
+        "finished_at": start + dt.timedelta(seconds=62),
+        "ok": ok and failed is None,
+        "steps": steps,
+    }
+    return MorningRunDTO(**{**values, **overrides})
 
 
 # --- activities ---------------------------------------------------------------------------------------------
