@@ -8,7 +8,7 @@ import streamlit as st
 
 from tests.test_ui_samples import sample_detail, sample_list, sample_streams
 from tests.test_ui_support import figures, patch_service, run_page, setup_ui, texts, trace_names
-from training.services.dto import SubjectiveDTO, SubjectiveIn
+from training.services.dto import CommuteIn, SubjectiveDTO, SubjectiveIn
 from training.services.errors import NotFoundError, ServiceError
 
 
@@ -25,6 +25,7 @@ class Calls:
         self.detail: list[int] = []
         self.streams: list[dict] = []
         self.saved: list[tuple[int, SubjectiveIn]] = []
+        self.commute: list[tuple[int, CommuteIn]] = []
 
 
 def patch_activities(
@@ -68,6 +69,15 @@ def patch_activities(
             raise save_error
         return SubjectiveDTO(id=1, date=dt.date(2026, 9, 19), activity_id=activity_id, **data.model_dump())
 
+    def set_commute(session, activity_id, data, *, today):
+        calls.commute.append((activity_id, data))
+        detail = details[activity_id]
+        summary = detail.summary.model_copy(
+            update={"commute_override": data.commute, "is_commute": bool(data.commute)}
+        )
+        details[activity_id] = detail.model_copy(update={"summary": summary})
+        return summary
+
     patch_service(
         monkeypatch,
         "activities",
@@ -75,6 +85,7 @@ def patch_activities(
         get_activity=get_activity,
         get_streams=get_streams,
         save_subjective=save_subjective,
+        set_commute=set_commute,
     )
     return calls
 
@@ -320,3 +331,17 @@ def test_subjective_form_shows_service_error(monkeypatch):
     assert len(calls.saved) == 1
     assert any(e.value == "Aktivita už neexistuje" for e in at.error)
     assert not at.success
+
+
+def test_commute_switch_marks_a_short_ride_as_training(monkeypatch):
+    calls = patch_activities(
+        monkeypatch, details={2: sample_detail(2, sport="bike", is_commute=True, commute_override=None)}
+    )
+    at = run_page("aktivity", query={"activity": "2"})
+    assert any(c.value == "Bicykel · dochádzka" for c in at.caption)
+    assert at.radio(key="commute_2").value is None
+    assert "Automaticky: dochádzka." in texts(at)
+    at.radio(key="commute_2").set_value(False).run()
+    assert not at.exception
+    assert calls.commute == [(2, CommuteIn(commute=False))]
+    assert at.radio(key="commute_2").value is False

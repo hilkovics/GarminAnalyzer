@@ -1,16 +1,18 @@
-"""Activities: list, detail, downsampled streams, subjective form."""
+"""Activities: list, detail, downsampled streams, subjective form, commute override."""
 
 import datetime as dt
 from typing import Annotated
 
 from fastapi import APIRouter, Query
 
-from training.api.deps import SessionDep
+from training.api.deps import SessionDep, TodayDep
 from training.api.errors import INVALID, NOT_FOUND
 from training.services import activities as service
 from training.services.dto import (
     ActivityDetailDTO,
     ActivityListDTO,
+    ActivitySummaryDTO,
+    CommuteIn,
     StreamsDTO,
     SubjectiveDTO,
     SubjectiveIn,
@@ -70,3 +72,15 @@ def get_streams(
 )
 def save_subjective(activity_id: int, body: SubjectiveIn, session: SessionDep) -> SubjectiveDTO:
     return service.save_subjective(session, activity_id, body)
+
+
+@router.put(
+    "/{activity_id}/commute",
+    response_model=ActivitySummaryDTO,
+    responses={**NOT_FOUND, **INVALID},
+    summary="Mark an activity as commute / training, or null = back to the rule (METRICS §2.6)",
+)
+def set_commute(
+    activity_id: int, body: CommuteIn, session: SessionDep, today: TodayDep
+) -> ActivitySummaryDTO:
+    return service.set_commute(session, activity_id, body, today=today)

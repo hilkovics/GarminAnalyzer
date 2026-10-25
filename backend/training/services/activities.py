@@ -1,4 +1,4 @@
-"""Activity services: list, detail (laps, zones, subjective), downsampled streams, subjective form.
+"""Activity services: list, detail (laps, zones, subjective), downsampled streams, subjective form, commute.
 
 Queries and DTO assembly only; every number comes from `activity_metric` / `activity_stream` (written by
 `training.pipeline`) or from `metrics.preprocess` for the two derived stream fields.
@@ -12,13 +12,15 @@ import numpy as np
 from sqlalchemy import func, select
 from sqlmodel import Session
 
-from training import pipeline
+from training import pipeline, pipeline_progress
 from training.db import raw_kinds as ep, repo
 from training.db.models import Activity, ActivityMetric, Subjective, Threshold
 from training.metrics.preprocess import preprocess
 from training.services.dto import (
     ActivityDetailDTO,
     ActivityListDTO,
+    ActivitySummaryDTO,
+    CommuteIn,
     LapDTO,
     StreamsDTO,
     SubjectiveDTO,
@@ -175,6 +177,29 @@ def save_subjective(session: Session, activity_id: int, data: SubjectiveIn) -> S
     session.commit()
     session.refresh(row)
     return subjective_dto(row)
+
+
+def set_commute(session: Session, activity_id: int, data: CommuteIn, *, today: dt.date) -> ActivitySummaryDTO:
+    """Override the METRICS §2.6 commute rule for one activity (null = back to the rule).
+
+    The activity's load stays in `daily_load`; its §5 values and best efforts are recomputed (dropped for a
+    commute) and the speed–HR curves of the months it touches are refreshed.
+    """
+    activity = session.get(Activity, activity_id)
+    if activity is None:
+        raise NotFoundError(f"activity {activity_id} not found")
+    activity.commute_override = data.commute
+    session.add(activity)
+    session.commit()
+    if session.get(ActivityMetric, activity_id) is not None:
+        pipeline_progress.compute_activity_progress(session, activity_id)
+        session.commit()
+    if activity.sport == "run" and activity.local_date <= today:  # its 28-day curve windows (§6.1)
+        pipeline_progress.compute_curve_snapshots(
+            session, today, pipeline_progress.months_touched([activity.local_date])
+        )
+    session.refresh(activity)
+    return summary_dto(activity, session.get(ActivityMetric, activity_id))
 
 
 # --- helpers -----------------------------------------------------------------------------------------------

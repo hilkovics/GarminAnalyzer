@@ -7,7 +7,7 @@ unknown id → NotFoundError). Loads are TSS-equivalent points; durations second
 
 import datetime as dt
 
-from sqlalchemy import func, select
+from sqlalchemy import func, not_, select
 from sqlmodel import Session
 
 from training import pipeline, planning
@@ -20,6 +20,7 @@ from training.coach.workout import (
     step_zone,
     total_duration_s,
 )
+from training.commute import commute_expr
 from training.db.models import Activity, ActivityMetric, DailyLoad, Goal, PlannedWorkout
 from training.services.dto import (
     DailyDecisionDTO,
@@ -274,7 +275,15 @@ def get_week(session: Session, day: dt.date, *, today: dt.date) -> WeekPlanDTO:
     counts = dict(
         session.execute(
             select(Activity.local_date, func.count())
-            .where(Activity.local_date.between(monday, sunday))
+            .where(Activity.local_date.between(monday, sunday), not_(commute_expr()))
+            .group_by(Activity.local_date)
+        ).all()
+    )
+    commutes = dict(
+        session.execute(
+            select(Activity.local_date, func.coalesce(func.sum(ActivityMetric.load_primary), 0.0))
+            .join(ActivityMetric, ActivityMetric.activity_id == Activity.id)
+            .where(Activity.local_date.between(monday, sunday), commute_expr())
             .group_by(Activity.local_date)
         ).all()
     )
@@ -283,14 +292,16 @@ def get_week(session: Session, day: dt.date, *, today: dt.date) -> WeekPlanDTO:
         date = monday + dt.timedelta(days=i)
         planned = planning.planned_for(session, date)
         load = loads.get(date)
+        commute = float(commutes.get(date, 0.0))
         days.append(
             WeekDayDTO(
                 date=date,
                 weekday=weekday,
                 role=roles[weekday].role,
                 planned=_planned_dto(session, planned[0], today) if planned else None,
-                actual_load=float(load.load_total) if load else 0.0,
+                actual_load=max(0.0, (float(load.load_total or 0.0) if load else 0.0) - commute),
                 activities=int(counts.get(date, 0)),
+                commute_load=commute,
             )
         )
     done = sum(d.actual_load for d in days)

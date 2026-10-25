@@ -1,4 +1,4 @@
-"""Activity detail block: summary, streams chart, laps, time in zones, load breakdown, subjective form.
+"""Activity detail: summary, commute switch, streams chart, laps, zones, load breakdown, subjective form.
 
 Calls `training.services.activities` and renders the DTOs; no computation.
 """
@@ -21,7 +21,7 @@ from components.format import (
 from components.zones import zones_bar
 
 from training.services import activities
-from training.services.dto import ActivityDetailDTO, SubjectiveIn
+from training.services.dto import ActivityDetailDTO, CommuteIn, SubjectiveIn
 from training.services.errors import NotFoundError, ServiceError
 
 STREAM_FIELDS = {"run": ["hr", "speed", "gap_speed", "alt"], "bike": ["hr", "speed", "alt"]}
@@ -44,6 +44,7 @@ def render_activity_detail(activity_id: int) -> None:
         return
 
     _summary(detail)
+    _commute(detail)
     _streams(detail)
     _laps(detail)
     _zones(detail)
@@ -61,6 +62,8 @@ def _summary(detail: ActivityDetailDTO) -> None:
         tags.append("preteky")
     if s.is_indoor:
         tags.append("indoor")
+    if s.is_commute:
+        tags.append("dochádzka")
     st.caption(" · ".join(tags))
     top, bottom = st.columns(3), st.columns(3)  # two rows: values like "30.2 km/h" fit without truncation
     top[0].metric("Trvanie", fmt_duration_hms(s.duration_s))
@@ -75,6 +78,35 @@ def _summary(detail: ActivityDetailDTO) -> None:
         )
     if s.load_primary is None:
         st.warning("Záťaž tejto aktivity je neznáma (chýba tep alebo prah).")
+
+
+COMMUTE_CHOICES = {None: "automaticky", True: "dochádzka", False: "tréning"}
+
+
+def _commute(detail: ActivityDetailDTO) -> None:
+    """METRICS §2.6: commute or training – automatic (ride < 25 min) or the user's choice."""
+    s = detail.summary
+    choice = st.radio(
+        "Typ aktivity",
+        list(COMMUTE_CHOICES),
+        index=list(COMMUTE_CHOICES).index(s.commute_override),
+        format_func=COMMUTE_CHOICES.__getitem__,
+        horizontal=True,
+        key=f"commute_{s.id}",
+        help="Dochádzka sa ráta do únavy a formy, ale nie do tréningu (plán, týždenný cieľ, najlepšie úseky, "
+        "návrhy prahov). Automaticky = jazda na bicykli kratšia ako 25 min.",
+    )
+    if s.commute_override is None:
+        st.caption(f"Automaticky: {'dochádzka' if s.is_commute else 'tréning'}.")
+    if choice == s.commute_override:
+        return
+    try:
+        with _db.session() as session:
+            activities.set_commute(session, s.id, CommuteIn(commute=choice), today=_db.today())
+    except ServiceError as exc:
+        st.error(str(exc))
+    else:
+        st.rerun()
 
 
 def _streams(detail: ActivityDetailDTO) -> None:

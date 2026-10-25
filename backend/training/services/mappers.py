@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from typing import Any
 
+from training.commute import activity_is_commute
 from training.db.models import Activity, ActivityMetric, Subjective, Threshold
 from training.metrics.zones import HR_ZONE_BOUNDS, PACE_ZONE_BOUNDS, ZONE_KEYS, default_zones
 from training.services.dto import (
@@ -93,6 +94,8 @@ def summary_dto(a: Activity, m: ActivityMetric | None) -> ActivitySummaryDTO:
         hr_coverage=m.hr_coverage if m else None,
         low_confidence=m.low_confidence if m else False,
         garmin_training_load=a.garmin_training_load,
+        is_commute=activity_is_commute(a),
+        commute_override=a.commute_override,
     )
 
 

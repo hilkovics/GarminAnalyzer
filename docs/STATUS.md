@@ -4,6 +4,21 @@ Last updated: 2026-10-25 (phase 8 session)
 
 ## Done
 
+### Commutes (2026-10-25, METRICS §2.6 – approved by the user)
+- **Rule:** a bike ride with < 25 min of moving time is a commute; a per-activity override
+  (`activity.commute_override`, migration 0004) wins. `training/commute.py` holds the rule (`is_commute`) and
+  the same rule in SQL (`commute_expr`).
+- **Fatigue yes:** commute load stays in `daily_load` (CTL/ATL/TSB/ACWR/monotony, readiness, diagnostics).
+- **Training no:** no EF/decoupling/day pace, no best efforts, not in curves, §6.3 proposals or the §9 day
+  activity; the coach uses `T_train = max(0, T − C)` (`C` = 7/28 · commute load of the previous 28 days),
+  non-commute week load, run share, active days, yesterday's IF and matching (`planning.py`, `season.py`).
+  The Plán week view shows training load per day plus `commute_load`.
+- **UI / API:** "dochádzka" tag in the activity list and detail, a radio "automaticky / dochádzka / tréning"
+  on the activity detail, `PUT /api/activities/{id}/commute` (`CommuteIn`), `ActivitySummaryDTO.is_commute`.
+- **After pulling:** `uv run training recompute` drops the commutes' best efforts and EF values.
+- Test scenario: the weekly 20-min seeded ride is marked as training (`commute=False`) so the older tests keep
+  their meaning; `test_commute.py` covers the rule, pipeline, coach and service.
+
 ### Real Garmin fixtures (2026-10-25)
 - **Recorded on Windows and committed** (`c335139`): 6 activities (3 runs, 3 rides), 14 days of wellness, body
   battery, max metrics, training status and the lactate threshold. Anonymized: names, ids and GPS checked.
@@ -52,7 +67,7 @@ Last updated: 2026-10-25 (phase 8 session)
   missing because no run reached `if_pace` 0.95 against 5:33 – the new message will confirm.
 - Open: the run threshold-pace proposal (6:40/km, best 30-min GAP of 90 days) is far slower than Garmin's 5:33;
   the user keeps 5:33 (hrTSS and rTSS agree).
-- Tests: 1903 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
+- Tests: 1921 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
 
 ### Phase 8 – automation and operations (code complete; Windows task and Docker image not run yet)
 - **`training morning`** (`training/morning.py`, `cli/morning.py`): sync (+ metrics + nightly plan) → plan →

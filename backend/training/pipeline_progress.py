@@ -14,10 +14,11 @@ import logging
 from collections.abc import Iterable
 
 import pandas as pd
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, insert, not_, select
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlmodel import Session
 
+from training.commute import activity_is_commute, commute_expr
 from training.db.models import Activity, ActivityMetric, BestEffort, CurveSnapshot
 from training.metrics.curve import (
     REF_FRACTION,
@@ -49,6 +50,9 @@ def compute_activity_progress(session: Session, activity_id: int) -> None:
     activity = session.get(Activity, activity_id)
     if activity is None:
         raise LookupError(f"activity {activity_id} not found")
+    if activity_is_commute(activity):  # METRICS §2.6: no §5 values, no §6.1 day value, no best efforts
+        _clear_progress(session, activity_id)
+        return
     prep = preprocess(load_streams(session, activity_id), activity.sport)
     lthr = _lthr(session, activity.sport, activity.local_date)
     eff = efficiency(prep, sport=activity.sport, lthr=lthr)
@@ -79,6 +83,19 @@ def compute_activity_progress(session: Session, activity_id: int) -> None:
         session.execute(insert(BestEffort.__table__), rows)
 
 
+def _clear_progress(session: Session, activity_id: int) -> None:
+    metric = session.get(ActivityMetric, activity_id)
+    if metric is not None:
+        metric.steady_state, metric.ef, metric.decoupling_pct, metric.pace_at_ref_hr_day = (
+            None,
+            None,
+            None,
+            None,
+        )
+        session.add(metric)
+    session.execute(delete(BestEffort.__table__).where(BestEffort.__table__.c.activity_id == activity_id))
+
+
 # --- monthly speed–HR curve snapshots (§6.1) ---------------------------------------------------------------
 
 
@@ -99,7 +116,9 @@ def curve_months(first: dt.date, today: dt.date) -> list[str]:
 def compute_curve_snapshots(session: Session, today: dt.date, months: Iterable[str] | None = None) -> int:
     """Upsert `curve_snapshot` (sport "run") for `months` (default: every month with run data)."""
     runs = session.execute(
-        select(Activity.id, Activity.local_date).where(Activity.sport == "run").order_by(Activity.local_date)
+        select(Activity.id, Activity.local_date)
+        .where(Activity.sport == "run", not_(commute_expr()))  # §2.6
+        .order_by(Activity.local_date)
     ).all()
     if not runs:
         return 0

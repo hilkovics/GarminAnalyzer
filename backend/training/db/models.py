@@ -81,6 +81,7 @@ class Activity(SQLModel, table=True):
     calories: float | None = None
     is_race: bool = False
     is_indoor: bool = False
+    commute_override: bool | None = None  # user's choice; None = METRICS §2.6 rule (short bike ride)
     garmin_training_load: float | None = None
     garmin_aerobic_te: float | None = None
     garmin_anaerobic_te: float | None = None

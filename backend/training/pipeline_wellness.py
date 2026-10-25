@@ -9,11 +9,12 @@ import datetime as dt
 import logging
 
 import pandas as pd
-from sqlalchemy import bindparam, select, update
+from sqlalchemy import bindparam, not_, select, update
 from sqlmodel import Session
 
 from training.analysis.readiness import readiness_frame
 from training.analysis.wellness import with_baselines
+from training.commute import commute_expr
 from training.db.models import Activity, ActivityMetric, DailyLoad, DailyWellness, Subjective
 
 log = logging.getLogger(__name__)
@@ -114,7 +115,7 @@ def correlation_activities(session: Session) -> pd.DataFrame:
         )
         .join(ActivityMetric, ActivityMetric.activity_id == Activity.id)
         .join(Subjective, Subjective.activity_id == Activity.id, isouter=True)
-        .where(Activity.sport.in_(("run", "bike")))
+        .where(Activity.sport.in_(("run", "bike")), not_(commute_expr()))  # §2.6: not a §9 day activity
         .order_by(Activity.local_date, Activity.id)  # deterministic order → stable cache hash
     ).all()
     columns = [

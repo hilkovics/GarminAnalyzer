@@ -127,6 +127,20 @@ Pearson r between `load_primary` and Garmin `training_load` across all activitie
 Expect `r > 0.8`. Below 0.7 → show a warning to review thresholds.
 *Clarified 2026-09-29 (phase 2, approved):* needs at least 3 activities with both values, else `r` is null.
 
+### 2.6 Commutes
+*Added 2026-10-25 (approved by the user).* Short rides to work are not training, but they are real fatigue.
+- **Rule:** a bike activity whose moving time (`moving_s`, else `duration_s`) is **< 1500 s (25 min)** is a
+  commute. A per-activity user override (`commute_override` true / false) wins over the rule, for any sport.
+  Without a moving or total time a bike ride is not a commute.
+- **Counted (fatigue):** a commute keeps its load in `daily_load` (§4: CTL, ATL, TSB, ACWR, monotony, ramp)
+  and therefore in readiness (§8, Form) and the §2.5 sanity check.
+- **Not counted (training):**
+  - no §5 values (steady state, EF, decoupling), no §6.1 day value and no §6.2 best efforts; so it never
+    enters EF trends, curves, best efforts or the §6.3 proposals (also not their bootstrap condition);
+  - not a §9 day activity;
+  - coach (§10): the training targets, the week's completed load, the run share, active days, yesterday's
+    max IF and the matching of planned workouts ignore commutes – see §10.2 / §10.4 clarifications.
+
 ## 3. Grade-adjusted pace (GAP) – runs
 
 Metabolic cost of running (Minetti et al. 2002), `i` = grade (fraction):
@@ -397,6 +411,12 @@ Derivation: with the 42-day constant, a constant daily load `L` changes CTL by �
   capped at `7 · (CTL_now + 6 / (1 − (41/42)^7))` so the projected weekly ramp never exceeds 6.
 - Split: `run_share` = athlete `run_bike_split`; if null, the run share of `load_run + load_bike` over the last
   28 days ("other" load is not planned); 1.0 if there is no load. Run target = `T · run_share`, bike = the rest.
+*Changed 2026-10-25 (approved by the user) – commutes (§2.6):* `T` still comes from `CTL_now`, which includes
+commutes. The **training target** is `T_train = max(0, T − C)` with `C = 7/28 ·` the commute load of the 28 days
+before the week's Monday (the commuting the week is expected to contain). `run_share` is computed from
+non-commute load only, and the run / bike targets split `T_train`. The week's completed load (total, run,
+bike) counts non-commute activities only. Season projections still assume `T` per week (training plus
+commuting).
 
 ### 10.3 Weekly templates (sessions to place Mon–Sun; user picks fixed days in settings)
 - Base: 1 × long (run or bike), 1 × tempo/hills, 3–4 × easy, 1 rest.
@@ -452,6 +472,9 @@ Inputs: readiness (§8), `ACWR`, `TSB`, `monotony`, sessions already completed t
 - Timing: an automatic decision made before the day's sync (`daily_load[D]` missing or the activity or
   wellness sync cursor < `D`, e.g. the page opened first) is provisional; the sync's nightly step decides it
   again. User regenerations and pushed / done / skipped workouts are never replaced automatically.
+*Changed 2026-10-25 (approved by the user) – commutes (§2.6):* rule 4 uses `T_train` (§10.2) and the week's
+non-commute load; "active days", yesterday's max IF (rule 3) and the matching of a planned workout to a
+completed activity of its date and sport ignore commutes. Readiness, TSB, ACWR and monotony keep them.
 
 ### 10.5 Workout structure (JSON, sport-agnostic)
 ```json

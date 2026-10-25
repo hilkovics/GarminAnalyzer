@@ -167,3 +167,18 @@ def test_subjective_errors(client, session):
         assert r.status_code == 422, body
         assert isinstance(r.json()["detail"], str)
     assert client.get(f"/api/activities/{activity_id}").json()["subjective"] is None  # nothing was stored
+
+
+# --- commute (METRICS §2.6) ---------------------------------------------------------------------------------
+
+
+def test_commute_override_round_trip(client, session):
+    activity_id = aid(session, BIKE_ID)  # the scenario's 20-min ride is marked as training
+    assert client.get(f"/api/activities/{activity_id}").json()["summary"]["is_commute"] is False
+    response = client.put(f"/api/activities/{activity_id}/commute", json={"commute": None})
+    assert response.status_code == 200
+    assert (response.json()["is_commute"], response.json()["commute_override"]) == (True, None)  # < 25 min
+    response = client.put(f"/api/activities/{activity_id}/commute", json={"commute": False})
+    assert (response.json()["is_commute"], response.json()["commute_override"]) == (False, False)
+    assert client.put("/api/activities/123456/commute", json={"commute": True}).status_code == 404
+    assert client.put(f"/api/activities/{activity_id}/commute", json={}).status_code == 422

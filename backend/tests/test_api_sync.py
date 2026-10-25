@@ -205,6 +205,7 @@ EXPECTED_ROUTES = {
     ("get", "/api/activities/{activity_id}"),
     ("get", "/api/activities/{activity_id}/streams"),
     ("post", "/api/activities/{activity_id}/subjective"),
+    ("put", "/api/activities/{activity_id}/commute"),
     ("get", "/api/fitness/pmc"),
     ("get", "/api/fitness/weekly"),
     ("get", "/api/fitness/dashboard"),

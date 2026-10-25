@@ -313,6 +313,68 @@
         }
       }
     },
+    "/api/activities/{activity_id}/commute": {
+      "put": {
+        "tags": [
+          "activities"
+        ],
+        "summary": "Mark an activity as commute / training, or null = back to the rule (METRICS §2.6)",
+        "operationId": "set_commute",
+        "parameters": [
+          {
+            "name": "activity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Activity Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommuteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ActivitySummaryDTO"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested entity does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/fitness/pmc": {
       "get": {
         "tags": [
@@ -1939,6 +2001,24 @@
               }
             ],
             "title": "Garmin Training Load"
+          },
+          "is_commute": {
+            "type": "boolean",
+            "title": "Is Commute",
+            "description": "METRICS §2.6: counts as fatigue, not as training",
+            "default": false
+          },
+          "commute_override": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commute Override",
+            "description": "user's choice; null = the §2.6 rule (ride < 25 min)"
           }
         },
         "type": "object",
@@ -2288,6 +2368,28 @@
         ],
         "title": "BestEffortsDTO",
         "description": "GET /progress/best-efforts?sport&range=90d|all (§6.2)."
+      },
+      "CommuteIn": {
+        "properties": {
+          "commute": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Commute",
+            "description": "true / false = override; null = back to the rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "commute"
+        ],
+        "title": "CommuteIn",
+        "description": "PUT /activities/{id}/commute body (METRICS §2.6)."
       },
       "CorrelationDTO": {
         "properties": {
@@ -4977,12 +5079,18 @@
           "actual_load": {
             "type": "number",
             "title": "Actual Load",
-            "description": "load_total of the day (all activities)"
+            "description": "training load of the day (load_total without commutes, §2.6)"
           },
           "activities": {
             "type": "integer",
             "title": "Activities",
-            "description": "number of activities on the day"
+            "description": "number of activities on the day, commutes excluded"
+          },
+          "commute_load": {
+            "type": "number",
+            "title": "Commute Load",
+            "description": "load of the day's commutes (fatigue, not training; §2.6)",
+            "default": 0.0
           }
         },
         "type": "object",

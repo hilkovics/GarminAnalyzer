@@ -64,6 +64,7 @@ class WeekTarget:
     run_target: float
     bike_target: float
     days_to_race: int | None
+    commute_load: float = 0.0  # §10.2 changed 2026-10-25: `C`; target_load is `T_train = max(0, T − C)`
 
 
 def monday(d: date) -> date:
@@ -201,6 +202,7 @@ def season_plan(
     run_share: float,
     *,
     pre_taper_target: float | None = None,
+    commute_load: float = 0.0,
 ) -> list[WeekTarget]:
     """Weekly targets for `weeks` weeks from `first_monday` (METRICS §10.1–§10.2).
 
@@ -209,6 +211,8 @@ def season_plan(
     pre-taper week (no compounding). If the plan starts inside the taper, pass that week's real target as
     `pre_taper_target` (the caller knows its stored CTL, review phase 6 B1); without it the week is computed
     virtually with `ctl_now` (see `_virtual_pre_taper_target`).
+    `commute_load` = `C` (§10.2 changed 2026-10-25): each week's `target_load` and the run / bike split are
+    the training target `max(0, T − C)`; the CTL projection still uses `T` (training plus commuting).
     """
     _require_monday(first_monday, "first_monday")
     if weeks < 0:
@@ -226,7 +230,10 @@ def season_plan(
         else:
             target = weekly_target(ctl, info)
             pre_taper = target
-        run, bike = split_targets(target, run_share)
-        plan.append(WeekTarget(m, info.phase, info.recovery, ctl, target, run, bike, info.days_to_race))
+        train = max(0.0, target - commute_load)
+        run, bike = split_targets(train, run_share)
+        plan.append(
+            WeekTarget(m, info.phase, info.recovery, ctl, train, run, bike, info.days_to_race, commute_load)
+        )
         ctl = project_ctl(ctl, [target / 7.0] * 7)[-1]
     return plan

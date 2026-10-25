@@ -102,8 +102,9 @@ class WeekDayDTO(BaseModel):
     weekday: str = Field(description='"mon" … "sun"')
     role: str = Field(description='template role: "rest" | "easy" | "long" | "q1" | "q2"')
     planned: PlannedWorkoutDTO | None
-    actual_load: float = Field(description="load_total of the day (all activities)")
-    activities: int = Field(description="number of activities on the day")
+    actual_load: float = Field(description="training load of the day (load_total without commutes, §2.6)")
+    activities: int = Field(description="number of activities on the day, commutes excluded")
+    commute_load: float = Field(0.0, description="load of the day's commutes (fatigue, not training; §2.6)")
 
 
 class WeekPlanDTO(BaseModel):

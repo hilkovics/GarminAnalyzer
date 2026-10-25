@@ -19,6 +19,7 @@ docs at `/docs`).
 | GET | `/api/activities/{activity_id}` | `activity_id` | `ActivityDetailDTO` | Activity detail: metrics, laps, zones, subjective |
 | GET | `/api/activities/{activity_id}/streams` | `activity_id`, `fields`?, `points`? | `StreamsDTO` | LTTB-downsampled 1 Hz streams |
 | POST | `/api/activities/{activity_id}/subjective` | `activity_id`, body: `SubjectiveIn` | `SubjectiveDTO` | Save RPE / feel / soreness / notes (upsert, one row per activity) |
+| PUT | `/api/activities/{activity_id}/commute` | `activity_id`, body: `CommuteIn` | `ActivitySummaryDTO` | Mark an activity as commute / training, or null = back to the rule (METRICS §2.6) |
 | GET | `/api/fitness/pmc` | `from`?, `to`? | `PmcDTO` | Daily CTL/ATL/TSB/ACWR/monotony/ramp series with flags |
 | GET | `/api/fitness/weekly` | `weeks`? | `WeeklyDTO[]` | ISO-week volume, zone time and polarization per sport |
 | GET | `/api/fitness/dashboard` | – | `DashboardDTO` | This week vs the last 4, PMC mini, sync health |
@@ -105,6 +106,8 @@ docs at `/docs`).
 | `hr_coverage` | number \| null | 0–1 |
 | `low_confidence` | boolean |  |
 | `garmin_training_load` | number \| null |  |
+| `is_commute` (optional) | boolean | METRICS §2.6: counts as fatigue, not as training |
+| `commute_override` (optional) | boolean \| null | user's choice; null = the §2.6 rule (ride < 25 min) |
 
 ### AthleteDTO
 
@@ -163,6 +166,14 @@ GET /progress/best-efforts?sport&range=90d|all (§6.2).
 | `sport` | string |  |
 | `range` | string | "90d" \| "all" |
 | `efforts` | BestEffortDTO[] | best per (kind, window_s) |
+
+### CommuteIn
+
+PUT /activities/{id}/commute body (METRICS §2.6).
+
+| Field | Type | Description |
+|---|---|---|
+| `commute` | boolean \| null | true / false = override; null = back to the rule |
 
 ### CorrelationDTO
 
@@ -694,8 +705,9 @@ PUT /settings/thresholds body.
 | `weekday` | string | "mon" … "sun" |
 | `role` | string | template role: "rest" \| "easy" \| "long" \| "q1" \| "q2" |
 | `planned` | PlannedWorkoutDTO \| null |  |
-| `actual_load` | number | load_total of the day (all activities) |
-| `activities` | integer | number of activities on the day |
+| `actual_load` | number | training load of the day (load_total without commutes, §2.6) |
+| `activities` | integer | number of activities on the day, commutes excluded |
+| `commute_load` (optional) | number | load of the day's commutes (fatigue, not training; §2.6) |
 
 ### WeekPlanDTO
 

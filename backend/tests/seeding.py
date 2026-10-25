@@ -52,8 +52,12 @@ def add_activity(
     moving: np.ndarray | None = None,
     name: str | None = None,
     hour: int = 6,
+    commute: bool | None = None,
 ) -> int:
-    """One activity with a full 1 Hz stream (all samples running unless `moving` says otherwise)."""
+    """One activity with a full 1 Hz stream (all samples running unless `moving` says otherwise).
+
+    `commute` sets `commute_override` (METRICS §2.6); the scenario's 1200 s weekly ride is a training ride.
+    """
     speed = speed if speed is not None else {"run": RUN_SPEED, "bike": 8.0, "other": 1.5}[sport]
     t = np.arange(seconds)
     running = np.ones(seconds, dtype=bool) if moving is None else moving
@@ -78,6 +82,7 @@ def add_activity(
             "is_race": False,
             "is_indoor": False,
             "garmin_training_load": 40.0,
+            "commute_override": commute,
         },
     )
     repo.replace_streams(
@@ -108,7 +113,9 @@ def seed_scenario(session: Session) -> None:
     for week in range(WEEKS):
         monday = FIRST_MONDAY + dt.timedelta(weeks=week)
         add_activity(session, RUN_ID + week, monday, sport="run")
-        add_activity(session, BIKE_ID + week, monday + dt.timedelta(days=2), sport="bike", hr=BIKE_LTHR)
+        add_activity(
+            session, BIKE_ID + week, monday + dt.timedelta(days=2), sport="bike", hr=BIKE_LTHR, commute=False
+        )
     add_activity(session, HIKE_ID, dt.date(2026, 8, 8), sport="other", hr=0.7 * RUN_LTHR)
     repo.set_state(session, LAST_ACTIVITY_SYNC, TODAY.isoformat())
     session.commit()

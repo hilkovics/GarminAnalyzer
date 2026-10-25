@@ -4,6 +4,8 @@
 - `build_context` assembles the §10.4 inputs for one day; `plan_day` runs `coach.rules.decide` and persists
   the result as a `planned_workout` (one per day; kept unless regenerated).
 - `match_completed`: a planned workout is done when an activity of the same sport exists on its date.
+- Commutes (METRICS §2.6) stay in `daily_load` (fatigue) but every training input here leaves them out:
+  the week's done load, the run share, the training target (`T − C`), active days, yesterday's IF, matching.
 - `nightly` = match + plan today if nothing is planned yet, or decide again an automatic plan made before
   the day's sync (called at the end of `training sync` and `POST /sync`).
 """
@@ -11,11 +13,12 @@
 import datetime as dt
 import logging
 
-from sqlalchemy import func, select
+from sqlalchemy import func, not_, select
 from sqlmodel import Session
 
 from training.coach import library, rules, season, template
 from training.coach.workout import estimated_load, from_structure, to_structure
+from training.commute import commute_expr
 from training.db import repo
 from training.db.models import Activity, ActivityMetric, Athlete, DailyLoad, Goal, PlannedWorkout
 from training.db.state_keys import LAST_ACTIVITY_SYNC, LAST_WELLNESS_DATE
@@ -59,17 +62,17 @@ def _ctl_before(session: Session, monday: dt.date) -> float:
 
 
 def run_share_for(session: Session, day: dt.date) -> float:
-    """§10.2 run share from the 28 days before the week's Monday (stable within a week)."""
+    """§10.2 run share from the non-commute load of the 28 days before the week's Monday (stable per week)."""
     athlete = _athlete(session)
     day = season.monday(day)
-    start = day - dt.timedelta(days=SHARE_DAYS)
-    run, bike = session.execute(
-        select(
-            func.coalesce(func.sum(DailyLoad.load_run), 0.0),
-            func.coalesce(func.sum(DailyLoad.load_bike), 0.0),
-        ).where(DailyLoad.date >= start, DailyLoad.date < day)
-    ).one()
-    return season.run_share(athlete.run_bike_split if athlete else None, float(run), float(run) + float(bike))
+    _, run, bike = _sum_load(session, day - dt.timedelta(days=SHARE_DAYS), day)
+    return season.run_share(athlete.run_bike_split if athlete else None, run, run + bike)
+
+
+def commute_week_load(session: Session, monday: dt.date) -> float:
+    """§10.2 changed: `C` = 7/28 · commute load of the 28 days before `monday` (METRICS §2.6)."""
+    total, _, _ = _commute_load(session, monday - dt.timedelta(days=SHARE_DAYS), monday)
+    return total * 7.0 / SHARE_DAYS
 
 
 def _race_date(goal: Goal | None) -> dt.date | None:
@@ -96,6 +99,7 @@ def season_weeks(session: Session, today: dt.date, weeks: int) -> list[season.We
         race_date,
         run_share_for(session, today),
         pre_taper_target=_pre_taper_target(session, monday, race_date),
+        commute_load=commute_week_load(session, monday),
     )
 
 
@@ -105,6 +109,7 @@ def week_target(session: Session, day: dt.date) -> season.WeekTarget:
 
 
 def _sum_load(session: Session, start: dt.date, end: dt.date) -> tuple[float, float, float]:
+    """(total, run, bike) training load of [start, end): `daily_load` minus commutes (§2.6)."""
     total, run, bike = session.execute(
         select(
             func.coalesce(func.sum(DailyLoad.load_total), 0.0),
@@ -112,7 +117,24 @@ def _sum_load(session: Session, start: dt.date, end: dt.date) -> tuple[float, fl
             func.coalesce(func.sum(DailyLoad.load_bike), 0.0),
         ).where(DailyLoad.date >= start, DailyLoad.date < end)
     ).one()
-    return float(total), float(run), float(bike)
+    c_total, c_run, c_bike = _commute_load(session, start, end)
+    return (
+        max(0.0, float(total) - c_total),
+        max(0.0, float(run) - c_run),
+        max(0.0, float(bike) - c_bike),
+    )
+
+
+def _commute_load(session: Session, start: dt.date, end: dt.date) -> tuple[float, float, float]:
+    """(total, run, bike) `load_primary` of the commutes with `local_date` in [start, end) – METRICS §2.6."""
+    rows = session.execute(
+        select(Activity.sport, func.coalesce(func.sum(ActivityMetric.load_primary), 0.0))
+        .join(ActivityMetric, ActivityMetric.activity_id == Activity.id)
+        .where(Activity.local_date >= start, Activity.local_date < end, commute_expr())
+        .group_by(Activity.sport)
+    ).all()
+    by_sport = {sport: float(load) for sport, load in rows}
+    return sum(by_sport.values()), by_sport.get("run", 0.0), by_sport.get("bike", 0.0)
 
 
 def _done_sessions(session: Session, start: dt.date, end: dt.date) -> tuple[rules.DoneSession, ...]:
@@ -139,7 +161,7 @@ def _yesterday_max_if(session: Session, day: dt.date) -> float | None:
     rows = session.execute(
         select(ActivityMetric.load_method, ActivityMetric.if_hr, ActivityMetric.if_pace)
         .join(Activity, Activity.id == ActivityMetric.activity_id)
-        .where(Activity.local_date == day - dt.timedelta(days=1))
+        .where(Activity.local_date == day - dt.timedelta(days=1), not_(commute_expr()))
     ).all()
     values = [(r.if_pace if (r.load_method or "").lower() == "rtss" else r.if_hr) for r in rows]
     values = [float(v) for v in values if v is not None]
@@ -160,7 +182,9 @@ def build_context(session: Session, day: dt.date, sport_override: str | None = N
     total, run, bike = _sum_load(session, monday, day)
     active = frozenset(
         session.execute(
-            select(Activity.local_date).where(Activity.local_date >= monday, Activity.local_date < day)
+            select(Activity.local_date).where(
+                Activity.local_date >= monday, Activity.local_date < day, not_(commute_expr())
+            )
         ).scalars()
     )
     today_row, prev_row = _daily(session, day), _daily(session, day - dt.timedelta(days=1))
@@ -291,12 +315,12 @@ def set_status(session: Session, planned_id: int, status: str) -> PlannedWorkout
 
 
 def _matching_activity(session: Session, row: PlannedWorkout) -> int | None:
-    """The longest activity of the planned sport on the planned date (date + sport match, PLAN phase 6)."""
+    """The longest non-commute activity of the planned sport on the planned date (PLAN phase 6, §2.6)."""
     if row.sport == "rest":
         return None
     return session.execute(
         select(Activity.id)
-        .where(Activity.local_date == row.date, Activity.sport == row.sport)
+        .where(Activity.local_date == row.date, Activity.sport == row.sport, not_(commute_expr()))
         .order_by(func.coalesce(Activity.moving_s, Activity.duration_s, 0).desc(), Activity.id)
         .limit(1)
     ).scalar()

@@ -157,6 +157,16 @@ class ActivitySummaryDTO(BaseModel):
     hr_coverage: float | None = Field(description="0–1")
     low_confidence: bool
     garmin_training_load: float | None
+    is_commute: bool = Field(False, description="METRICS §2.6: counts as fatigue, not as training")
+    commute_override: bool | None = Field(
+        None, description="user's choice; null = the §2.6 rule (ride < 25 min)"
+    )
+
+
+class CommuteIn(BaseModel):
+    """PUT /activities/{id}/commute body (METRICS §2.6)."""
+
+    commute: bool | None = Field(description="true / false = override; null = back to the rule")
 
 
 class ActivityListDTO(BaseModel):

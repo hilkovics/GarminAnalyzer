@@ -10,10 +10,11 @@ import logging
 import math
 
 import pandas as pd
-from sqlalchemy import select
+from sqlalchemy import not_, select
 from sqlmodel import Session
 
 from training import pipeline
+from training.commute import commute_expr
 from training.db.models import Activity, ActivityMetric, BestEffort, CurveSnapshot
 from training.metrics.efficiency import TREND_WINDOW_DAYS, ef_trend
 from training.metrics.efforts import (
@@ -286,7 +287,7 @@ def _activity_frame(session: Session, sport: str) -> pd.DataFrame:
             Activity.avg_hr,
         )
         .join(ActivityMetric, ActivityMetric.activity_id == Activity.id)
-        .where(Activity.sport == sport)
+        .where(Activity.sport == sport, not_(commute_expr()))  # §2.6: commutes never enter §6.3
     ).all()
     return pd.DataFrame(
         rows, columns=["activity_id", "local_date", "sport", "if_pace", "hrtss", "moving_s", "avg_hr"]

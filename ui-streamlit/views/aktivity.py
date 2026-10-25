@@ -68,7 +68,7 @@ if not listing.items:
 rows = [
     {
         "Dátum": fmt_date(a.local_date),
-        "Šport": sport_label(a.sport),
+        "Šport": sport_label(a.sport) + (" · dochádzka" if a.is_commute else ""),
         "Názov": a.name or "–",
         "Trvanie": fmt_duration(a.duration_s),
         "Vzdialenosť": fmt_km(a.distance_m, 2),
@@ -84,7 +84,10 @@ event = st.dataframe(
     on_select="rerun",
     selection_mode="single-row",
 )
-st.caption("⚠ = neznáma alebo nízko spoľahlivá záťaž. Klikni na riadok pre detail aktivity.")
+st.caption(
+    "⚠ = neznáma alebo nízko spoľahlivá záťaž. Dochádzka (jazda kratšia ako 25 min) sa ráta do únavy, "
+    "nie do tréningu. Klikni na riadok pre detail aktivity."
+)
 
 # --- paging ---------------------------------------------------------------------------------------
 last_page = max(1, math.ceil(listing.total / listing.page_size))
