@@ -249,6 +249,12 @@ one activity) among the sport's activities of the window. No qualifying data →
 current threshold the estimate is always proposed. Proposals round: speed to 0.01 m/s, LTHR to whole bpm (half-up), and the > 2 % / > 3 bpm rules compare the
 **rounded** estimate with the current value (so the shown numbers match the decision). The bike 90th
 percentile uses linear interpolation (numpy default), capped at the maximum.
+*Changed 2026-10-25 (approved by the user):* **bike bootstrap.** hrTSS needs a bike LTHR, so without one no
+ride has an hrTSS/h and the rule above can never produce the first proposal. When **no** bike activity of the
+window has a valid hrTSS/h, the rides are ranked by their average HR (`avg_hr`) instead, with the same top-10 %
+rule (90th percentile, linear interpolation, capped at the maximum, at least one ride); the proposal's basis
+says so. Once a bike threshold exists, the hrTSS/h rule applies again. (Runs need no bootstrap: the
+threshold-speed proposal gives `if_pace`.)
 
 ## 7. Race predictions (runs)
 
@@ -284,7 +290,7 @@ Baselines: trailing 28-day median and MAD (median absolute deviation) for `rhr, 
 Bands: `≥ 70` green (train as planned / can push), `45–69` yellow (as planned, nothing extra),
 `< 45` red (easy or rest).
 
-*Clarified 2026-09-29 (phase 5, proposed):*
+*Clarified 2026-09-29 (phase 5, approved 2026-10-25):*
 - Wellness row `D` = the night that ends on the morning of `D` (Garmin's sleep `calendarDate`), RHR / Body
   Battery of day `D`.
 - Baseline of day `D` = median and MAD over the valid values of the 28 days `D−28 … D−1` (day `D` itself is
@@ -319,7 +325,7 @@ Method:
 5. UI shows a plain-language sentence per finding and always the caveat that correlation ≠ causation
    and that HR-based EF is affected by heat, caffeine and illness.
 
-*Clarified 2026-09-29 (phase 5, proposed):*
+*Clarified 2026-09-29 (phase 5, approved 2026-10-25):*
 - **Per sport.** Run and bike form separate datasets (EF units differ); `other` is excluded. A qualifying
   day `D` has ≥ 1 activity of that sport with at least one non-null outcome. If there are several, the one
   with the longest `moving_s` is used.
@@ -359,7 +365,7 @@ Method:
 ### 10.1 Season phases (from goal race date `R`)
 `weeks_to_R > 12` → **Base**; `12 ≥ weeks > 3` → **Build**; `3 ≥ weeks > 1` → **Peak**; last 7–10 days → **Taper**.
 No goal → perpetual Base/Build alternating 3 weeks build + 1 recovery.
-*Clarified 2026-09-29 (phase 6, proposed):* phases are per ISO week (Mon–Sun). `d` = days from the week's
+*Clarified 2026-09-29 (phase 6, approved 2026-10-25):* phases are per ISO week (Mon–Sun). `d` = days from the week's
 Monday to `R` (the active goal with the earliest `race_date ≥ Monday`): `d > 84` Base, `21 < d ≤ 84` Build,
 `10 < d ≤ 21` Peak, `0 ≤ d ≤ 10` Taper ("last 7–10 days" rounded to whole weeks, so the taper is 5–11 days
 long). Weeks after `R` (and without any goal): the no-goal cycle, phase "Base", anchored on
@@ -372,7 +378,7 @@ Run:bike split from settings (e.g. 60:40). Cap weekly `ramp_rate` (§4) at 6.
 Derivation: with the 42-day constant, a constant daily load `L` changes CTL by ≈ `7 · (L − CTL) / 42 =
 (L − CTL) / 6` per week, so raising CTL by `ramp` per week needs `L ≈ CTL + 6 · ramp`.
 *(Changed 2026-09-29: the previous `7 · (CTL_now + ramp)` only raised CTL by ≈ ramp/6 per week.)*
-*Clarified 2026-09-29 (phase 6, proposed):*
+*Clarified 2026-09-29 (phase 6, approved 2026-10-25):*
 - `CTL_now` = CTL of the day before the week's Monday (0 if unknown). For future weeks (season timeline,
   simulation) CTL is projected by assuming each week's target is met as a constant daily load `T / 7`.
 - Taper target = 0.5 × the target of the last week before the taper (not compounding over two taper weeks).
@@ -388,7 +394,7 @@ Derivation: with the 42-day constant, a constant daily load `L` changes CTL by �
 - Build: 1 × long, 1 × threshold intervals, 1 × VO2/hard hills, 2–3 × easy, 1 rest.
 - Peak: 1 × long (shorter), 1 × race-pace session, 1 × short intervals, easy, 2 rest.
 - Taper: 1 × short race-pace, strides, easy; volume −50 %, keep 2 short intense touches.
-*Clarified 2026-09-29 (phase 6, proposed):* a week has a **role per weekday**: `rest`, `easy`, `long`, `q1`,
+*Clarified 2026-09-29 (phase 6, approved 2026-10-25):* a week has a **role per weekday**: `rest`, `easy`, `long`, `q1`,
 `q2`. Athlete `preferred_days` (`{"mon": "rest" | {"role": "long", "sport": "bike"}, …}`) overrides the
 default `mon rest, tue q1, wed easy, thu q2, fri easy, sat long, sun easy`. Per phase:
 - Base: `q2` → easy. Build: as is. Peak: the easy day right before `long` (else the last easy day) → rest.
@@ -409,7 +415,7 @@ Inputs: readiness (§8), `ACWR`, `TSB`, `monotony`, sessions already completed t
    yesterday, pick easy/long instead.
 4. Scale duration so that `estimated_load` (§10.6) fills the remaining `weekly_target_load` across remaining sessions.
 5. Output: structured workout (§10.5) + one-line reason string (deterministic, template-based).
-*Clarified 2026-09-29 (phase 6, proposed):*
+*Clarified 2026-09-29 (phase 6, approved 2026-10-25):*
 - Inputs for day `D`: `readiness[D]`, `TSB[D]` (already pre-day), `ACWR[D−1]` and `monotony[D−1]` (the last
   complete day). A null input never triggers its condition (the reason says the value is missing).
 - Rule 1: on a template rest day → rest. Otherwise **rest** if the week's rest quota is not yet used (days `Mon … D−1` without any activity < the
@@ -452,7 +458,7 @@ Targets: `hr_zone` (1–5), `pace_range` (run, from §1 pace zones), `open`. Bik
 ### 10.6 Estimated load of a planned workout
 `estimated_load = Σ_steps duration_s · IF_zone² / 36`, with `IF_zone` = zone midpoint IF from §2.1 table
 (Z1 0.50, Z2 0.65, Z3 0.83, Z4 0.98, Z5 1.10).
-*Clarified 2026-09-29 (phase 6, proposed):* repeats multiply their inner steps. Z1 0.50 is kept as written
+*Clarified 2026-09-29 (phase 6, approved 2026-10-25):* repeats multiply their inner steps. Z1 0.50 is kept as written
 (not the table midpoint 0.43: recovery work sits in the upper half of Z1, r ≈ 0.61). `open` steps carry an
 `effort_zone` (1–5) used only here; `pace_range` steps carry their pace zone and use the same zone IF.
 
@@ -462,7 +468,7 @@ threshold intervals (4–6 × 6 min Z4 / 2 min Z1), VO2 intervals (5–8 × 3 mi
 (8–12 × 60–90 s hard / jog down), progression run (Z2 → Z3 → Z4 last 10 min), strides (easy + 6 × 20 s fast).
 Bike: recovery spin (Z1 45 min), endurance (Z2 90–180 min), sweet spot (2–3 × 20 min high-Z3 / 5 min Z1),
 over-unders (3 × 12 min alternating 2 min Z4 / 1 min Z3), long ride (Z2 with 3 × 10 min Z3).
-*Clarified 2026-09-29 (phase 6, proposed):* quality sessions have warm-up 15 min Z2 and cool-down 10 min Z1.
+*Clarified 2026-09-29 (phase 6, approved 2026-10-25):* quality sessions have warm-up 15 min Z2 and cool-down 10 min Z1.
 Strides and spin-ups are exactly "easy X min + 6 × …" (no extra warm-up/cool-down). Parameter (range,
 step):
 - run: easy total 40–75 min; long total 90–150 (Peak 75–110; Build: last 20 min Z3); tempo main 20–40 min Z4;
@@ -482,7 +488,7 @@ step):
 Map §10.5 to the `garminconnect` workout builder (running/cycling workouts with HR-zone targets), upload,
 then schedule on the planned date. Store `garmin_workout_id`. Re-pushing an already pushed plan updates
 rather than duplicates. Zone numbers refer to the user's Garmin Connect HR zones, which must equal §1.
-*Clarified 2026-09-29 (phase 7, proposed):*
+*Clarified 2026-09-29 (phase 7, approved 2026-10-25):*
 - Mapping (garminconnect workout JSON): sport run → `running` (1), bike → `cycling` (2); step type warmup →
   warmup (1), cooldown → cooldown (2), work / steady → interval (3), recovery → recovery (4); repeat →
   `RepeatGroupDTO` with `numberOfIterations`; every step ends on time (`endConditionValue = duration_s`).

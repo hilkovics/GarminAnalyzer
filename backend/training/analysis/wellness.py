@@ -5,7 +5,7 @@ Pure functions over pandas/numpy; no I/O.
 # METRICS §8
 #   Baselines: trailing 28-day median and MAD (median absolute deviation) for
 #   rhr, sleep_s, sleep_score, body_battery_wake.
-# Clarified 2026-09-29 (phase 5, proposed):
+# Clarified 2026-09-29 (phase 5, approved 2026-10-25):
 #   Wellness row D = the night that ends on the morning of D (Garmin's sleep calendarDate), RHR / Body
 #   Battery of day D.
 #   Baseline of day D = median and MAD over the valid values of the 28 days D−28 … D−1 (day D itself is
@@ -14,7 +14,7 @@ Pure functions over pandas/numpy; no I/O.
 #
 # METRICS §9
 #   sleep_debt_7 = Σ_{7 nights} (max(8 h, sleep_s_median28) − sleep_s)
-# Clarified 2026-09-29 (phase 5, proposed):
+# Clarified 2026-09-29 (phase 5, approved 2026-10-25):
 #   sleep_debt_7 is lag0 only: the sum over nights D−6 … D, each term using that night's §8 baseline
 #   (8 h floor here, as written; a null median counts as 8 h). Surpluses offset deficits. It needs
 #   ≥ 5 valid nights, and the sum is scaled by 7 / n_valid.

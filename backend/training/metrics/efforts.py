@@ -254,8 +254,10 @@ def propose_lthr(
     `efforts`: HR efforts (`activity_id, local_date, value`; rows of another kind / window are ignored when
     those columns exist). `activities`: this sport's activities (`activity_id, local_date, if_pace, hrtss,
     moving_s`; filtered by a `sport` column if present). Qualifying activities of the trailing 90 days:
-    run `if_pace ≥ 0.95`; bike hrTSS/h ≥ its 90th percentile. Estimate = max 1800 s HR effort among them,
-    rounded to whole bpm; `change` = estimate − current; proposed when `|change| > 3` or without current.
+    run `if_pace ≥ 0.95`; bike hrTSS/h ≥ its 90th percentile – or, when no ride has an hrTSS/h (no bike
+    threshold yet), `avg_hr` ≥ its 90th percentile (optional `avg_hr` column; changed 2026-10-25). Estimate =
+    max 1800 s HR effort among them, rounded to whole bpm; `change` = estimate − current; proposed when
+    `|change| > 3` or without current.
     """
     if sport not in ("run", "bike"):
         raise ValueError(f"lthr proposals are defined for 'run' and 'bike', got {sport!r}")
@@ -277,12 +279,16 @@ def propose_lthr(
         moving = pd.to_numeric(acts["moving_s"], errors="coerce").to_numpy(dtype=float)
         with np.errstate(divide="ignore", invalid="ignore"):
             rate = np.where(moving > 0, hrtss / (moving / 3600.0), np.nan)
+        ranking = "hrTSS/h"
+        if not np.isfinite(rate).any() and "avg_hr" in acts.columns:  # bootstrap: no bike LTHR yet
+            rate = pd.to_numeric(acts["avg_hr"], errors="coerce").to_numpy(dtype=float)
+            ranking = "average HR (no bike threshold yet)"
         valid = np.isfinite(rate)
         if not valid.any():
             return None
         cutoff = min(float(np.percentile(rate[valid], BIKE_TOP_PERCENTILE)), float(rate[valid].max()))
         qualifying = acts[valid & (rate >= cutoff)]
-        selection = f"{len(qualifying)} top-decile hrTSS/h ride(s) of {int(valid.sum())}"
+        selection = f"{len(qualifying)} top-decile {ranking} ride(s) of {int(valid.sum())}"
 
     eff = eff[eff["activity_id"].isin(qualifying["activity_id"])]
     row = _best_row(eff, None)

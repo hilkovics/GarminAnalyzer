@@ -280,11 +280,14 @@ def _activity_frame(session: Session, sport: str) -> pd.DataFrame:
             ActivityMetric.if_pace,
             ActivityMetric.hrtss,
             Activity.moving_s,
+            Activity.avg_hr,
         )
         .join(ActivityMetric, ActivityMetric.activity_id == Activity.id)
         .where(Activity.sport == sport)
     ).all()
-    return pd.DataFrame(rows, columns=["activity_id", "local_date", "sport", "if_pace", "hrtss", "moving_s"])
+    return pd.DataFrame(
+        rows, columns=["activity_id", "local_date", "sport", "if_pace", "hrtss", "moving_s", "avg_hr"]
+    )
 
 
 def _proposal_dto(

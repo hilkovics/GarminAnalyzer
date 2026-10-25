@@ -1,6 +1,6 @@
 """Sleep ↔ performance correlation dataset and statistics – METRICS §9 (phase 5).
 
-# METRICS §9 (with the binding "Clarified 2026-09-29 (phase 5, proposed)" block):
+# METRICS §9 (with the binding "Clarified 2026-09-29 (phase 5, approved 2026-10-25)" block):
 #   Per sport (run, bike; `other` excluded). Qualifying day D: ≥ 1 activity of that sport with at least one
 #   non-null outcome; the longest `moving_s` one is used.
 #   Outcomes: ef, decoupling_pct, pace_at_ref_hr_day (run only),

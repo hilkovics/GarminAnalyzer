@@ -8,7 +8,7 @@
 4. Scale duration so that `estimated_load` (§10.6) fills the remaining `weekly_target_load` across remaining
    sessions.
 5. Output: structured workout (§10.5) + one-line reason string (deterministic, template-based).
-Clarified 2026-09-29 (phase 6, proposed) – binding:
+Clarified 2026-09-29 (phase 6, approved 2026-10-25) – binding:
 - Inputs for day `D`: `readiness[D]`, `TSB[D]`, `ACWR[D−1]`, `monotony[D−1]`. A null input never triggers
   its condition (the reason says the value is missing).
 - Rule 1: on a template rest day → rest. Otherwise **rest** if the week's rest quota is not yet used
@@ -25,7 +25,7 @@ Clarified 2026-09-29 (phase 6, proposed) – binding:
   `remaining · w_today / Σ w`; the parameter whose `estimated_load` is closest wins (ties → the smaller).
 - Rest output = `sport = "rest"`, no steps, `estimated_load = 0`. Reasons are Slovak fixed templates.
 
-Decisions below are also recorded in METRICS §10.4 (phase 6, proposed):
+Decisions below are also recorded in METRICS §10.4 (phase 6, approved 2026-10-25):
 - Precedence: rule 1, then a template rest day → rest (rule 3), then rule 2 if `monotony > 2.0` (it picks
   the key starting from today's template role; rule 3's make-up / downgrade logic does not run), else rule 3.
   Rule 4 scales whatever rule 2 or 3 chose.

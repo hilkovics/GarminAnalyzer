@@ -11,7 +11,7 @@ Pure functions over pandas/numpy; no I/O.
 #     Form          0.20   50 + 2 · TSB (TSB from §4, today's value)
 #   (each score clamped 0–100)
 #   Bands: ≥ 70 green, 45–69 yellow, < 45 red.
-# Clarified 2026-09-29 (phase 5, proposed):
+# Clarified 2026-09-29 (phase 5, approved 2026-10-25):
 #   Components: RHR is null if rhr or its median is null. Sleep uses sleep_score if present, else the
 #   fallback if sleep_s is present (a null median counts as 7.5 h). Body Battery is body_battery_wake.
 #   Form uses TSB[D] from §4 (already the state entering the day). Each score is clamped to 0–100.

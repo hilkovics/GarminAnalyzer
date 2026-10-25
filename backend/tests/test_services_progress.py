@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlmodel import Session
 
 from training.db import raw_kinds, repo
-from training.db.models import Activity, CurveSnapshot, RawGarmin, Threshold
+from training.db.models import Activity, ActivityMetric, CurveSnapshot, RawGarmin, Threshold
 from training.db.session import make_engine, migrate
 from training.services import progress as svc, settings as settings_svc
 from training.services.dto import ThresholdIn
@@ -402,3 +402,15 @@ def test_threshold_source_defaults_to_manual_and_is_validated(session):
     bad = ThresholdIn(sport="run", valid_from=TODAY, lthr=171.0, source="magic")
     with pytest.raises(InvalidInputError, match="source"):
         settings_svc.add_threshold(session, bad, today=TODAY)
+
+
+def test_bike_proposal_without_a_bike_threshold_ranks_by_average_hr(session):
+    """METRICS §6.3 bike bootstrap: no ride has hrTSS → rides ranked by avg_hr, a proposal still appears."""
+    bike_ids = session.execute(select(Activity.id).where(Activity.sport == "bike")).scalars().all()
+    for metric in session.execute(
+        select(ActivityMetric).where(ActivityMetric.activity_id.in_(bike_ids))
+    ).scalars():
+        metric.hrtss = None
+    session.commit()
+    bike = proposal(svc.get_threshold_proposals(session, today=TODAY), "bike", "lthr")
+    assert "average HR" in bike.basis and bike.estimate is not None

@@ -34,10 +34,12 @@ Last updated: 2026-10-25 (phase 8 session)
   starting estimate): all 329 activities have a load, **r = 0.89 (n = 329)** vs Garmin training load – the
   phase-2 acceptance (§2.5, r > 0.8) is met on real data. hrTSS and rTSS differ by > 40 % on 2 runs only.
 - Open: the bike LTHR proposal (§6.3) needs hrTSS, so it can never appear before a first bike threshold exists.
-  A bootstrap rule (rank by average HR when there is no bike threshold) needs a METRICS change – awaiting the user.
+  **Fixed** (METRICS §6.3 changed 2026-10-25, approved): without any ride hrTSS in the window the rides are ranked
+  by `avg_hr` (same top-10 % rule); the basis says "average HR (no bike threshold yet)".
+- **Approved 2026-10-25:** the METRICS clarifications of phase 5 (§8–§9), phase 6 (§10) and phase 7 (§10.8).
 - Open: the run threshold-pace proposal (6:40/km, best 30-min GAP of 90 days) is far slower than Garmin's 5:33;
   the user keeps 5:33 (hrTSS and rTSS agree).
-- Tests: 1886 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
+- Tests: 1891 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
 
 ### Phase 8 – automation and operations (code complete; Windows task and Docker image not run yet)
 - **`training morning`** (`training/morning.py`, `cli/morning.py`): sync (+ metrics + nightly plan) → plan →
@@ -136,7 +138,7 @@ Last updated: 2026-10-25 (phase 8 session)
 - **Review round 2:** READY; also fixed the remaining duplicate/orphan paths (markers survive a regeneration, a rename, a switch to rest and a date change; the workout lookup pages through the whole library), the cron script now uses the shared logging + redaction setup, and the report data is anchored on the reviewed week.
 - **Tests:** 1787 passed, 5 skipped. ruff clean.
 
-### Phase 6 – coach: season, rules, plan (code complete; METRICS §10 clarifications await approval)
+### Phase 6 – coach: season, rules, plan (code complete; METRICS §10 clarifications approved 2026-10-25)
 - `coach/` (pure, deterministic, no LLM; test-first by three metrics-implementers):
   - `workout.py`: the §10.5 schema as Pydantic, plus §10.6 `estimated_load`.
   - `library.py`: §10.7 as data. Every workout has one parameter, and `fit_param` picks the value whose
@@ -176,7 +178,7 @@ Last updated: 2026-10-25 (phase 8 session)
   estimated 56 points (day target 55). `--sport bike` gives "Sweet spot 2×20 min".
 - Tests: 1706 passed, 5 skipped. ruff clean.
 
-### Phase 5 – sleep, readiness, correlations (code complete; METRICS §8–§9 clarifications await approval)
+### Phase 5 – sleep, readiness, correlations (code complete; METRICS §8–§9 clarifications approved 2026-10-25)
 - `analysis/` (pure, test-first by two metrics-implementers):
   - `wellness.py`: trailing 28-day median/MAD baselines (D−28…D−1, ≥ 7 values) and `sleep_debt_7`.
   - `readiness.py`: §8 components, renormalized weights, bands.
@@ -496,7 +498,7 @@ Last updated: 2026-10-25 (phase 8 session)
    (fills EF/curves and `daily_load.readiness`; until then `/wellness/daily` shows no readiness while
    `/wellness/readiness/today` computes it live). Then open Progres and Spánok and report today's readiness
    and the top 3 findings from your real data.
-8. **Approve** the METRICS §8–§9 "(phase 5, proposed)" and §10 "(phase 6, proposed)" clarifications.
+8. ~~Approve the phase 5 / 6 METRICS clarifications~~ – approved 2026-10-25.
 9. **You, locally – phase 6 check:** set your goal on the Plán page (or `PUT /api/plan/goal`), your
    run:bike split (`training athlete`) and your preferred days, then run `uv run training sync` and check
    today's plan and its reason. Set your Garmin HR zones to METRICS §1 before phase 7 pushes workouts.
@@ -508,7 +510,7 @@ Last updated: 2026-10-25 (phase 8 session)
        `uv run training telegram-morning`.
     5. Optional: set `TRAINING_ANTHROPIC_API_KEY` and run `uv sync --extra ai` and
        `uv run training weekly-report`.
-11. **Approve** the METRICS §10.8 "(phase 7, proposed)" clarification.
+11. ~~Approve the §10.8 phase 7 clarification~~ – approved 2026-10-25.
 12. **Phase 8** – automation: `training morning` (sync → plan → push → telegram), cron/Docker, logs.
 
 ## Known issues / open questions

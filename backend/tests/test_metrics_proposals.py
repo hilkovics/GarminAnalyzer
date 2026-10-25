@@ -308,3 +308,47 @@ def test_bike_delta_rule():
     acts = bike_acts([40.0])
     p = propose_lthr("bike", hr_efforts([(1, 5, 160.0)]), acts, current=156.0, today=TODAY)
     assert p is not None and p.propose is True and p.change == 4.0
+
+
+# ------------------------------------------------ lthr (bike bootstrap, METRICS §6.3 changed 2026-10-25)
+
+
+def rides_without_hrtss(avg_hrs: list[float], *, days: int = 5) -> pd.DataFrame:
+    """Rides without a bike threshold: hrTSS NaN, ranked by avg_hr."""
+    acts = activities([(i + 1, days, np.nan, np.nan, 3600) for i in range(len(avg_hrs))])
+    return acts.assign(avg_hr=avg_hrs)
+
+
+def test_bike_bootstrap_ranks_by_avg_hr_without_any_hrtss():
+    # avg HR 120..165 step 5 (10 rides) → 90th percentile = 160.5 → only the 165 ride qualifies.
+    acts = rides_without_hrtss([120.0 + 5 * k for k in range(10)])
+    efforts = hr_efforts([(i + 1, 5, 175.0 if i < 9 else 168.0) for i in range(10)])
+    p = propose_lthr("bike", efforts, acts, current=None, today=TODAY)
+    assert p is not None and p.estimate == 168.0 and p.propose is True
+    assert "average HR" in p.basis
+
+
+def test_bike_bootstrap_ignores_rides_outside_window_and_without_avg_hr():
+    acts = pd.concat(
+        [rides_without_hrtss([140.0, 150.0]), rides_without_hrtss([190.0], days=90).assign(activity_id=3)],
+        ignore_index=True,
+    )
+    acts.loc[len(acts)] = {**acts.iloc[0].to_dict(), "activity_id": 4, "avg_hr": np.nan}
+    efforts = hr_efforts([(1, 5, 171.0), (2, 5, 163.0), (3, 90, 185.0), (4, 5, 189.0)])
+    p = propose_lthr("bike", efforts, acts, current=None, today=TODAY)
+    assert p is not None and p.estimate == 163.0
+
+
+def test_bike_hrtss_rule_wins_when_any_ride_has_hrtss():
+    # one ride has hrTSS → the hrTSS/h rule applies, even if another ride has a higher avg_hr
+    acts = activities([(1, 5, np.nan, 60.0, 3600), (2, 5, np.nan, np.nan, 3600)]).assign(
+        avg_hr=[140.0, 170.0]
+    )
+    efforts = hr_efforts([(1, 5, 158.0), (2, 5, 180.0)])
+    p = propose_lthr("bike", efforts, acts, current=None, today=TODAY)
+    assert p is not None and p.estimate == 158.0 and "hrTSS/h" in p.basis
+
+
+def test_bike_no_hrtss_and_no_avg_hr_column_none():
+    acts = activities([(1, 5, np.nan, np.nan, 3600)])
+    assert propose_lthr("bike", hr_efforts([(1, 5, 160.0)]), acts, current=None, today=TODAY) is None
