@@ -120,8 +120,9 @@ def compute_curve_snapshots(session: Session, today: dt.date, months: Iterable[s
         .where(Activity.sport == "run", not_(commute_expr()))  # §2.6
         .order_by(Activity.local_date)
     ).all()
-    if not runs:
+    if not runs and months is None:
         return 0
+    # explicit months are written even without runs (e.g. the last run became a commute, §2.6)
     wanted = sorted(set(months)) if months is not None else curve_months(runs[0].local_date, today)
     wanted = [m for m in wanted if m <= f"{today:%Y-%m}"]  # never a snapshot for a month after today
     cache: dict[int, pd.DataFrame] = {}

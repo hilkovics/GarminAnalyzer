@@ -172,3 +172,20 @@
 - Formatted thresholds in user text (`{x:.2f}`) can round across the boundary ("highest 0.95" for 0.949 in
   "none reached >= 0.95"). Check every reason/caption that prints a value next to its cutoff.
 - STATUS.md not updated again; dto.py 460 lines.
+
+## Commutes §2.6 (2026-10-25, commit 091096e)
+- Verified: Python is_commute == SQL commute_expr (3000-row fuzz, NULL moving/duration, overrides, 1500 edge,
+  0 mismatches); migration 0004 (7c2e5f1a9b30 -> 643693e83815); normalize upserts only listed columns, so
+  commute_override survives re-sync; _pre_taper_target returns T (not T_train), so taper = 0.5*T_pre - C.
+- New pattern: "exclusion filters" as a population change. Mutation-test EVERY added filter (scratch worktree
+  + replace-one-line script, ~20 s per mutant on the 11 relevant test files). Here 7 of 11 mutants survived
+  (curves, §9, §6.3 frame, week view counts/load, season CTL uses T, set_commute curve refresh).
+- New pattern: flags that change classification after the fact do not re-evaluate PERSISTED derived states
+  (planned_workout done + completed_activity_id is never re-matched: match_completed only touches
+  planned/pushed). Check every reclassification endpoint against stored matches/decisions.
+- `compute_curve_snapshots` returns early on "no runs" -> snapshots never cleared when the last run is
+  excluded (scratch-verified). Check early-return-on-empty before upsert loops whenever a filter is added.
+- STATUS claims can exceed the code ("Plán week view shows commute_load" - only the DTO has it). Grep UI for
+  every DTO field STATUS says is shown.
+- User's 3 recorded real rides are 740-1064 s moving -> all commutes under §2.6.
+- dto.py 470 lines. STATUS updated this time.

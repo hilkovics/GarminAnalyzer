@@ -9,7 +9,7 @@ from sqlmodel import Session
 from training import pipeline, planning
 from training.coach import season
 from training.commute import COMMUTE_MAX_MOVING_S, commute_expr, is_commute
-from training.db.models import Activity, ActivityMetric, BestEffort, DailyLoad, PlannedWorkout
+from training.db.models import Activity, ActivityMetric, BestEffort, CurveSnapshot, DailyLoad, PlannedWorkout
 from training.db.session import make_engine
 from training.services import activities as svc
 from training.services.dto import CommuteIn
@@ -147,3 +147,27 @@ def test_set_commute_overrides_and_recomputes(session):
 def test_set_commute_unknown_activity(session):
     with pytest.raises(NotFoundError):
         svc.set_commute(session, 999_999, CommuteIn(commute=True), today=TODAY)
+
+
+def test_reclassifying_a_matched_ride_as_commute_reopens_the_workout(session):
+    session.add(PlannedWorkout(date=TUESDAY, sport="bike", name="Endurance", status="planned", structure={}))
+    session.commit()
+    activity_id = commute(session, 9001, TUESDAY, commute=False)  # a short training ride
+    assert planning.match_completed(session, TODAY) == 1
+    svc.set_commute(session, activity_id, CommuteIn(commute=True), today=TODAY)
+    row = session.execute(select(PlannedWorkout).where(PlannedWorkout.date == TUESDAY)).scalar_one()
+    assert (row.status, row.completed_activity_id) == ("planned", None)
+
+
+def test_last_run_becoming_a_commute_empties_its_curve_months(session):
+    runs = session.execute(select(Activity).where(Activity.sport == "run")).scalars().all()
+    for run in runs:
+        run.commute_override = True
+        session.add(run)
+    session.commit()
+    svc.set_commute(session, runs[-1].id, CommuteIn(commute=True), today=TODAY)
+    month = f"{runs[-1].local_date:%Y-%m}"
+    snapshot = session.execute(
+        select(CurveSnapshot).where(CurveSnapshot.month == month, CurveSnapshot.sport == "run")
+    ).scalar_one()
+    assert snapshot.curve["bins"] == {} and snapshot.curve["pace_at_ref_hr"] is None

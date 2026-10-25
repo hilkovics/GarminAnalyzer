@@ -12,7 +12,7 @@ import numpy as np
 from sqlalchemy import func, select
 from sqlmodel import Session
 
-from training import pipeline, pipeline_progress
+from training import pipeline, pipeline_progress, planning
 from training.db import raw_kinds as ep, repo
 from training.db.models import Activity, ActivityMetric, Subjective, Threshold
 from training.metrics.preprocess import preprocess
@@ -26,7 +26,7 @@ from training.services.dto import (
     SubjectiveDTO,
     SubjectiveIn,
 )
-from training.services.errors import InvalidInputError, NotFoundError
+from training.services.errors import InvalidInputError, NotFoundError, ServiceError
 from training.services.lttb import MIN_POINTS, select_indices
 from training.services.mappers import (
     hr_zone_bounds,
@@ -183,21 +183,26 @@ def set_commute(session: Session, activity_id: int, data: CommuteIn, *, today: d
     """Override the METRICS §2.6 commute rule for one activity (null = back to the rule).
 
     The activity's load stays in `daily_load`; its §5 values and best efforts are recomputed (dropped for a
-    commute) and the speed–HR curves of the months it touches are refreshed.
+    commute), the speed–HR curves of the months it touches are refreshed and planned workouts are matched
+    again. A recompute failure leaves everything unchanged (ServiceError).
     """
     activity = session.get(Activity, activity_id)
     if activity is None:
         raise NotFoundError(f"activity {activity_id} not found")
     activity.commute_override = data.commute
     session.add(activity)
-    session.commit()
-    if session.get(ActivityMetric, activity_id) is not None:
-        pipeline_progress.compute_activity_progress(session, activity_id)
+    try:
+        if session.get(ActivityMetric, activity_id) is not None:
+            pipeline_progress.compute_activity_progress(session, activity_id)
         session.commit()
+    except Exception as exc:  # e.g. unreadable streams: keep the previous state, report it
+        session.rollback()
+        raise ServiceError(f"activity {activity_id} could not be recomputed: {exc}") from exc
     if activity.sport == "run" and activity.local_date <= today:  # its 28-day curve windows (§6.1)
         pipeline_progress.compute_curve_snapshots(
             session, today, pipeline_progress.months_touched([activity.local_date])
         )
+    planning.match_completed(session, today)  # a commute never completes a planned workout (§10.4)
     session.refresh(activity)
     return summary_dto(activity, session.get(ActivityMetric, activity_id))
 

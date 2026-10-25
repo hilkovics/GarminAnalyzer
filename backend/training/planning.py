@@ -326,8 +326,29 @@ def _matching_activity(session: Session, row: PlannedWorkout) -> int | None:
     ).scalar()
 
 
+def _unmatch_commutes(session: Session) -> int:
+    """Done workouts whose completed activity is now a commute (§2.6, e.g. reclassified later): take another
+    matching activity of that day, else back to pushed / planned. Returns the number of rows changed."""
+    rows = session.execute(
+        select(PlannedWorkout)
+        .join(Activity, Activity.id == PlannedWorkout.completed_activity_id)
+        .where(PlannedWorkout.status == "done", commute_expr())
+    ).scalars()
+    changed = 0
+    for row in rows:
+        row.completed_activity_id = _matching_activity(session, row)
+        if row.completed_activity_id is None:
+            row.status = "pushed" if row.garmin_workout_id is not None else "planned"
+        session.add(row)
+        changed += 1
+    session.commit()
+    return changed
+
+
 def match_completed(session: Session, today: dt.date) -> int:
-    """Mark planned/pushed workouts up to `today` done when a same-sport activity exists that day."""
+    """Mark planned/pushed workouts up to `today` done when a same-sport activity exists that day (first
+    re-checking done workouts whose activity has become a commute)."""
+    _unmatch_commutes(session)
     rows = session.execute(
         select(PlannedWorkout).where(
             PlannedWorkout.status.in_(REPLACEABLE),
