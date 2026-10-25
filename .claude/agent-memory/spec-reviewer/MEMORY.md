@@ -137,3 +137,26 @@
 
 ## Windows portability
 - [Windows portability checklist](windows_portability.md) - encoding=, .env encoding, alembic %, CRLF artifacts, venv python path
+
+## Phase 8 notes (2026-10-25, automation / ops)
+- New pattern: RedactingFilter rewrites only record.getMessage(); exception tracebacks (exc_info/exc_text) and
+  Typer pretty tracebacks reach the stderr handler unredacted (scratch-verified). Phase 8 redirects stderr to
+  persistent files (cron.out, task.out, docker logs). Check exc_text/stack_info redaction on every stream handler.
+- New pattern: daily loops that sleep a naive-local timedelta (`next_run_at(datetime.now(), at)`) shift by 1 h
+  at DST: autumn wakes at 05:00 then runs AGAIN at 06:00, spring runs 07:00 (scratch-verified with zoneinfo).
+  time.sleep is monotonic (host suspend, Pi clock jump). Ask for chunked sleep + recompute. Also check the loop
+  catches every exception ("a failed run never stops the loop" comments are often false) and catches up a
+  missed run after a restart.
+- Docker checklist: container runs as root -> garminconnect re-dumps tokens on refresh (0600, os.replace) into
+  the bind-mounted host token dir -> host user loses access; .dockerignore must mirror .gitignore secret
+  patterns (garmin_tokens*.json, .garminconnect/); every PROJECT_ROOT-relative writable dir (reports_dir) must be
+  on a volume; UV_NO_SYNC for exec'd commands. Build check that works offline-ish: `git archive HEAD | tar -x`
+  into scratch, delete .dockerignore paths, `UV_PROJECT_ENVIRONMENT=<scratch>/venv uv sync --frozen --no-dev
+  --extra ai` (verified OK in phase 8, PROJECT_ROOT resolves to the copy because uv installs editable).
+- Lock files (O_CREAT|O_EXCL): stat() after FileExistsError can raise FileNotFoundError; stale takeover is a
+  TOCTOU (two takers both run); __exit__ unlinks unconditionally (deletes a lock taken over from it). Prefer
+  fcntl/msvcrt locks on a held handle. Also check which OTHER writers (UI "Run sync now", `training sync`,
+  push-today) bypass the lock.
+- Once-per-day markers (TELEGRAM_SENT_DATE) set after sending a provisional decision: the final plan of a later
+  successful run is never announced. Check what the "once" message contained.
+- dto.py 452 lines (still > 400). STATUS was updated this phase (first time since phase 4).

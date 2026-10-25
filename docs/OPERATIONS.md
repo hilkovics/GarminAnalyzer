@@ -31,7 +31,7 @@ uv run training morning --force-telegram # pošli správu aj druhýkrát v ten i
 - **Kde vidieť výsledok:**
   - Dashboard – riadok „Ranný beh“, červený pri chybe alebo keď 36 hodín nebežal úspešne.
   - Nastavenia → Sync a diagnostika – posledných 10 behov a posledné chyby.
-- **Časy** v aplikácii sú v lokálnom časovom pásme počítača (v Dockeri podľa `TZ`). V logu a v databáze sú uložené v UTC.
+- **Časy** v aplikácii a v logu sú v lokálnom časovom pásme počítača (v Dockeri podľa `TZ`); log má pri čase aj posun voči UTC. V databáze sú časy behov uložené v UTC.
 
 ## 2. Automatické spúšťanie
 
@@ -47,7 +47,7 @@ Get-ScheduledTaskInfo -TaskName "GarminAnalyzer - training morning"             
 powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -Remove    # odstrániť
 ```
 
-Úloha beží pod tvojím účtom, keď si prihlásený. Ak bol počítač o 06:00 uspatý, spustí sa hneď po zobudení. Výsledok uvidíš aj v aplikácii *Plánovač úloh* pod rovnakým názvom.
+Úloha beží pod tvojím účtom, keď si prihlásený. Ak bol počítač o 06:00 uspatý, spustí sa po zobudení, hneď ako je pripojený na internet. Výsledok uvidíš aj v aplikácii *Plánovač úloh* pod rovnakým názvom.
 
 ### Linux / macOS (cron)
 
@@ -83,7 +83,10 @@ crontab -l                       # kontrola
    docker compose exec morning uv run --no-sync training morning   # spusti hneď
    ```
 
-Databáza a logy sú v `./data` na hostiteľovi, takže prebudovanie image nič nezmaže. Image zatiaľ nebol vyskúšaný na Raspberry Pi.
+- Kontajnery bežia pod tvojím používateľom (`UID`/`GID`, predvolene 1000), aby súbor s tokenmi a `./data` zostali tvoje. Ak máš iné UID, zapíš `UID=…` a `GID=…` do `.env` (zistíš ich príkazom `id`).
+- Databáza, logy aj týždenné AI reporty (`data/reports`) sú v `./data` na hostiteľovi, takže prebudovanie image nič nezmaže. `./data` má byť na lokálnom disku, nie na sieťovom zdieľaní (SQLite).
+- Ranný beh v Dockeri čaká na `MORNING_AT` podľa nástenných hodín, takže zmenu času zvládne. Ak kontajner v daný deň po `MORNING_AT` ešte nebežal (reštart, výpadok), beh dobehne hneď po štarte.
+- `docker-compose.yml` vyžaduje Docker Compose 2.24 alebo novší. Image zatiaľ nebol vyskúšaný na Raspberry Pi.
 
 ## 3. Keď prestane fungovať prihlásenie do Garminu
 
@@ -97,7 +100,7 @@ Garmin z času na čas zmení prihlasovanie a knižnica `garminconnect` potrebuj
 **Postup:**
 1. **429 alebo 403 (Cloudflare, príliš veľa požiadaviek):** neskúšaj to dookola, každý pokus blokovanie predlžuje. Počkaj niekoľko hodín a skús to raz, ideálne z inej siete (napríklad hotspot z mobilu).
 2. **Over tokeny:** `uv run training whoami`. Ak fungujú, problém je len prechodný a ďalší beh to dobehne.
-3. **Prihlás sa znova:** `uv run training login --force`. Pôvodné tokeny sa najprv zálohujú.
+3. **Prihlás sa znova:** `uv run training login --force`. Pôvodné tokeny sa počas prihlasovania odložia a ak prihlásenie zlyhá, vrátia sa späť.
 4. **Aktualizuj knižnicu:**
    ```bash
    uv lock --upgrade-package garminconnect
@@ -120,7 +123,9 @@ Garmin z času na čas zmení prihlasovanie a knižnica `garminconnect` potrebuj
 | Situácia | Čo urobiť |
 | --- | --- |
 | Dashboard: „Posledný sync je starší ako 36 hodín“ | Pozri Nastavenia → Sync a diagnostika a `data/logs/training.log`. Skontroluj, či plánovač beží (`Get-ScheduledTaskInfo` alebo `crontab -l`). |
-| Ranný beh vracia kód 3 | Iný beh ešte beží. Ak určite nebeží, zmaž `data/logs/morning.lock`. |
+| Dashboard: „Posledný ranný beh zlyhal“ | V Nastavenia → Sync a diagnostika uvidíš, ktorý krok zlyhal. Ak len Telegram alebo push, dáta sú v poriadku. Spusti `uv run training morning` znova. |
+| Dashboard: „Posledný úspešný ranný beh je starší ako 36 hodín“ | Plánovač nebeží alebo každý beh padá – skontroluj úlohu (`Get-ScheduledTaskInfo`, `crontab -l`, `docker compose ps`) a log. |
+| Ranný beh vracia kód 3 | Iný beh ešte beží. Zámok `data/logs/morning.lock` po spadnutom behu sa sám prevezme (Linux okamžite, inak po 3 hodinách); v Dockeri je ten istý súbor v `./data/logs`. |
 | Tréning sa neobjavil na hodinkách | V Garmin Connect skontroluj kalendár, potom synchronizuj hodinky. Na stránke Plán musí byť stav „odoslané“. |
 | Telegram neprišiel | Spusti `uv run training telegram-morning --dry-run` (len vypíše správu), skontroluj premenné prostredia a pozri log. |
 | Testy padajú na `anthropic` | Spusti `uv sync --extra ai`, prípadne ignoruj – testy AI reportu sa bez tohto doplnku preskočia. |

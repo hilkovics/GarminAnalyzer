@@ -35,7 +35,10 @@ if [[ -z "$UV" ]]; then
 fi
 
 mkdir -p "$REPO/data/logs"
-line="$minute $hour * * * cd \"$REPO\" && \"$UV\" run training morning >> \"$REPO/data/logs/cron.out\" 2>&1 $TAG"
+# cron treats an unescaped % as a newline: escape it in the paths
+REPO_CRON="${REPO//%/\\%}"
+UV_CRON="${UV//%/\\%}"
+line="$minute $hour * * * cd \"$REPO_CRON\" && \"$UV_CRON\" run training morning >> \"$REPO_CRON/data/logs/cron.out\" 2>&1 $TAG"
 { printf '%s\n' "$current" | sed '/^$/d'; echo "$line"; } | crontab -
 echo "Installed: training morning daily at $(printf '%02d:%02d' "$hour" "$minute") (local time)."
 echo "Check with: crontab -l"

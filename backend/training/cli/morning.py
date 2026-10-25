@@ -1,7 +1,6 @@
 """`training morning`: the daily automation run (PLAN phase 8) for cron, Task Scheduler or Docker (--loop)."""
 
 import datetime as dt
-import time
 
 import typer
 from rich.markup import escape
@@ -52,14 +51,18 @@ def morning_command(
     log_file = log_redaction.add_file_handler(settings.log_dir)
     console.print(f"Log: {log_file}")
     if not loop:
+        if at != "06:00":
+            err.print("[yellow]--at only applies with --loop; running once now.[/]")
         raise typer.Exit(_run_once(push, telegram, force_telegram))
     try:
         when = morning.parse_time(at)
     except ValueError as exc:
         err.print(f"[red]{escape(str(exc))}[/]")
         raise typer.Exit(2) from None
-    while True:  # a failed run never stops the loop; the next day runs again
-        target = morning.next_run_at(dt.datetime.now(), when)
-        console.print(f"Next morning run: {target:%Y-%m-%d %H:%M}")
-        time.sleep(max(0.0, (target - dt.datetime.now()).total_seconds()))
-        _run_once(push, telegram, force_telegram)
+
+    def ran_today(day: dt.date) -> bool:
+        with Session(get_engine(settings)) as session:
+            return morning.ran_on(session, day)
+
+    console.print(f"Daily morning run at {at} (local time).")
+    morning.daily_loop(lambda: _run_once(push, telegram, force_telegram), when, ran_today=ran_today)

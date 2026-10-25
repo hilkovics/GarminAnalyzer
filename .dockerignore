@@ -9,3 +9,9 @@ docs/reports
 .pytest_cache
 .ruff_cache
 .env
+.garminconnect
+garmin_tokens*.json
+garmin_tokens*/
+*.json.bak
+*.db
+*.db-*

@@ -88,6 +88,8 @@ def morning_message(session: Session, today: dt.date) -> MorningMessageDTO:
         sport = SPORT_WORDS.get(workout.sport, workout.sport)
         load = f", záťaž ~{workout.estimated_load:.0f}" if workout.estimated_load is not None else ""
         lines.append(f"Dnes: {workout.name} ({sport}, {_minutes(workout.duration_s)}{load}).")
+        if workout.provisional:  # decided before today's sync – may still change (review phase 8, W4)
+            lines.append("Plán je predbežný – po synchronizácii sa môže zmeniť.")
     if decision.reason:
         lines.append(f"Prečo: {decision.reason}")
     if workout.steps:

@@ -223,3 +223,107 @@ def test_cli_reports_a_held_lock(engine, tmp_path, monkeypatch, fakes):
             root.removeHandler(handler)
             handler.close()
     assert result.exit_code == morning.EXIT_LOCKED
+
+
+# --- review phase 8 follow-ups ----------------------------------------------------------------------------
+
+
+class FakeClock:
+    """A naive local wall clock that `sleep` advances; `jump_at` moves it like a DST change."""
+
+    def __init__(self, start: dt.datetime, jumps: dict[dt.datetime, dt.timedelta] | None = None):
+        self.now, self.jumps, self.slept = start, dict(jumps or {}), []
+
+    def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
+        before = self.now
+        self.now += dt.timedelta(seconds=seconds)
+        for at, shift in list(self.jumps.items()):
+            if before < at <= self.now:
+                self.now += shift
+                del self.jumps[at]
+
+
+def test_daily_loop_runs_once_at_six_across_the_autumn_dst_change():
+    # 25. 10. 2026 03:00 CEST → 02:00 CET: the wall clock goes back one hour during the night
+    clock = FakeClock(
+        dt.datetime(2026, 10, 24, 6, 1), {dt.datetime(2026, 10, 25, 3, 0): dt.timedelta(hours=-1)}
+    )
+    ran = []
+    morning.daily_loop(
+        lambda: ran.append(clock.now),
+        dt.time(6, 0),
+        ran_today=lambda day: True,
+        now=lambda: clock.now,
+        sleep=clock.sleep,
+        max_runs=2,
+    )
+    assert ran == [dt.datetime(2026, 10, 25, 6, 0), dt.datetime(2026, 10, 26, 6, 0)]
+    assert max(clock.slept) <= morning.CHUNK_S
+
+
+def test_daily_loop_catches_up_and_survives_a_crash():
+    clock = FakeClock(dt.datetime(2026, 10, 25, 9, 30))
+    calls = []
+
+    def run_once():
+        calls.append(clock.now)
+        if len(calls) == 1:
+            raise RuntimeError("database is locked")
+
+    morning.daily_loop(
+        run_once,
+        dt.time(6, 0),
+        ran_today=lambda day: False,
+        now=lambda: clock.now,
+        sleep=clock.sleep,
+        max_runs=2,
+    )
+    assert calls == [
+        dt.datetime(2026, 10, 25, 9, 30),
+        dt.datetime(2026, 10, 26, 6, 0),
+    ]  # catch-up, then next day
+
+
+def test_ran_on_reads_the_run_log(engine, settings, fakes):
+    with Session(engine) as session:
+        assert not morning.ran_on(session, TODAY)
+        morning.run_morning(
+            session, settings, TODAY, now=lambda: dt.datetime.combine(TODAY, dt.time(10), dt.UTC)
+        )
+        assert morning.ran_on(session, TODAY)
+
+
+def test_a_provisional_plan_is_not_pushed_and_telegram_is_resent(engine, settings, fakes, monkeypatch):
+    """Review phase 8 W4/W5: sync ok but today's data still missing → no push, Telegram again later."""
+
+    def sync_without_wellness(session, *, settings, today):
+        result = _sync_ok(session, settings=settings, today=today)
+        repo.set_state(session, LAST_WELLNESS_DATE, (today - dt.timedelta(days=1)).isoformat())
+        session.commit()
+        return result
+
+    monkeypatch.setattr(sync_service, "run_sync", sync_without_wellness)
+    with Session(engine) as session:
+        first = morning.run_morning(session, settings, TODAY)
+        assert first.step("push").status == "skipped" and "predbežný" in first.step("push").message
+        assert "predbežným" in first.step("telegram").message
+        monkeypatch.setattr(sync_service, "run_sync", _sync_ok)
+        planning_row = morning.planning.planned_for(session, TODAY)[0]
+        planning_row.structure = {**planning_row.structure, "provisional": False}
+        session.add(planning_row)
+        session.commit()
+        second = morning.run_morning(session, settings, TODAY)
+    assert second.step("telegram").status == "ok" and fakes["telegram"] == 2
+
+
+def test_lock_released_by_its_owner_only_and_dead_holders_are_taken_over(tmp_path):
+    path = tmp_path / morning.LOCK_FILE
+    lock = morning.RunLock(path)
+    with lock:
+        path.write_text("12345 someone-else\n", encoding="utf-8")  # taken over meanwhile
+    assert path.exists()  # not deleted: it is not ours any more
+    if os.name == "posix":
+        path.write_text("999999999 crashed\n", encoding="utf-8")  # fresh lock, but the PID is gone
+        with morning.RunLock(path):
+            pass

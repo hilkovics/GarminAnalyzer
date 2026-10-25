@@ -25,11 +25,25 @@ def redact(text: str) -> str:
 
 
 class RedactingFilter(logging.Filter):
+    """Redacts the message AND the traceback / stack text of a record before any handler formats it.
+
+    A handler's Formatter reuses `record.exc_text` when it is set, so a pre-redacted traceback is what reaches
+    stderr (cron.out, task.out, docker logs) – review phase 8, W1.
+    """
+
+    _formatter = logging.Formatter()
+
     def filter(self, record: logging.LogRecord) -> bool:
         message = record.getMessage()
         cleaned = redact(message)
         if cleaned != message:
             record.msg, record.args = cleaned, None
+        if record.exc_info and not record.exc_text:
+            record.exc_text = self._formatter.formatException(record.exc_info)
+        if record.exc_text:
+            record.exc_text = redact(record.exc_text)
+        if record.stack_info:
+            record.stack_info = redact(record.stack_info)
         return True
 
 

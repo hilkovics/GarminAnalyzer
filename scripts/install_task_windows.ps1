@@ -34,7 +34,7 @@ if ($Remove) {
 if ($At -notmatch '^([01]?\d|2[0-3]):[0-5]\d$') {
     Write-Error "Time must be HH:MM, got '$At'."
 }
-$uv = (Get-Command uv -ErrorAction SilentlyContinue).Source
+$uv = Get-Command uv -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source
 if (-not $uv) {
     Write-Error "uv not found on PATH - install it first (https://docs.astral.sh/uv/)."
 }
@@ -42,8 +42,9 @@ if (-not $uv) {
 New-Item -ItemType Directory -Force -Path (Join-Path $Repo "data\logs") | Out-Null
 $command = "/c cd /d `"$Repo`" && `"$uv`" run training morning >> data\logs\task.out 2>&1"
 $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument $command -WorkingDirectory $Repo
-$trigger = New-ScheduledTaskTrigger -Daily -At ([datetime]::ParseExact($At, "H:mm", $null))
-$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries `
+$trigger = New-ScheduledTaskTrigger -Daily -At ([datetime]::ParseExact($At, "H:mm", [System.Globalization.CultureInfo]::InvariantCulture))
+# RunOnlyIfNetworkAvailable: a run caught up right after wake waits for Wi-Fi instead of failing the sync
+$settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 3) -MultipleInstances IgnoreNew
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Settings $settings `
     -Description "Garmin sync, metrics, plan, push to Garmin, Telegram (uv run training morning)" -Force | Out-Null

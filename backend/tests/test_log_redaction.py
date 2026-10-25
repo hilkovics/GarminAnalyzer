@@ -75,3 +75,22 @@ def test_every_entry_point_installs_the_filter(monkeypatch):
     assert any(isinstance(f, log_redaction.RedactingFilter) for f in handler.filters)
     script = Path("scripts/telegram_morning.py").read_text(encoding="utf-8")
     assert "log_redaction.setup_logging()" in script
+
+
+def test_tracebacks_on_stream_handlers_are_redacted():
+    """Review phase 8 W1: `log.exception` output on stderr (cron.out, task.out) must not carry a token."""
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter("%(levelname)s %(message)s"))
+    handler.addFilter(log_redaction.RedactingFilter())
+    logger = logging.getLogger("test.redaction.traceback")
+    logger.addHandler(handler)
+    logger.propagate = False
+    try:
+        raise RuntimeError(f"https://api.telegram.org/bot{TOKEN}/sendMessage")
+    except RuntimeError:
+        logger.exception("step failed")
+    finally:
+        logger.removeHandler(handler)
+    output = stream.getvalue()
+    assert "RuntimeError" in output and TOKEN not in output and "bot<redacted>" in output

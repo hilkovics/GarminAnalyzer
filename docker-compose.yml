@@ -7,9 +7,10 @@
 # data/ (SQLite DB, logs) and the token directory are bind mounts, so rebuilding the image loses nothing.
 # Secrets (Telegram, Anthropic) go into an optional .env next to this file – never into this file.
 x-common: &common
-  build: .
   image: garmin-analyzer:latest
   restart: unless-stopped
+  # run as the host user so the token file and data/ keep their owner (export UID/GID or put them in .env)
+  user: "${UID:-1000}:${GID:-1000}"
   env_file:
     - path: .env
       required: false
@@ -22,9 +23,11 @@ x-common: &common
 services:
   ui:
     <<: *common
+    build: .
     ports:
       - "8501:8501"
 
   morning:
     <<: *common
+    pull_policy: never  # same image as `ui`, built locally
     command: ["uv", "run", "--no-sync", "training", "morning", "--loop", "--at", "${MORNING_AT:-06:00}"]
