@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     ai_model: str = Field(default="claude-opus-5-5", description="Model of the weekly AI report.")
     reports_dir: Path = Field(default=PROJECT_ROOT / "docs" / "reports")
     log_dir: Path = Field(default=PROJECT_ROOT / "data" / "logs", description="`training morning` JSON logs.")
+    # phase 9: the React app (frontend/dist) is served by FastAPI on the API's port; the dev server's
+    # origins may call the API directly (CORS) – `npm run dev` normally uses its /api proxy instead
+    serve_frontend: bool = Field(default=True, description="Serve frontend/dist at / when it exists.")
+    frontend_dist: Path = Field(default=PROJECT_ROOT / "frontend" / "dist")
+    cors_origins: list[str] = Field(default=["http://localhost:5173", "http://127.0.0.1:5173"])
 
     @property
     def tokens_dir(self) -> Path:

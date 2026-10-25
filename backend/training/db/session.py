@@ -1,5 +1,6 @@
 """SQLite engine / session factory and schema migration to Alembic head."""
 
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -12,6 +13,9 @@ from sqlmodel import Session, create_engine
 from training.config import PROJECT_ROOT, Settings, get_settings
 
 ALEMBIC_INI = PROJECT_ROOT / "alembic.ini"
+# Alembic's command context is process-global (`alembic.context` proxies), so two threads migrating at once –
+# e.g. the first parallel API requests of the React app – break each other (KeyError 'script').
+_MIGRATE_LOCK = threading.Lock()
 
 
 def _sqlite_pragmas(dbapi_conn, _record) -> None:  # type: ignore[no-untyped-def]
@@ -36,7 +40,8 @@ def migrate(db_path: Path) -> None:
     cfg.attributes["configure_logger"] = False
     cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path.expanduser().resolve().as_posix()}")
     db_path.expanduser().parent.mkdir(parents=True, exist_ok=True)
-    command.upgrade(cfg, "head")
+    with _MIGRATE_LOCK:
+        command.upgrade(cfg, "head")
 
 
 def get_engine(settings: Settings | None = None, *, upgrade: bool = True) -> Engine:

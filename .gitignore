@@ -25,7 +25,8 @@ dist/
 
 # Frontend (phase 9)
 node_modules/
-frontend/dist/
+# frontend/dist is committed: the app runs without Node (rebuild: cd frontend && npm run build)
+!frontend/dist/
 
 # OS / editors
 .DS_Store

@@ -326,7 +326,7 @@ def test_default_dependencies_use_the_configured_database_lazily(monkeypatch, tm
     db = tmp_path / "x" / "training.db"
     monkeypatch.setenv("TRAINING_DB_PATH", str(db))
     get_settings.cache_clear()
-    deps._engine.cache_clear()
+    deps._cached_engine.cache_clear()
     try:
         client = TestClient(create_app())
         assert not db.exists()  # creating the app touches nothing
@@ -336,7 +336,7 @@ def test_default_dependencies_use_the_configured_database_lazily(monkeypatch, tm
         assert deps.get_today() == dt.date.today()
         assert client.get("/api/activities").json()["total"] == 0
     finally:
-        if deps._engine.cache_info().currsize:
+        if deps._cached_engine.cache_info().currsize:
             deps._engine().dispose()
-        deps._engine.cache_clear()
+        deps._cached_engine.cache_clear()
         get_settings.cache_clear()

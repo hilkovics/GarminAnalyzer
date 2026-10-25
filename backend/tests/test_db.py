@@ -123,3 +123,15 @@ def test_wellness_and_state(session):
     assert repo.wellness_dates(session, day, day) == {day}
     assert repo.get_state_date(session, "last_wellness_date") == dt.date(2026, 9, 21)
     assert repo.get_state(session, "missing") is None
+
+
+def test_parallel_first_requests_migrate_once_without_errors(tmp_path):
+    """The React app fires several API calls at once on first load; Alembic's global context must not race."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from training.db.session import migrate
+
+    paths = [tmp_path / "shared.db"] * 6 + [tmp_path / f"own{i}.db" for i in range(3)]
+    with ThreadPoolExecutor(max_workers=len(paths)) as pool:
+        list(pool.map(migrate, paths))  # raises if any thread failed
+    assert all(p.exists() for p in paths)

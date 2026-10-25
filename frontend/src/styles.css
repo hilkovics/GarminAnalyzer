@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+/* Kokpit design tokens (docs/design). Dark is the default; light via [data-theme="light"] or the system
+   preference when the user picked "auto". Every colour used by the UI and the charts comes from here. */
+:root,
+[data-theme="dark"] {
+  --bg: #0d0f12;
+  --sidebar: #111418;
+  --card: #161a1f;
+  --card-2: #12161b;
+  --border: #232930;
+  --border-strong: #2c333c;
+  --text: #e8eaed;
+  --muted: #9aa3ad;
+  --dim: #6b7480;
+  --accent: #5b9ff0;
+  --accent-text: #0d0f12;
+  --run: #5b9ff0;
+  --bike: #f58a55;
+  --other: #34c98f;
+  --green: #34c98f;
+  --yellow: #f0b429;
+  --red: #f2615f;
+  --neutral: #59626d;
+  --grid: #232930;
+  --z1: #a9cbf5;
+  --z2: #79acee;
+  --z3: #4a8ee6;
+  --z4: #2f6cc0;
+  --z5: #1f4f94;
+  color-scheme: dark;
+}
+
+[data-theme="light"] {
+  --bg: #eef0f3;
+  --sidebar: #f7f8fa;
+  --card: #ffffff;
+  --card-2: #f6f7f9;
+  --border: #dde1e6;
+  --border-strong: #cfd5dc;
+  --text: #1a1a1a;
+  --muted: #59626d;
+  --dim: #8a929c;
+  --accent: #2a78d6;
+  --accent-text: #ffffff;
+  --run: #2a78d6;
+  --bike: #e2622c;
+  --other: #17a673;
+  --green: #17a673;
+  --yellow: #d99a00;
+  --red: #dc4544;
+  --neutral: #aab2bc;
+  --grid: #e3e6ea;
+  --z1: #cfe2fa;
+  --z2: #a9cbf5;
+  --z3: #79acee;
+  --z4: #2f6cc0;
+  --z5: #1d5cae;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  [data-theme="auto"] {
+    --bg: #eef0f3;
+    --sidebar: #f7f8fa;
+    --card: #ffffff;
+    --card-2: #f6f7f9;
+    --border: #dde1e6;
+    --border-strong: #cfd5dc;
+    --text: #1a1a1a;
+    --muted: #59626d;
+    --dim: #8a929c;
+    --accent: #2a78d6;
+    --accent-text: #ffffff;
+    --run: #2a78d6;
+    --bike: #e2622c;
+    --other: #17a673;
+    --green: #17a673;
+    --yellow: #d99a00;
+    --red: #dc4544;
+    --neutral: #aab2bc;
+    --grid: #e3e6ea;
+    --z1: #cfe2fa;
+    --z2: #a9cbf5;
+    --z3: #79acee;
+    --z4: #2f6cc0;
+    --z5: #1d5cae;
+    color-scheme: light;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-sidebar: var(--sidebar);
+  --color-card: var(--card);
+  --color-card-2: var(--card-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-dim: var(--dim);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-run: var(--run);
+  --color-bike: var(--bike);
+  --color-other: var(--other);
+  --color-good: var(--green);
+  --color-warn: var(--yellow);
+  --color-bad: var(--red);
+  --font-sans: "Barlow", system-ui, sans-serif;
+  --font-num: "Barlow Semi Condensed", "Barlow", system-ui, sans-serif;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Numbers: tabular figures in the condensed face, as in the design's tiles. */
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+.label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.recharts-cartesian-axis-tick-value {
+  fill: var(--muted);
+  font-size: 12px;
+}
+
+.recharts-default-tooltip {
+  background: var(--card) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: 8px;
+  color: var(--text);
+}
