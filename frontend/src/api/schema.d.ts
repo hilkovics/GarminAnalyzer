@@ -397,6 +397,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/progress/threshold-proposals/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Store one proposal as a threshold valid from today (source "proposal"); recomputes from today */
+        post: operations["apply_threshold_proposal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reports/latest": {
         parameters: {
             query?: never;
@@ -1576,6 +1593,22 @@ export interface components {
              * @description "run" | "bike" | null = decided by the coach
              */
             sport?: string | null;
+        };
+        /**
+         * ProposalApplyIn
+         * @description POST /progress/threshold-proposals/apply body: the proposal to store as a threshold from today.
+         */
+        ProposalApplyIn: {
+            /**
+             * Sport
+             * @enum {string}
+             */
+            sport: "run" | "bike";
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "threshold_speed" | "lthr";
         };
         /**
          * ProposalDTO
@@ -3211,6 +3244,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProposalGapDTO"][];
+                };
+            };
+        };
+    };
+    apply_threshold_proposal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProposalApplyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThresholdDTO"];
+                };
+            };
+            /** @description Invalid or unacceptable parameters / body. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
         };
