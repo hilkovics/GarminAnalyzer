@@ -38,3 +38,4 @@ node_modules/
 
 # weekly AI reports hold personal health data – stored locally, not committed
 docs/reports/*.md
+frontend/tsconfig.tsbuildinfo
