@@ -73,8 +73,11 @@ ID_KEYS = frozenset(
         "userId",
         "unitId",
         "primaryActivityTrackerDeviceId",
+        "userDailySummaryId",  # = the user's profile id in daily summaries (found by the leak scan)
     )
 )
+# any other user / owner / profile id key (e.g. future `user…Id` / `…PK` fields) is remapped too
+_USER_ID_KEY = re.compile(r"^(user|owner|profile)\w*(id|pk)$")
 _DIGIT_KEY = re.compile(r"^\d{6,}$")
 PLACEHOLDER = "anonymized"
 FAKE_ID_START = 900_000_001
@@ -242,6 +245,13 @@ def _map_id(value: Any, ids: IdMap) -> Any:
     return value
 
 
+def _is_id_value(value: Any) -> bool:
+    """An int id or a digit string (not a bool, float or text) – what the generic id-key rule may remap."""
+    if isinstance(value, bool):
+        return False
+    return isinstance(value, int) or (isinstance(value, str) and value.isdigit())
+
+
 def _walk(obj: Any, rot: Rotation, ids: IdMap) -> Any:
     if isinstance(obj, list):
         return [_walk(v, rot, ids) for v in obj]
@@ -257,7 +267,7 @@ def _walk(obj: Any, rot: Rotation, ids: IdMap) -> Any:
         is_serial = folded in SERIAL_KEYS and value is not None  # serials may be numeric
         if is_pii or is_serial:
             out[new_key] = PLACEHOLDER
-        elif folded in ID_KEYS:
+        elif folded in ID_KEYS or (_USER_ID_KEY.match(folded) and _is_id_value(value)):
             out[new_key] = _map_id(value, ids)
         elif _POLYLINE.search(folded) and isinstance(value, str):
             out[new_key] = PLACEHOLDER

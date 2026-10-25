@@ -216,3 +216,28 @@ def test_north_relative_detail_columns_are_dropped():
         "activityDetailMetrics": [{"metrics": [140.0, 87.5]}],
     }
     assert anonymize(payload, ROT)["activityDetailMetrics"][0]["metrics"] == [140.0, None]
+
+
+def test_user_summary_ids_are_remapped_and_pass_the_leak_scan():
+    """Real recording 2026-10-25: `userDailySummaryId` held the profile id and the leak scan aborted."""
+    ids = IdMap()
+    real_id = 87654321
+    payload = {
+        "userProfileId": real_id,
+        "userDailySummaryId": real_id,
+        "ownerProfilePk": str(real_id),  # generic user/owner/profile id rule, digit string kept a string
+        "userIntensityMinutesGoal": 150,  # a user… key that is not an id stays as is
+        "userNote": "text",
+        "userIdIsActive": True,  # bools are never remapped
+        "totalSteps": 9000,
+    }
+    out = anonymize(payload, ROT, ids)
+    assert out["userDailySummaryId"] == out["userProfileId"] != real_id
+    assert out["ownerProfilePk"] == str(out["userProfileId"])
+    assert (out["userIntensityMinutesGoal"], out["userNote"], out["userIdIsActive"], out["totalSteps"]) == (
+        150,
+        "text",
+        True,
+        9000,
+    )
+    assert find_leaks(out, strings=[str(real_id)]) == []
