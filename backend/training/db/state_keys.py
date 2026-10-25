@@ -13,3 +13,7 @@ FAILED_WELLNESS = "failed_wellness_days"
 METRICS_DIRTY_ACTIVITIES = "metrics_dirty_activities"  # [garmin_id, …]
 METRICS_DIRTY_WELLNESS = "metrics_dirty_wellness_days"  # [date, …] (RHR feeds TRIMP, METRICS §2.2)
 CURVES_REFRESHED_UNTIL = "curves_refreshed_until"  # last date the speed–HR snapshots were computed for
+# phase 8 – `training morning` (training.morning)
+# newest first, ≤ 30 runs: {started_at, finished_at, ok, steps: [{name, status, message, duration_s}]}
+MORNING_RUNS = "morning_runs"
+TELEGRAM_SENT_DATE = "telegram_sent_date"  # local date of the last morning message (sent once per day)
