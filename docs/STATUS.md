@@ -30,6 +30,13 @@ Last updated: 2026-10-25 (phase 8 session)
 - Garmin push on the real account: `push-today` twice → "unchanged", workout id returned. Calendar entry still
   to be confirmed by the user.
 - Diagnostics before the purge: load vs Garmin training load r = 0.84 (n = 289), good.
+- **After the purge, wellness backfill and real thresholds** (run LTHR 172 / 5:33 from Garmin, bike LTHR 165 as a
+  starting estimate): all 329 activities have a load, **r = 0.89 (n = 329)** vs Garmin training load – the
+  phase-2 acceptance (§2.5, r > 0.8) is met on real data. hrTSS and rTSS differ by > 40 % on 2 runs only.
+- Open: the bike LTHR proposal (§6.3) needs hrTSS, so it can never appear before a first bike threshold exists.
+  A bootstrap rule (rank by average HR when there is no bike threshold) needs a METRICS change – awaiting the user.
+- Open: the run threshold-pace proposal (6:40/km, best 30-min GAP of 90 days) is far slower than Garmin's 5:33;
+  the user keeps 5:33 (hrTSS and rTSS agree).
 - Tests: 1886 passed (cloud, nothing skipped); Windows 1879 passed, 2 skipped (bash cron tests) before this fix.
 
 ### Phase 8 – automation and operations (code complete; Windows task and Docker image not run yet)
