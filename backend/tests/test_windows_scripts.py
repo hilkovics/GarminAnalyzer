@@ -35,3 +35,11 @@ def test_move_to_server_hands_over_the_morning_run():
     assert "-Force" in text and "garmin_tokens.json" in text
     shortcut = (SCRIPTS / "install_shortcut_windows.ps1").read_text(encoding="utf-8-sig")
     assert "--app=$Url" in shortcut
+
+
+def test_morning_task_wakes_the_pc_and_runs_without_sign_in():
+    text = (SCRIPTS / "install_task_windows.ps1").read_text(encoding="utf-8-sig")
+    assert '[string]$At = "09:00"' in text
+    assert "-WakeToRun" in text and "RTCWAKE 1" in text  # wake from sleep, wake timers allowed
+    assert "-LogonType S4U" in text and "-Verb RunAs" in text  # no sign-in needed, one UAC prompt
+    assert "-InteractiveOnly" in text  # the old behaviour stays available without admin rights

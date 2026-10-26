@@ -4,6 +4,16 @@ Last updated: 2026-10-25 (phase 8 session)
 
 ## Done
 
+### Windows PC as the always-ready runner (2026-10-26, user: the Beelink SER9 is also the everyday PC)
+- `install_task_windows.ps1`: daily 09:00 with **WakeToRun** (wake timers enabled via powercfg), logon type
+  **S4U** (runs as the user also when nobody is signed in, no stored password, no window; one UAC prompt, the
+  script re-launches itself elevated for the signed-in user), `-InteractiveOnly` keeps the old mode.
+- `training/keep_awake.py`: the one-shot `training morning` asks Windows to stay awake during the run
+  (SetThreadExecutionState), so the unattended-sleep timeout after a timer wake cannot cut a sync.
+- A fully shut down PC cannot be woken by Windows: the user sleeps it at night, or sets a BIOS RTC wake.
+- Not run on Windows here (pwsh 7 parse check only); verify: sleep the PC before 09:00 and check
+  `Get-ScheduledTaskInfo` / Dashboard "Ranný beh" afterwards.
+
 ### Always-on home server (2026-10-26, user's choice: a small computer at home)
 - **Why:** the morning run (sync → plan → push → Telegram) must happen at **09:00** even with the PC off.
   Chosen over a cloud VPS (Garmin blocks datacenter IPs more often; health data stays at home).

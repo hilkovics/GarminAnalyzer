@@ -74,7 +74,19 @@ Get-ScheduledTaskInfo -TaskName "GarminAnalyzer - training morning"             
 powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -Remove    # odstrániť
 ```
 
-Úloha beží pod tvojím účtom, keď si prihlásený. Ak bol počítač o 09:00 uspatý, spustí sa po zobudení, hneď ako je pripojený na internet. Výsledok uvidíš aj v aplikácii *Plánovač úloh* pod rovnakým názvom.
+Ako sa úloha správa (inštalácia si raz vypýta práva správcu – okno UAC):
+- **Uspatý počítač** (Štart → Napájanie → *Režim spánku*): Windows ho o 9:00 zobudí, ranný beh prebehne a počítač
+  sa po pár minútach bez tvojho zásahu sám znova uspí. Počas behu ho aplikácia drží hore, aby sync neprerušil.
+- **Nie si prihlásený** (prihlasovacia obrazovka, zamknutý počítač): úloha beží aj tak, pod tvojím účtom, bez okna
+  a bez uloženého hesla.
+- **Pracuješ na počítači:** beží na pozadí, žiadne okno nevyskočí.
+- **Úplne vypnutý počítač** Windows zobudiť nevie – na noc ho preto uspávaj, nie vypínaj. Ak ho vypnúť chceš, v BIOSe
+  (Beelink: pri štarte kláves Del) hľadaj *RTC Wake / Wake on RTC alarm / Power-On by RTC* a nastav denne 08:55;
+  po zapnutí úloha dobehne, hneď ako je pripojený internet (zmeškaný beh sa spúšťa po štarte).
+- Bez práv správcu: `install_task_windows.ps1 -InteractiveOnly` – potom beží len keď si prihlásený.
+- Odstránenie takejto úlohy vyžaduje PowerShell spustený ako správca.
+
+Výsledok uvidíš aj v aplikácii *Plánovač úloh* pod rovnakým názvom.
 
 ### Linux / macOS (cron)
 

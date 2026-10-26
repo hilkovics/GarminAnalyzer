@@ -10,6 +10,7 @@ from training import log_redaction, morning
 from training.cli._app import app, console, err
 from training.config import get_settings
 from training.db.session import get_engine
+from training.keep_awake import keep_awake
 
 DEFAULT_AT = "09:00"  # the daily run (user, 2026-10-26); scripts and docker-compose use the same default
 SYMBOLS = {"ok": "[green]✓[/]", "failed": "[red]✗[/]", "skipped": "[dim]–[/]"}
@@ -18,7 +19,11 @@ SYMBOLS = {"ok": "[green]✓[/]", "failed": "[red]✗[/]", "skipped": "[dim]–[
 def _run_once(push: bool, telegram: bool, force_telegram: bool) -> int:
     settings = get_settings()
     try:
-        with morning.RunLock(settings.log_dir / morning.LOCK_FILE), Session(get_engine(settings)) as session:
+        with (
+            keep_awake(),  # a PC woken by Task Scheduler must not fall asleep mid-sync
+            morning.RunLock(settings.log_dir / morning.LOCK_FILE),
+            Session(get_engine(settings)) as session,
+        ):
             run = morning.run_morning(
                 session,
                 settings,

@@ -36,10 +36,9 @@ nečinnosti býva okolo 6–10 W (cca 15–25 € ročne). Odporúčaný postup 
   výpadku prúdu zapol sám;
 - potom pokračuj krokom 3 (prihlásenie `ssh samuel@trening.local`, Docker, Tailscale) – je rovnaký ako pri Pi.
 
-Ak chceš na mini PC nechať Windows (napr. ho používaš aj na iné veci), dá sa to – ranný beh cez Plánovač úloh
-(`install_task_windows.ps1`) a aplikácia cez `start_app.ps1` + Tailscale pre Windows. Musí však ostať zapnutý,
-prihlásený a s vypnutým uspávaním, a reštarty po aktualizáciách Windows ho občas vyradia; Linux s Dockerom je
-na nonstop beh spoľahlivejší.
+Ak mini PC používaš ako bežný počítač s Windows, server netreba: `install_task_windows.ps1` nastaví ranný beh tak,
+že počítač o 9:00 zobudí zo spánku, beží aj bez prihlásenia a potom sa počítač sám uspí (docs/OPERATIONS.md §2).
+Stačí počítač na noc **uspávať, nie vypínať**. Aplikáciu otvára ikona na ploche (`install_shortcut_windows.ps1`).
 
 ## 2. Inštalácia systému (raz, cca 20 min) – Raspberry Pi
 
