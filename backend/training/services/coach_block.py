@@ -26,7 +26,7 @@ def _end(block: CoachBlock) -> dt.date:
 
 
 def _snapshot(value: bp.Snapshot) -> FitnessSnapshotDTO:
-    return FitnessSnapshotDTO(**asdict(value))
+    return FitnessSnapshotDTO(**asdict(value), stale=value.stale)
 
 
 def _change(value: bp.Change | None) -> FitnessChangeDTO | None:

@@ -1470,9 +1470,14 @@ export interface components {
             t10k_s: number | null;
             /**
              * Reference Date
-             * @description date of the §7 reference (stale when > 60 days old)
+             * @description date of the §7 reference
              */
             reference_date: string | null;
+            /**
+             * Stale
+             * @description the §7 reference is older than 60 days on `day` (times are not current)
+             */
+            stale: boolean;
         };
         /**
          * FitnessWeekDTO

@@ -616,8 +616,9 @@ work as in §10.4 / §10.8.
   - `vdot`, `t5k`, `t10k` = the §7 reference picked as of `d` (candidates with `local_date ≤ d`) and its
     Daniels equivalent times for 5 km and 10 km; `reference_date` is kept so a stale one (> 60 days) is flagged.
   Every part is null without data.
-- The block's **baseline** is the snapshot on the day before its start; it is stored with the block (filled
-  when missing, refreshed by `training recompute`). The **week value** is the snapshot on the week's Sunday
+- The block's **baseline** is the snapshot on the day before its start; it is stored with the block, final
+  once the block's Monday sync has run (as §11.3), derived again on every use before that, and refreshed by
+  `training recompute`. A stale reference (> 60 days on the snapshot day, §7) is flagged with the times. The **week value** is the snapshot on the week's Sunday
   (today for the running week). Change = week value − baseline (pace and EF: + is better; times: − is better).
 - **Check run result** (test weeks): the done check-run plan's linked activity, its 1800 s `gap_speed` best
   effort (§6.2, distance in 30 min) and its 1800 s HR effort; equivalent 5 km / 10 km by Daniels from
@@ -627,4 +628,7 @@ work as in §10.4 / §10.8.
 - **Block summary** (shown during the block as "so far", final after week 12): items done / `3 ·` weeks
   elapsed, run time done / Σ `T`, weeks with a brake, mean readiness and sleep, share of green days
   (readiness ≥ 70 of the days with readiness), and the change of every snapshot part from the baseline to the
-  last week value. *Added 2026-10-26 (step 2 of COACH_V2, approved with the proposal).*
+  last week value. Weeks count only when they have a §11.3 row: a race goal that interrupts the block
+  (§10 rules apply) leaves its weeks out, and the block still ends after its 12th calendar week.
+  Presentation: pace changes are shown in s/km and the EF change as a percentage of the baseline EF.
+  *Added 2026-10-26 (step 2 of COACH_V2, approved with the proposal).*

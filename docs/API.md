@@ -408,7 +408,8 @@ One item of the §11.1 week menu.
 | `vdot` | number \| null | §7 reference VDOT as of the day |
 | `t5k_s` | number \| null | Daniels equivalent 5 km time |
 | `t10k_s` | number \| null | Daniels equivalent 10 km time |
-| `reference_date` | date \| null | date of the §7 reference (stale when > 60 days old) |
+| `reference_date` | date \| null | date of the §7 reference |
+| `stale` | boolean | the §7 reference is older than 60 days on `day` (times are not current) |
 
 ### FitnessWeekDTO
 

@@ -19,6 +19,11 @@ Last updated: 2026-10-26 (coach "Kondícia" step 2)
   data (desktop dark, phone light; fixed a phone overflow). Plán refetches the week and block after today's
   first decision.
 - **Rule 6 changed (user):** in a test week without a green day the check run is given on a yellow day.
+- **Spec review fixes:** a negative-row test for every filter (commutes, bikes, dates, non-check or
+  undone check runs, future weeks); stale §7 references flagged (`stale`, "*" in the card); the baseline is
+  final only after the block's Monday sync; the card shows the API's change (EF as % of the baseline);
+  weeks without a row (a race goal interrupting the block) are documented; progress DTOs moved to
+  `services/dto_progress.py` (dto.py under 400 lines).
 - **Next:** step 3 (predictions: morning note from the personal sleep→performance relation, 7-day outlook).
 
 ### Coach "Kondícia" – step 1 (2026-10-26; docs/COACH_V2.md approved by the user, rules in METRICS §11)

@@ -3794,7 +3794,12 @@
               }
             ],
             "title": "Reference Date",
-            "description": "date of the §7 reference (stale when > 60 days old)"
+            "description": "date of the §7 reference"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale",
+            "description": "the §7 reference is older than 60 days on `day` (times are not current)"
           }
         },
         "type": "object",
@@ -3805,7 +3810,8 @@
           "vdot",
           "t5k_s",
           "t10k_s",
-          "reference_date"
+          "reference_date",
+          "stale"
         ],
         "title": "FitnessSnapshotDTO",
         "description": "§11.4 fitness on `day` (runs only); every part is null without data."

@@ -17,7 +17,8 @@ class FitnessSnapshotDTO(BaseModel):
     vdot: float | None = Field(description="§7 reference VDOT as of the day")
     t5k_s: float | None = Field(description="Daniels equivalent 5 km time")
     t10k_s: float | None = Field(description="Daniels equivalent 10 km time")
-    reference_date: dt.date | None = Field(description="date of the §7 reference (stale when > 60 days old)")
+    reference_date: dt.date | None = Field(description="date of the §7 reference")
+    stale: bool = Field(description="the §7 reference is older than 60 days on `day` (times are not current)")
 
 
 class FitnessChangeDTO(BaseModel):

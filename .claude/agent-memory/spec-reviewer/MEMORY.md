@@ -223,3 +223,16 @@
   one-line wiring fixes (cli ran_on -> ran_ok_on), exception-path fixes (IntegrityError re-read). Keep running
   the mutation script (scratchpad mut.py approach: list of (name, file, old, new), -x, 6 test files ~5-18 s each).
 - Stale wording after the retry fix: MAX_RETRIES comment and daily_loop docstring still say "at most".
+
+## Kondícia step 2 §11.4 block progress (2026-10-26, commit f1a0267)
+- Process (again): committed during review (status showed dirty, HEAD already had it). Review HEAD.
+- Mutation: 8/14 survived (all 3 commute filters in planning_block, run-sport filter -> bike EF in trend,
+  candidates `<= end`, check-run key + status filters, `CoachWeek.monday <= today`, sleep window). Test files
+  exercise only the seeded happy path. Ask for one negative case per WHERE clause.
+- New pattern: spec "X is kept so Y is flagged" (reference_date -> stale > 60 d) implemented as data only;
+  no DTO flag, UI never reads it. Grep the UI for every field a spec sentence says is "shown/flagged".
+- New pattern: UI recomputes the DTO's `change` itself (and as a different quantity: EF in %), ignoring the
+  service field. Check React for arithmetic on DTO values vs the spec's definition.
+- Recurring: stored "filled when missing" values (coach_block.baseline) filled by a GET before the Monday
+  sync and refreshed only by `training recompute` -> frozen stale for the whole block.
+- dto.py 491 lines.

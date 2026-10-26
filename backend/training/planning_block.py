@@ -90,12 +90,13 @@ def snapshot_on(session: Session, day: dt.date) -> bp.Snapshot:
 
 
 def baseline(session: Session, block: CoachBlock, *, refresh: bool = False) -> bp.Snapshot:
-    """§11.4 baseline (the snapshot of the day before the block); stored when missing or refreshed."""
+    """§11.4 baseline (the snapshot of the day before the block): stored; derived again while missing, not
+    final (the block's Monday sync has not run, so Sunday's data may be missing) or refreshed."""
     stored = None if refresh else bp.from_json(block.baseline)
-    if stored is not None:
+    if stored is not None and (block.baseline or {}).get("final"):
         return stored
     value = snapshot_on(session, block.start_monday - dt.timedelta(days=1))
-    block.baseline = bp.to_json(value)
+    block.baseline = bp.to_json(value) | {"final": pf._inputs_complete(session, block.start_monday)}
     session.add(block)
     session.commit()
     return value

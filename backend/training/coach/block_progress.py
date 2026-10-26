@@ -13,7 +13,7 @@ from datetime import date, timedelta
 import pandas as pd
 
 from training.metrics.efficiency import TREND_WINDOW_DAYS, ef_trend
-from training.metrics.predictions import pick_reference, vdot, vdot_race_time
+from training.metrics.predictions import STALE_DAYS, pick_reference, vdot, vdot_race_time
 
 CHECK_RUN_S = 1800.0
 GREEN_FROM = 70.0
@@ -31,6 +31,11 @@ class Snapshot:
     t5k_s: float | None = None
     t10k_s: float | None = None
     reference_date: date | None = None
+
+    @property
+    def stale(self) -> bool:
+        """§7: the reference behind the times is older than 60 days on `day`."""
+        return self.reference_date is not None and (self.day - self.reference_date).days > STALE_DAYS
 
 
 @dataclass(frozen=True)

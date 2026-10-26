@@ -116,13 +116,14 @@ describe("FitnessWeek", () => {
 });
 
 describe("BlockProgressCard", () => {
-  const snap = (day: string, pace: number, ef: number | null, t5k: number) => ({ day, pace_at_ref_hr: pace, ef, vdot: 50, t5k_s: t5k, t10k_s: t5k * 2.08, reference_date: day });
+  const snap = (day: string, pace: number, ef: number | null, t5k: number) => ({ day, pace_at_ref_hr: pace, ef, vdot: 50, t5k_s: t5k, t10k_s: t5k * 2.08, reference_date: day, stale: false });
   it("shows the summary, the change from the baseline in the better/worse colour and the check runs", async () => {
     vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); // recharts' container
     const { BlockProgressCard } = await import("./BlockProgress");
     const week = {
       monday: "2026-10-26", week_no: 6, target_s: 6000, run_s: 4800, items_done: 2, brake: null, recovery: false, test: true,
-      mean_readiness: 61, mean_sleep_s: 6.5 * 3600, value: snap("2026-11-15", 1000 / 290, 1.6, 1500), change: null,
+      mean_readiness: 61, mean_sleep_s: 6.5 * 3600, value: { ...snap("2026-11-15", 1000 / 290, 1.6, 1500), stale: true },
+      change: { pace_at_ref_hr: 1000 / 290 - 1000 / 300, ef: 0, vdot: 0, t5k_s: -30, t10k_s: -62.4 },
     };
     render(
       <BlockProgressCard
@@ -143,5 +144,6 @@ describe("BlockProgressCard", () => {
     expect(screen.getByText(/−0:30$/).className).toContain("text-good"); // 5 km 25:30 → 25:00
     expect(screen.getAllByText("bez zmeny").length).toBe(1); // EF unchanged
     expect(screen.getByText("6,00 km")).toBeTruthy();
+    expect(screen.getByText(/\* Odhad vychádza z výkonu staršieho ako 60 dní/)).toBeTruthy(); // stale reference
   });
 });

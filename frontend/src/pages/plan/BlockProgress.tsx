@@ -29,14 +29,18 @@ function paceDelta(now: Num, base: Num): number | null {
   return valid(now) && valid(base) && now > 0 && base > 0 ? 1000 / now - 1000 / base : null;
 }
 
-const ROWS: { label: string; short: string; hint: string; show: (s: Snapshot) => string; delta: (now: Snapshot, base: Snapshot) => JSX.Element }[] = [
+type Change = Schemas["FitnessChangeDTO"];
+
+/** Rows of "start vs now"; the change comes from the API (value − baseline, §11.4) and is only formatted
+ * here: pace as s/km, EF as a percentage of the baseline EF. */
+const ROWS: { label: string; short: string; hint: string; show: (s: Snapshot) => string; delta: (c: Change, now: Snapshot, base: Snapshot) => JSX.Element }[] = [
   {
     label: "Tempo pri referenčnom tepe",
     short: "Tempo pri ref. tepe",
     hint: "80 % LTHR, medián 28 dní",
     show: (s) => fmtPace(s.pace_at_ref_hr),
-    delta: (n, b) => {
-      const d = paceDelta(n.pace_at_ref_hr, b.pace_at_ref_hr);
+    delta: (c, n, b) => {
+      const d = valid(c.pace_at_ref_hr) ? paceDelta(n.pace_at_ref_hr, b.pace_at_ref_hr) : null;
       return <Delta value={d} text={valid(d) ? `${signedSeconds(d)}/km` : ""} betterWhen="down" />;
     },
   },
@@ -45,8 +49,8 @@ const ROWS: { label: string; short: string; hint: string; show: (s: Snapshot) =>
     short: "EF",
     hint: "steady-state behy, medián 28 dní",
     show: (s) => fmtNum(s.ef, 2),
-    delta: (n, b) => {
-      const d = valid(n.ef) && valid(b.ef) && b.ef > 0 ? (n.ef - b.ef) / b.ef : null;
+    delta: (c, _n, b) => {
+      const d = valid(c.ef) && valid(b.ef) && b.ef > 0 ? c.ef / b.ef : null;
       return <Delta value={d} text={valid(d) ? `${d > 0 ? "+" : MINUS}${fmtPct(Math.abs(d), 1)}` : ""} betterWhen="up" />;
     },
   },
@@ -55,41 +59,50 @@ const ROWS: { label: string; short: string; hint: string; show: (s: Snapshot) =>
     short: "5 km",
     hint: "Daniels z najlepšieho výkonu",
     show: (s) => fmtTimeHms(s.t5k_s),
-    delta: (n, b) => {
-      const d = valid(n.t5k_s) && valid(b.t5k_s) ? n.t5k_s - b.t5k_s : null;
-      return <Delta value={d} text={valid(d) ? signedSeconds(d) : ""} betterWhen="down" />;
-    },
+    delta: (c) => <Delta value={c.t5k_s} text={valid(c.t5k_s) ? signedSeconds(c.t5k_s) : ""} betterWhen="down" />,
   },
   {
     label: "Odhad 10 km",
     short: "10 km",
     hint: "Daniels z najlepšieho výkonu",
     show: (s) => fmtTimeHms(s.t10k_s),
-    delta: (n, b) => {
-      const d = valid(n.t10k_s) && valid(b.t10k_s) ? n.t10k_s - b.t10k_s : null;
-      return <Delta value={d} text={valid(d) ? signedSeconds(d) : ""} betterWhen="down" />;
-    },
+    delta: (c) => <Delta value={c.t10k_s} text={valid(c.t10k_s) ? signedSeconds(c.t10k_s) : ""} betterWhen="down" />,
   },
 ];
+
+const NO_CHANGE: Change = { pace_at_ref_hr: null, ef: null, vdot: null, t5k_s: null, t10k_s: null };
+const STALE_TITLE = "Odhad vychádza z výkonu staršieho ako 60 dní – zaraď tempový úsek alebo kontrolný beh.";
 
 function Indicators({ block }: { block: Block }) {
   const last = block.weeks.at(-1);
   const now = last?.value ?? block.baseline;
+  const change = last?.change ?? NO_CHANGE;
+  const time = (s: Snapshot, row: (typeof ROWS)[number]) =>
+    s.stale && row.label.startsWith("Odhad") ? (
+      <span title={STALE_TITLE}>
+        {row.show(s)} <span className="text-warn">*</span>
+      </span>
+    ) : (
+      row.show(s)
+    );
   return (
-    <Table
-      head={["Ukazovateľ", "Začiatok", "Teraz", "Zmena"]}
-      align={["left", "right", "right", "right"]}
-      rows={ROWS.map((r) => [
-        <span className="font-sans">
-          <span className="sm:hidden">{r.short}</span>
-          <span className="hidden sm:inline">{r.label}</span>
-          <span className="hidden text-xs text-muted sm:block">{r.hint}</span>
-        </span>,
-        r.show(block.baseline),
-        r.show(now),
-        r.delta(now, block.baseline),
-      ])}
-    />
+    <>
+      <Table
+        head={["Ukazovateľ", "Začiatok", "Teraz", "Zmena"]}
+        align={["left", "right", "right", "right"]}
+        rows={ROWS.map((r) => [
+          <span className="font-sans">
+            <span className="sm:hidden">{r.short}</span>
+            <span className="hidden sm:inline">{r.label}</span>
+            <span className="hidden text-xs text-muted sm:block">{r.hint}</span>
+          </span>,
+          time(block.baseline, r),
+          time(now, r),
+          r.delta(change, now, block.baseline),
+        ])}
+      />
+      {(now.stale || block.baseline.stale) && <p className="mt-1 text-xs text-warn">* {STALE_TITLE}</p>}
+    </>
   );
 }
 
