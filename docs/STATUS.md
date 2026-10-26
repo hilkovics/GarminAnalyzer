@@ -4,6 +4,21 @@ Last updated: 2026-10-26 (Health page)
 
 ## Done
 
+### Android phone as the runner (2026-10-26, user: Android, the PC should not have to run)
+- **How:** Termux + `proot-distro` Debian, so the unchanged Python app and the standard aarch64 Linux wheels
+  (numpy, pandas, scipy, statsmodels, pydantic-core, Garmin's curl_cffi) are used; nothing is compiled.
+  Checked here: all 67 runtime packages resolve as `manylinux_2_28_aarch64` binary wheels, and the app on an
+  emulated ARM CPython 3.12 (qemu-user) imports and passes 111 tests (coach, health, morning, frontend serving).
+  Not run on a real phone yet.
+- `scripts/android/setup.sh` (Termux): packages, Debian + uv + `uv sync --frozen --no-dev`, imports the DB and
+  tokens from Download/GarminAnalyzer once (never overwrites the phone's DB, deletes the token copy), writes
+  `garmin` (= `uv run training …` in Debian with the phone's time zone; repo and token dir bound in, no rootfs
+  path used), `garmin-server`, Termux:Widget shortcuts (Ranny beh, Otvorit appku, Aktualizovat), a Termux:Boot
+  script (wake lock, crond, server) and the cron line `0 9-13 * * * garmin morning --once-per-day`.
+  Tested with fake Termux tools (`test_android_setup.py`, the wrapper's quoting and TZ really executed).
+- `scripts/export_for_phone.ps1` (PC): stops the app, checkpoints the DB, copies DB + tokens to a Desktop folder,
+  removes the Windows task (`-KeepTask` to keep it). Guide: `docs/ANDROID.md` (Slovak).
+
 ### Health page "Zdravie" (2026-10-26, user request; METRICS §12)
 - **New wellness fields** from the stored raw JSON (migration 0007): sleep stress, sleep respiration,
   restless moments, night Body Battery charge, highest Body Battery, time in high stress, intensity minutes.

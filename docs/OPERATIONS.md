@@ -101,7 +101,14 @@ scripts/install_cron.sh --remove
 crontab -l                       # kontrola
 ```
 
-### Domáci server (Docker) – odporúčané
+### Android mobil – bez zapnutého PC
+
+Celá aplikácia beží v mobile (Termux + Debian), ranný beh o 9:00 sa spúšťa cez cron v mobile, appka sa otvára
+ikonou na ploche. Postup krok za krokom: **`docs/ANDROID.md`**. V skratke: na PC
+`scripts\export_for_phone.ps1`, súbory do mobilu do Download/GarminAnalyzer, v Termuxe
+`bash ~/GarminAnalyzer/scripts/android/setup.sh`.
+
+### Domáci server (Docker)
 
 Aby ranný beh prebehol aj pri vypnutom počítači, beží aplikácia nonstop na malom počítači doma (Raspberry Pi,
 mini PC, NAS). Celý postup krok za krokom: **`docs/SERVER.md`**. V skratke:

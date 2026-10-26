@@ -48,3 +48,10 @@ def test_morning_task_wakes_the_pc_and_runs_without_sign_in():
     assert "-RepetitionDuration (New-TimeSpan -Hours $repeatHours)" in text
     assert "[Math]::Max(4, [Math]::Ceiling(($start.Date.AddHours(13) - $start).TotalHours))" in text
     assert "training morning --once-per-day" in text
+
+
+def test_export_for_phone_hands_over_the_morning_run():
+    text = (SCRIPTS / "export_for_phone.ps1").read_text(encoding="utf-8-sig")
+    assert "wal_checkpoint(TRUNCATE)" in text and 'start_app.ps1") -Stop' in text
+    assert 'install_task_windows.ps1") -Remove' in text and "-KeepTask" in text
+    assert "garmin_tokens.json" in text and "scripts/android/setup.sh" in text
