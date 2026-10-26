@@ -2900,6 +2900,18 @@
             "type": "boolean",
             "title": "Created",
             "description": "true: decided just now; false: an existing plan was returned"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "description": "\"fitness\" (§11) | \"race\" (§10)",
+            "default": "race"
+          },
+          "waiting_sleep": {
+            "type": "boolean",
+            "title": "Waiting Sleep",
+            "description": "§11.2: provisional until the night's sleep arrives, decided by 12:00",
+            "default": false
           }
         },
         "type": "object",
@@ -3171,6 +3183,130 @@
           "detail"
         ],
         "title": "ErrorBody"
+      },
+      "FitnessSlotDTO": {
+        "properties": {
+          "slot": {
+            "type": "string",
+            "title": "Slot",
+            "description": "\"k\" quality | \"d\" longer run | \"e\" easy run"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label",
+            "description": "Slovak name of the item"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes",
+            "description": "§11.3 planned length (a longer run on the weekend may be longer)"
+          },
+          "weekday_minutes": {
+            "type": "integer",
+            "title": "Weekday Minutes",
+            "description": "§11.3 length on a weekday (≤ 60 min for the longer run)"
+          },
+          "done_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Done Date",
+            "description": "day it was done (a done plan, or an unplanned run for Ľ)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "slot",
+          "label",
+          "minutes",
+          "weekday_minutes",
+          "done_date"
+        ],
+        "title": "FitnessSlotDTO",
+        "description": "One item of the §11.1 week menu."
+      },
+      "FitnessWeekDTO": {
+        "properties": {
+          "block_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Block Start"
+          },
+          "week_no": {
+            "type": "integer",
+            "title": "Week No",
+            "description": "1 … block_weeks"
+          },
+          "block_weeks": {
+            "type": "integer",
+            "title": "Block Weeks"
+          },
+          "base_s": {
+            "type": "number",
+            "title": "Base S",
+            "description": "weekly base running time, seconds"
+          },
+          "target_s": {
+            "type": "number",
+            "title": "Target S",
+            "description": "this week's running time T, seconds (recovery weeks 0.7 × base)"
+          },
+          "run_s": {
+            "type": "number",
+            "title": "Run S",
+            "description": "non-commute running time done this week, seconds"
+          },
+          "brake": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brake",
+            "description": "null | \"hold\" | \"cut\" (§11.3 brakes from last week)"
+          },
+          "recovery": {
+            "type": "boolean",
+            "title": "Recovery"
+          },
+          "test": {
+            "type": "boolean",
+            "title": "Test",
+            "description": "test week: the quality session is the check run"
+          },
+          "menu": {
+            "items": {
+              "$ref": "#/components/schemas/FitnessSlotDTO"
+            },
+            "type": "array",
+            "title": "Menu",
+            "description": "K, D, Ľ"
+          }
+        },
+        "type": "object",
+        "required": [
+          "block_start",
+          "week_no",
+          "block_weeks",
+          "base_s",
+          "target_s",
+          "run_s",
+          "brake",
+          "recovery",
+          "test",
+          "menu"
+        ],
+        "title": "FitnessWeekDTO",
+        "description": "The coach \"Kondícia\" week (METRICS §11.3) inside its 12-week block."
       },
       "GoalDTO": {
         "properties": {
@@ -3468,7 +3604,14 @@
           },
           "ok": {
             "type": "boolean",
-            "title": "Ok"
+            "title": "Ok",
+            "description": "no step failed"
+          },
+          "waiting": {
+            "type": "boolean",
+            "title": "Waiting",
+            "description": "the plan waits for the night's sleep; push later",
+            "default": false
           },
           "steps": {
             "items": {
@@ -3517,9 +3660,11 @@
             "enum": [
               "ok",
               "failed",
-              "skipped"
+              "skipped",
+              "waiting"
             ],
-            "title": "Status"
+            "title": "Status",
+            "description": "\"waiting\": the plan waits for last night's sleep (METRICS §11.2), retried hourly"
           },
           "message": {
             "type": "string",
@@ -5230,6 +5375,23 @@
             "type": "array",
             "title": "Days",
             "description": "Monday … Sunday"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode",
+            "description": "\"fitness\" (§11, no active race goal) | \"race\" (§10)",
+            "default": "race"
+          },
+          "fitness": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FitnessWeekDTO"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "§11 week in fitness mode; null before the first block or for a future week"
           }
         },
         "type": "object",

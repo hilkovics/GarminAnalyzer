@@ -34,6 +34,9 @@ export const PHASE_LABELS: Record<string, string> = { base: "Základ", build: "B
 export const PHASE_COLORS: Record<string, string> = { base: "var(--run)", build: "var(--bike)", peak: "var(--red)", taper: "var(--green)" };
 export const ROLE_SHORT: Record<string, string> = { rest: "V", easy: "Ľ", long: "D", q1: "K1", q2: "K2" };
 export const ROLE_LABELS: Record<string, string> = { rest: "Voľno", easy: "Ľahký", long: "Dlhý", q1: "Kvalita 1", q2: "Kvalita 2" };
+// coach "Kondícia" menu items (METRICS §11.1)
+export const FITNESS_SLOT_SHORT: Record<string, string> = { k: "K", d: "D", e: "Ľ" };
+export const FITNESS_SLOT_LABELS: Record<string, string> = { k: "Kvalita", d: "Dlhší beh", e: "Ľahký beh" };
 export const STEP_LABELS: Record<string, string> = {
   warmup: "Rozcvička",
   work: "Záťaž",

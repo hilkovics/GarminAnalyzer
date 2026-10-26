@@ -40,7 +40,8 @@ export function TodayCard({ query }: { query: Q<Schemas["DailyDecisionDTO"]> }) 
     <Card
       title={
         <span className="flex items-center gap-2">
-          Dnešný tréning {workout?.provisional && <Badge tone="yellow">predbežný</Badge>}
+          Dnešný tréning{" "}
+          {workout?.provisional && <Badge tone="yellow">{decision?.waiting_sleep ? "čaká na spánok" : "predbežný"}</Badge>}
         </span>
       }
       right={

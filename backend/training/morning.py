@@ -35,12 +35,13 @@ LOCK_FILE = "morning.lock"
 STALE_LOCK = dt.timedelta(hours=3)
 EXIT_FAILED = 1
 EXIT_LOCKED = 3
+EXIT_WAITING = 4  # METRICS §11.2: the plan waits for last night's sleep; run again later
 
 
 @dataclass
 class StepResult:
     name: str  # "sync" | "plan" | "push" | "telegram"
-    status: str  # "ok" | "failed" | "skipped"
+    status: str  # "ok" | "failed" | "skipped" | "waiting" (METRICS §11.2: no sleep yet before 12:00)
     message: str
     duration_s: float = 0.0
 
@@ -52,8 +53,18 @@ class MorningRun:
     steps: list[StepResult] = field(default_factory=list)
 
     @property
+    def failed(self) -> bool:
+        return any(step.status == "failed" for step in self.steps)
+
+    @property
+    def waiting(self) -> bool:
+        """The plan waits for last night's sleep (§11.2); the run is repeated later the same morning."""
+        return any(step.status == "waiting" for step in self.steps)
+
+    @property
     def ok(self) -> bool:
-        return all(step.status != "failed" for step in self.steps)
+        """Complete: nothing failed and nothing waits (exit code 0, no retry)."""
+        return not self.failed and not self.waiting
 
     def step(self, name: str) -> StepResult | None:
         return next((s for s in self.steps if s.name == name), None)
@@ -62,7 +73,8 @@ class MorningRun:
         return {
             "started_at": self.started_at.isoformat(),
             "finished_at": (self.finished_at or self.started_at).isoformat(),
-            "ok": self.ok,
+            "ok": not self.failed,  # the health views: a waiting run is not an error
+            "waiting": self.waiting,
             "steps": [asdict(s) for s in self.steps],
         }
 
@@ -83,6 +95,8 @@ def _sync(session: Session, settings: Settings, today: dt.date, run: MorningRun)
 
 def _plan(session: Session, settings: Settings, today: dt.date, run: MorningRun) -> tuple[str, str]:
     row = planning.nightly(session, today)
+    if (row.structure or {}).get("waiting_sleep") and planning.is_provisional(row):
+        return "waiting", f"{row.name} – čaká sa na dnešný spánok z hodiniek (rozhodne sa najneskôr o 12:00)"
     note = " (predbežný – dnešný sync neprebehol)" if planning.is_provisional(row) else ""
     return "ok", f"{row.name}{note}"
 
@@ -91,6 +105,8 @@ def _push(session: Session, settings: Settings, today: dt.date, run: MorningRun)
     sync_step, plan_step = run.step("sync"), run.step("plan")
     if sync_step is None or sync_step.status != "ok":
         return "skipped", "sync neprebehol – predbežný plán sa do Garminu neposiela"
+    if plan_step is not None and plan_step.status == "waiting":
+        return "skipped", "čaká sa na dnešný spánok – tréning sa pošle po rozhodnutí"
     if plan_step is None or plan_step.status != "ok":
         return "skipped", "bez plánu na dnes"
     if _plan_provisional(session, today):  # a pushed plan is never re-decided (review phase 8, W5)
@@ -106,6 +122,9 @@ def _telegram(
 ) -> tuple[str, str]:
     if not notify.is_configured(settings):
         return "skipped", "Telegram nie je nastavený"
+    plan_step = run.step("plan")
+    if plan_step is not None and plan_step.status == "waiting" and not force:
+        return "skipped", "čaká sa na rozhodnutie o dnešnom tréningu"
     if not force and repo.get_state(session, TELEGRAM_SENT_DATE) == today.isoformat():
         return "skipped", "dnes už odoslané"
     if not notify.send_morning(session, today, settings):
@@ -181,11 +200,9 @@ def run_morning(
         run.steps.append(StepResult("telegram", "skipped", "vypnuté (--no-telegram)"))
     run.finished_at = now()
     record_run(session, run)
+    outcome = "ok" if run.ok else ("waiting for sleep" if not run.failed else "failed")
     log.log(
-        logging.INFO if run.ok else logging.WARNING,
-        "morning run %s",
-        "ok" if run.ok else "failed",
-        extra={"run_ok": run.ok},
+        logging.WARNING if run.failed else logging.INFO, "morning run %s", outcome, extra={"run_ok": run.ok}
     )
     return run
 
@@ -293,6 +310,22 @@ def wait_until(
     """Sleep until the local wall clock reaches `target` (naive local), in chunks of ≤ `CHUNK_S`."""
     while (remaining := (target - now()).total_seconds()) > 0:
         sleep(min(CHUNK_S, remaining))
+
+
+def ran_ok_on(session: Session, day: dt.date) -> bool:
+    """Whether a complete run (nothing failed, nothing waiting) started on local `day` (--once-per-day)."""
+    try:
+        runs = repo.get_state_json(session, MORNING_RUNS)
+    except Exception:
+        return False
+    for run in runs if isinstance(runs, list) else []:
+        try:
+            started = dt.datetime.fromisoformat(run["started_at"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if localtime.to_local(started).date() == day and run.get("ok") and not run.get("waiting"):
+            return True
+    return False
 
 
 def ran_on(session: Session, day: dt.date) -> bool:

@@ -375,3 +375,58 @@ def test_lock_released_by_its_owner_only_and_dead_holders_are_taken_over(tmp_pat
         path.write_text("999999999 crashed\n", encoding="utf-8")  # fresh lock, but the PID is gone
         with morning.RunLock(path):
             pass
+
+
+# --- METRICS §11.2: waiting for last night's sleep --------------------------------------------------------
+
+
+@pytest.mark.fitness_coach
+def test_the_fitness_plan_waits_for_sleep_then_completes(engine, settings, fakes, monkeypatch):
+    from training import planning_fitness
+
+    monkeypatch.setattr(planning_fitness, "now_local", lambda: dt.datetime.combine(TODAY, dt.time(9, 0)))
+    at_nine = lambda: dt.datetime.combine(TODAY, dt.time(7, 0), dt.UTC)  # noqa: E731 – 09:00 CEST
+    with Session(engine) as session:
+        waiting = morning.run_morning(session, settings, TODAY, now=at_nine)
+        assert waiting.waiting and not waiting.failed and not waiting.ok
+        assert _statuses(waiting) == {
+            "sync": "ok",
+            "plan": "waiting",
+            "push": "skipped",
+            "telegram": "skipped",
+        }
+        assert "spánok" in waiting.step("plan").message and fakes == {"push": 0, "telegram": 0}
+        assert not morning.ran_ok_on(session, TODAY)
+        stored = repo.get_state_json(session, MORNING_RUNS)[0]
+        assert stored["ok"] is True and stored["waiting"] is True  # not an error on the health views
+
+        repo.upsert_wellness(session, {"date": TODAY, "sleep_s": 6.5 * 3600})  # the watch synced
+        session.commit()
+        done = morning.run_morning(session, settings, TODAY, now=at_nine)
+    assert done.ok and _statuses(done)["plan"] == "ok" and fakes == {"push": 1, "telegram": 1}
+    with Session(engine) as session:
+        assert morning.ran_ok_on(session, TODAY)
+
+
+@pytest.mark.fitness_coach
+def test_once_per_day_skips_after_a_complete_run_and_exit_codes(engine, settings, fakes, monkeypatch):
+    from training import planning_fitness
+
+    today = dt.date.today()  # the CLI plans the real today
+    monkeypatch.setattr(planning_fitness, "now_local", lambda: dt.datetime.combine(today, dt.time(9, 0)))
+    monkeypatch.setenv("TRAINING_DB_PATH", str(settings.db_path))
+    monkeypatch.setenv("TRAINING_LOG_DIR", str(settings.log_dir))
+    get_settings.cache_clear()
+    try:
+        runner = CliRunner()
+        first = runner.invoke(cli.app, ["morning", "--once-per-day"])
+        assert first.exit_code == morning.EXIT_WAITING, first.output
+        with Session(engine) as session:
+            repo.upsert_wellness(session, {"date": today, "sleep_s": 7 * 3600})
+            session.commit()
+        second = runner.invoke(cli.app, ["morning", "--once-per-day"])
+        assert second.exit_code == 0 and "Morning run OK" in second.output, second.output
+        third = runner.invoke(cli.app, ["morning", "--once-per-day"])
+        assert third.exit_code == 0 and "already completed" in third.output
+    finally:
+        get_settings.cache_clear()

@@ -43,3 +43,7 @@ def test_morning_task_wakes_the_pc_and_runs_without_sign_in():
     assert "-WakeToRun" in text and "RTCWAKE 1" in text  # wake from sleep, wake timers allowed
     assert "-LogonType S4U" in text and "-Verb RunAs" in text  # no sign-in needed, one UAC prompt
     assert "-InteractiveOnly" in text  # the old behaviour stays available without admin rights
+    # repeats hourly for 4 h; --once-per-day makes the repeats after a complete run no-ops (METRICS §11.2)
+    assert "-RepetitionInterval (New-TimeSpan -Hours 1)" in text
+    assert "-RepetitionDuration (New-TimeSpan -Hours 4)" in text
+    assert "training morning --once-per-day" in text

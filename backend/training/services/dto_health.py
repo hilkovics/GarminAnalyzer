@@ -13,7 +13,9 @@ class MorningStepDTO(BaseModel):
     """One step of a `training morning` run."""
 
     name: Literal["sync", "plan", "push", "telegram"]
-    status: Literal["ok", "failed", "skipped"]
+    status: Literal["ok", "failed", "skipped", "waiting"] = Field(
+        description='"waiting": the plan waits for last night\'s sleep (METRICS §11.2), retried hourly'
+    )
     message: str = Field(default="", description="short text, never secrets")
     duration_s: float | None = Field(default=None, description="seconds")
 
@@ -23,7 +25,8 @@ class MorningRunDTO(BaseModel):
 
     started_at: dt.datetime = Field(description="UTC")
     finished_at: dt.datetime | None = Field(default=None, description="UTC; null when the run did not finish")
-    ok: bool
+    ok: bool = Field(description="no step failed")
+    waiting: bool = Field(default=False, description="the plan waits for the night's sleep; push later")
     steps: list[MorningStepDTO] = Field(default_factory=list)
 
     @computed_field(description="seconds from start to finish; null when unfinished")

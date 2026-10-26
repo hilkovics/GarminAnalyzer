@@ -60,7 +60,14 @@ export default function PlanPage() {
         <QueryState query={week}>
           {(w) => <WeekBlock week={w} today={todayIso ?? ""} onNavigate={setWeekDate} pending={week.isPlaceholderData} />}
         </QueryState>
-        <QueryState query={season}>{(s) => <SeasonBlock goal={s.goal} season={s} />}</QueryState>
+        {today.data?.mode === "fitness" ? (
+          <p className="text-sm text-muted">
+            Bez pretekového cieľa plánuje tréner <strong className="text-text">Kondícia</strong>: každý týždeň kvalita, dlhší a ľahký beh,
+            čas rastie v 12-týždňových blokoch podľa spánku a pripravenosti. Zadaním cieľa nižšie sa prepne na prípravu na preteky.
+          </p>
+        ) : (
+          <QueryState query={season}>{(s) => <SeasonBlock goal={s.goal} season={s} />}</QueryState>
+        )}
         <div className="grid gap-4 lg:grid-cols-2">
           <QueryState query={goal}>{(g) => (todayIso ? <GoalForm goal={g} today={todayIso} /> : <Loading />)}</QueryState>
           <QueryState query={settings}>{(s) => <PreferredDays athlete={s.athlete} />}</QueryState>

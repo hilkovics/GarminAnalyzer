@@ -5,6 +5,8 @@
 #   scripts/install_cron.sh 05:45      # another time (HH:MM, local)
 #   scripts/install_cron.sh --remove
 #
+# The run repeats hourly for 4 hours (09:00 … 13:00) with --once-per-day: a complete run makes the repeats
+# no-ops, a failed one or a plan waiting for last night's sleep (METRICS §11.2) is tried again.
 # Idempotent: the line is tagged and replaced, never duplicated. Output goes to data/logs/cron.out; the
 # structured log is data/logs/training.log. Run `uv run training login` once before (tokens in ~/.garminconnect).
 set -euo pipefail
@@ -38,7 +40,10 @@ mkdir -p "$REPO/data/logs"
 # cron treats an unescaped % as a newline: escape it in the paths
 REPO_CRON="${REPO//%/\\%}"
 UV_CRON="${UV//%/\\%}"
-line="$minute $hour * * * cd \"$REPO_CRON\" && \"$UV_CRON\" run training morning >> \"$REPO_CRON/data/logs/cron.out\" 2>&1 $TAG"
+last=$((hour + 4 > 23 ? 23 : hour + 4))
+hours="$hour"
+[[ $last -gt $hour ]] && hours="$hour-$last"
+line="$minute $hours * * * cd \"$REPO_CRON\" && \"$UV_CRON\" run training morning --once-per-day >> \"$REPO_CRON/data/logs/cron.out\" 2>&1 $TAG"
 { printf '%s\n' "$current" | sed '/^$/d'; echo "$line"; } | crontab -
-echo "Installed: training morning daily at $(printf '%02d:%02d' "$hour" "$minute") (local time)."
+echo "Installed: training morning daily at $(printf '%02d:%02d' "$hour" "$minute") (local time), repeated hourly until $(printf '%02d:%02d' "$last" "$minute") if needed."
 echo "Check with: crontab -l"

@@ -2,9 +2,9 @@
 import { CloudCheck } from "lucide-react";
 
 import { WorkoutProfile } from "@/components/charts";
-import { Badge, Card, Meta, Stat } from "@/components/ui";
+import { Badge, Card, Meta, Notice, Stat } from "@/components/ui";
 import { fmtDuration, fmtNum, fmtSigned, sportLabel } from "@/lib/format";
-import { readinessBadge, ROLE_LABELS, statusBadge, stepLines } from "@/lib/labels";
+import { FITNESS_SLOT_LABELS, readinessBadge, ROLE_LABELS, statusBadge, stepLines } from "@/lib/labels";
 import { SportIcon } from "@/pages/dashboard/TodayCards";
 
 import { TodayActions } from "./TodayActions";
@@ -72,6 +72,12 @@ export function TodayCard({ decision }: { decision: Decision }) {
               </ul>
             </>
           )}
+          {decision.waiting_sleep && (
+            <Notice tone="yellow">
+              Čaká sa na dnešný spánok z hodiniek. Po synchronizácii sa tréning rozhodne znova, najneskôr o 12:00 – do Garminu
+              sa zatiaľ neposiela.
+            </Notice>
+          )}
           {decision.reason && <p className="border-t border-line pt-3 text-sm italic text-muted">{decision.reason}</p>}
           <Inputs decision={decision} />
         </div>
@@ -94,8 +100,10 @@ export function TodayCard({ decision }: { decision: Decision }) {
             </div>
             {workout.slot && (
               <div className="flex justify-between gap-2">
-                <dt>Rola dňa</dt>
-                <dd className="text-text">{ROLE_LABELS[workout.slot] ?? workout.slot}</dd>
+                <dt>{decision.mode === "fitness" ? "Položka menu" : "Rola dňa"}</dt>
+                <dd className="text-text">
+                  {(decision.mode === "fitness" ? FITNESS_SLOT_LABELS[workout.slot] : ROLE_LABELS[workout.slot]) ?? workout.slot}
+                </dd>
               </div>
             )}
           </dl>

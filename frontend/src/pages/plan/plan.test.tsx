@@ -82,3 +82,35 @@ describe("helpers", () => {
     expect(() => parseTimeHms("0:00:00")).toThrow(/kladný/);
   });
 });
+
+describe("FitnessWeek", () => {
+  it("shows the block week, the running time and the K – D – Ľ menu with done items", async () => {
+    const { FitnessWeek } = await import("./FitnessWeek");
+    render(
+      <FitnessWeek
+        fitness={{
+          block_start: "2026-10-26",
+          week_no: 4,
+          block_weeks: 12,
+          base_s: 6000,
+          target_s: 4200,
+          run_s: 2100,
+          brake: "hold",
+          recovery: true,
+          test: false,
+          menu: [
+            { slot: "k", label: "Kvalita", minutes: 35, weekday_minutes: 35, done_date: "2026-11-17" },
+            { slot: "d", label: "Dlhší beh", minutes: 45, weekday_minutes: 45, done_date: null },
+            { slot: "e", label: "Ľahký beh", minutes: 25, weekday_minutes: 25, done_date: null },
+          ],
+        }}
+      />,
+    );
+    expect(screen.getByText("Týždeň 4/12")).toBeTruthy();
+    expect(screen.getByText(/odľahčený týždeň/)).toBeTruthy();
+    expect(screen.getByText("hotovo Ut 17. 11.")).toBeTruthy();
+    expect(screen.getByText("45 min")).toBeTruthy();
+    expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("50");
+    expect(screen.getByText("bez rastu")).toBeTruthy();
+  });
+});

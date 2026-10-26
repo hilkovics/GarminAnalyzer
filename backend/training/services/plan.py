@@ -10,9 +10,9 @@ import datetime as dt
 from sqlalchemy import func, not_, select
 from sqlmodel import Session
 
-from training import pipeline, planning
+from training import pipeline, planning, planning_fitness
 from training.analysis.readiness import band
-from training.coach import season, template
+from training.coach import fitness, season, template
 from training.coach.workout import (
     PaceRangeTarget,
     RepeatStep,
@@ -21,9 +21,11 @@ from training.coach.workout import (
     total_duration_s,
 )
 from training.commute import commute_expr
-from training.db.models import Activity, ActivityMetric, DailyLoad, Goal, PlannedWorkout
+from training.db.models import Activity, ActivityMetric, CoachBlock, DailyLoad, Goal, PlannedWorkout
 from training.services.dto import (
     DailyDecisionDTO,
+    FitnessSlotDTO,
+    FitnessWeekDTO,
     GoalDTO,
     GoalIn,
     PlannedWorkoutDTO,
@@ -201,6 +203,8 @@ def _decision_dto(
         acwr=_num(prev_row.acwr) if prev_row else None,
         tsb=_num(today_row.tsb) if today_row else None,
         created=created,
+        mode=planning.mode_for(session, row.date),
+        waiting_sleep=bool((row.structure or {}).get("waiting_sleep")) and planning.is_provisional(row),
     )
 
 
@@ -262,6 +266,41 @@ def get_season(session: Session, today: dt.date) -> SeasonDTO:
     )
 
 
+SLOT_LABELS = {"k": "Kvalita", "d": "Dlhší beh", "e": "Ľahký beh"}
+
+
+def _fitness_week(session: Session, monday: dt.date, today: dt.date) -> FitnessWeekDTO | None:
+    """METRICS §11.1/§11.3 state of the week (this week's row is created on first use)."""
+    row = planning_fitness.existing_week(session, monday, today)
+    if row is None:
+        return None
+    block = session.get(CoachBlock, row.block_id)
+    assert block is not None
+    done = planning_fitness.menu_done(session, monday)
+    menu = [
+        FitnessSlotDTO(
+            slot=slot,
+            label=SLOT_LABELS[slot],
+            minutes=fitness.session_minutes(row.target_s, slot, weekend=True),
+            weekday_minutes=fitness.session_minutes(row.target_s, slot, weekend=False),
+            done_date=done.get(slot),
+        )
+        for slot in fitness.SLOTS
+    ]
+    return FitnessWeekDTO(
+        block_start=block.start_monday,
+        week_no=row.week_no,
+        block_weeks=fitness.BLOCK_WEEKS,
+        base_s=row.base_s,
+        target_s=row.target_s,
+        run_s=planning_fitness.weekly_run_seconds(session, monday),
+        brake=row.brake,
+        recovery=row.recovery,
+        test=row.test,
+        menu=menu,
+    )
+
+
 def get_week(session: Session, day: dt.date, *, today: dt.date) -> WeekPlanDTO:
     """The ISO week containing `day`: targets, the template role, the plan and the actual load per day."""
     monday = season.monday(day)
@@ -306,6 +345,7 @@ def get_week(session: Session, day: dt.date, *, today: dt.date) -> WeekPlanDTO:
             )
         )
     done = sum(d.actual_load for d in days)
+    mode = planning.mode_for(session, monday)
     return WeekPlanDTO(
         monday=monday,
         phase=target.phase,
@@ -317,4 +357,6 @@ def get_week(session: Session, day: dt.date, *, today: dt.date) -> WeekPlanDTO:
         done_load=done,
         remaining_load=max(0.0, target.target_load - done),
         days=days,
+        mode=mode,
+        fitness=_fitness_week(session, monday, today) if mode == "fitness" else None,
     )

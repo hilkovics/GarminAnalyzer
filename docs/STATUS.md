@@ -1,8 +1,29 @@
 # STATUS
 
-Last updated: 2026-10-25 (phase 8 session)
+Last updated: 2026-10-26 (coach "Kondícia" step 1)
 
 ## Done
+
+### Coach "Kondícia" – step 1 (2026-10-26; docs/COACH_V2.md approved by the user, rules in METRICS §11)
+- **When:** every day without an active race goal (`planning.mode_for` → "fitness"); with a goal the §10 rules
+  stay unchanged. Primarily running, 3 runs a week, the bike is extra and unplanned (override "bike").
+- **Pure rules** `training/coach/fitness.py` (§11.1–§11.3): week menu K/D/Ľ, day colour from readiness
+  (≥ 70 / 45–70 / < 45), rules 0–7, weekly running time (×1.07, hold/cut brakes, recovery weeks 4/8/12 at 0.7,
+  test weeks 6/12 with the check run), split D 40 / K 30 / Ľ 30 % with clamps (weekday D ≤ 60 min), quality
+  rotation threshold / VO2 / tempo / hills. 21 tests with known answers.
+- **DB:** `coach_block` + `coach_week` (migration 0005). `planning_fitness.py` creates the week on first use
+  (a new 12-week block when none is open, gaps filled in order so every brake applies), builds the §11.2 inputs
+  (done items, unplanned run fills Ľ, hard yesterday, available days from preferred days "rest"), commutes ignored.
+- **Waiting for sleep:** before 12:00 without last night's sleep the plan is provisional (`waiting_sleep`), the
+  morning run's plan step is "waiting" (exit code 4), push and Telegram wait; the sync's nightly step decides
+  again. Schedulers repeat hourly 09:00–13:00 with `training morning --once-per-day` (no-op after a complete run).
+- **API/UI:** `WeekPlanDTO.mode/fitness` (block week n/12, target and done running time, brake, menu with done
+  dates), `DailyDecisionDTO.mode/waiting_sleep`, `MorningRunDTO.waiting`. Plán page shows the Kondícia week
+  instead of the TSS target and the season; the day chips show K/D/Ľ; "čaká na spánok" on Plán, Dashboard and
+  in the morning-run table.
+- **Tests:** existing §10 tests run in race mode (conftest fixture; mark `fitness_coach` for §11 tests).
+- **Next:** step 2 (block progress: baseline, check-run results, end-of-block summary), step 3 (predictions).
+  Open: Garmin HR zones must match LTHR 172; after 4 weeks check how many K days were green.
 
 ### Windows PC as the always-ready runner (2026-10-26, user: the Beelink SER9 is also the everyday PC)
 - `install_task_windows.ps1`: daily 09:00 with **WakeToRun** (wake timers enabled via powercfg), logon type

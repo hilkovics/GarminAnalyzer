@@ -47,6 +47,13 @@ export function useClearGoal() {
   });
 }
 
+const WEEKDAY_CODES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+
+/** "2026-10-27" → "tue" (the WEEKDAY_SHORT key). */
+export function parseDateWeekday(iso: string): string {
+  return WEEKDAY_CODES[parseDate(iso).getDay()];
+}
+
 export function addDays(iso: string, days: number): string {
   const date = parseDate(iso);
   date.setDate(date.getDate() + days);

@@ -255,6 +255,8 @@ GET /plan/today – the day's planned workout with the inputs the decision used 
 | `acwr` | number \| null | ACWR[D−1], the last complete day (rule input) |
 | `tsb` | number \| null | TSB[D] (rule input) |
 | `created` | boolean | true: decided just now; false: an existing plan was returned |
+| `mode` (optional) | string | "fitness" (§11) \| "race" (§10) |
+| `waiting_sleep` (optional) | boolean | §11.2: provisional until the night's sleep arrives, decided by 12:00 |
 
 ### DashboardDTO
 
@@ -298,6 +300,35 @@ GET /plan/today – the day's planned workout with the inputs the decision used 
 | Field | Type | Description |
 |---|---|---|
 | `detail` | string |  |
+
+### FitnessSlotDTO
+
+One item of the §11.1 week menu.
+
+| Field | Type | Description |
+|---|---|---|
+| `slot` | string | "k" quality \| "d" longer run \| "e" easy run |
+| `label` | string | Slovak name of the item |
+| `minutes` | integer | §11.3 planned length (a longer run on the weekend may be longer) |
+| `weekday_minutes` | integer | §11.3 length on a weekday (≤ 60 min for the longer run) |
+| `done_date` | date \| null | day it was done (a done plan, or an unplanned run for Ľ) |
+
+### FitnessWeekDTO
+
+The coach "Kondícia" week (METRICS §11.3) inside its 12-week block.
+
+| Field | Type | Description |
+|---|---|---|
+| `block_start` | date |  |
+| `week_no` | integer | 1 … block_weeks |
+| `block_weeks` | integer |  |
+| `base_s` | number | weekly base running time, seconds |
+| `target_s` | number | this week's running time T, seconds (recovery weeks 0.7 × base) |
+| `run_s` | number | non-commute running time done this week, seconds |
+| `brake` | string \| null | null \| "hold" \| "cut" (§11.3 brakes from last week) |
+| `recovery` | boolean |  |
+| `test` | boolean | test week: the quality session is the check run |
+| `menu` | FitnessSlotDTO[] | K, D, Ľ |
 
 ### GoalDTO
 
@@ -363,7 +394,8 @@ One stored run of `training morning` (sync_state key `morning_runs`, newest firs
 |---|---|---|
 | `started_at` | date-time | UTC |
 | `finished_at` (optional) | date-time \| null | UTC; null when the run did not finish |
-| `ok` | boolean |  |
+| `ok` | boolean | no step failed |
+| `waiting` (optional) | boolean | the plan waits for the night's sleep; push later |
 | `steps` (optional) | MorningStepDTO[] |  |
 | `duration_s` | number \| null | seconds from start to finish; null when unfinished |
 
@@ -374,7 +406,7 @@ One step of a `training morning` run.
 | Field | Type | Description |
 |---|---|---|
 | `name` | string |  |
-| `status` | string |  |
+| `status` | string | "waiting": the plan waits for last night's sleep (METRICS §11.2), retried hourly |
 | `message` (optional) | string | short text, never secrets |
 | `duration_s` (optional) | number \| null | seconds |
 
@@ -736,6 +768,8 @@ GET /plan/week – the ISO week containing the requested date: targets, planned 
 | `done_load` | number | Σ training load of the week's days (commutes excluded, §2.6) |
 | `remaining_load` | number | max(0, target_load − done_load) |
 | `days` | WeekDayDTO[] | Monday … Sunday |
+| `mode` (optional) | string | "fitness" (§11, no active race goal) \| "race" (§10) |
+| `fitness` (optional) | FitnessWeekDTO \| null | §11 week in fitness mode; null before the first block or for a future week |
 
 ### WeeklyDTO
 

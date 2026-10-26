@@ -13,7 +13,7 @@ from training.db.session import get_engine
 from training.keep_awake import keep_awake
 
 DEFAULT_AT = "09:00"  # the daily run (user, 2026-10-26); scripts and docker-compose use the same default
-SYMBOLS = {"ok": "[green]✓[/]", "failed": "[red]✗[/]", "skipped": "[dim]–[/]"}
+SYMBOLS = {"ok": "[green]✓[/]", "failed": "[red]✗[/]", "skipped": "[dim]–[/]", "waiting": "[yellow]…[/]"}
 
 
 def _run_once(push: bool, telegram: bool, force_telegram: bool) -> int:
@@ -37,8 +37,14 @@ def _run_once(push: bool, telegram: bool, force_telegram: bool) -> int:
         return morning.EXIT_LOCKED
     for step in run.steps:
         console.print(f"{SYMBOLS.get(step.status, '?')} {step.name:<9} {escape(step.message)}")
-    console.print("[green]Morning run OK.[/]" if run.ok else "[red]Morning run finished with errors.[/]")
-    return 0 if run.ok else morning.EXIT_FAILED
+    if run.failed:
+        console.print("[red]Morning run finished with errors.[/]")
+        return morning.EXIT_FAILED
+    if run.waiting:
+        console.print("[yellow]Waiting for last night's sleep – run again later (until 12:00).[/]")
+        return morning.EXIT_WAITING
+    console.print("[green]Morning run OK.[/]")
+    return 0
 
 
 @app.command("morning")
@@ -48,8 +54,14 @@ def morning_command(
     force_telegram: bool = typer.Option(False, "--force-telegram", help="Send even if already sent today."),
     loop: bool = typer.Option(False, "--loop", help="Stay running and repeat every day at --at (Docker)."),
     at: str = typer.Option(DEFAULT_AT, "--at", help="Local time of the daily run with --loop (HH:MM)."),
+    once_per_day: bool = typer.Option(
+        False,
+        "--once-per-day",
+        help="Do nothing if today's run already completed (schedulers repeat the run hourly until 13:00).",
+    ),
 ) -> None:
-    """Sync → metrics → plan today → push to Garmin → Telegram. Exit 1 on a failed step, 3 if already running.
+    """Sync → metrics → plan today → push to Garmin → Telegram. Exit 1 on a failed step, 3 if already running,
+    4 while the plan waits for last night's sleep (METRICS §11.2).
 
     Safe to run twice; logs go to data/logs/training.log (JSON lines) and the run to the diagnostics page.
     """
@@ -57,6 +69,11 @@ def morning_command(
     log_file = log_redaction.add_file_handler(settings.log_dir)
     console.print(f"Log: {log_file}")
     if not loop:
+        if once_per_day:
+            with Session(get_engine(settings)) as session:
+                if morning.ran_ok_on(session, dt.date.today()):
+                    console.print("Today's morning run already completed – nothing to do.")
+                    raise typer.Exit(0)
         if at != DEFAULT_AT:
             err.print("[yellow]--at only applies with --loop; running once now.[/]")
         raise typer.Exit(_run_once(push, telegram, force_telegram))

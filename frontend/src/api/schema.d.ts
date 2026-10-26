@@ -1094,6 +1094,18 @@ export interface components {
              * @description true: decided just now; false: an existing plan was returned
              */
             created: boolean;
+            /**
+             * Mode
+             * @description "fitness" (§11) | "race" (§10)
+             * @default race
+             */
+            mode: string;
+            /**
+             * Waiting Sleep
+             * @description §11.2: provisional until the night's sleep arrives, decided by 12:00
+             * @default false
+             */
+            waiting_sleep: boolean;
         };
         /** DashboardDTO */
         DashboardDTO: {
@@ -1200,6 +1212,87 @@ export interface components {
         ErrorBody: {
             /** Detail */
             detail: string;
+        };
+        /**
+         * FitnessSlotDTO
+         * @description One item of the §11.1 week menu.
+         */
+        FitnessSlotDTO: {
+            /**
+             * Slot
+             * @description "k" quality | "d" longer run | "e" easy run
+             */
+            slot: string;
+            /**
+             * Label
+             * @description Slovak name of the item
+             */
+            label: string;
+            /**
+             * Minutes
+             * @description §11.3 planned length (a longer run on the weekend may be longer)
+             */
+            minutes: number;
+            /**
+             * Weekday Minutes
+             * @description §11.3 length on a weekday (≤ 60 min for the longer run)
+             */
+            weekday_minutes: number;
+            /**
+             * Done Date
+             * @description day it was done (a done plan, or an unplanned run for Ľ)
+             */
+            done_date: string | null;
+        };
+        /**
+         * FitnessWeekDTO
+         * @description The coach "Kondícia" week (METRICS §11.3) inside its 12-week block.
+         */
+        FitnessWeekDTO: {
+            /**
+             * Block Start
+             * Format: date
+             */
+            block_start: string;
+            /**
+             * Week No
+             * @description 1 … block_weeks
+             */
+            week_no: number;
+            /** Block Weeks */
+            block_weeks: number;
+            /**
+             * Base S
+             * @description weekly base running time, seconds
+             */
+            base_s: number;
+            /**
+             * Target S
+             * @description this week's running time T, seconds (recovery weeks 0.7 × base)
+             */
+            target_s: number;
+            /**
+             * Run S
+             * @description non-commute running time done this week, seconds
+             */
+            run_s: number;
+            /**
+             * Brake
+             * @description null | "hold" | "cut" (§11.3 brakes from last week)
+             */
+            brake: string | null;
+            /** Recovery */
+            recovery: boolean;
+            /**
+             * Test
+             * @description test week: the quality session is the check run
+             */
+            test: boolean;
+            /**
+             * Menu
+             * @description K, D, Ľ
+             */
+            menu: components["schemas"]["FitnessSlotDTO"][];
         };
         /** GoalDTO */
         GoalDTO: {
@@ -1349,8 +1442,17 @@ export interface components {
              * @description UTC; null when the run did not finish
              */
             finished_at?: string | null;
-            /** Ok */
+            /**
+             * Ok
+             * @description no step failed
+             */
             ok: boolean;
+            /**
+             * Waiting
+             * @description the plan waits for the night's sleep; push later
+             * @default false
+             */
+            waiting: boolean;
             /** Steps */
             steps?: components["schemas"]["MorningStepDTO"][];
             /**
@@ -1371,9 +1473,10 @@ export interface components {
             name: "sync" | "plan" | "push" | "telegram";
             /**
              * Status
+             * @description "waiting": the plan waits for last night's sleep (METRICS §11.2), retried hourly
              * @enum {string}
              */
-            status: "ok" | "failed" | "skipped";
+            status: "ok" | "failed" | "skipped" | "waiting";
             /**
              * Message
              * @description short text, never secrets
@@ -2205,6 +2308,14 @@ export interface components {
              * @description Monday … Sunday
              */
             days: components["schemas"]["WeekDayDTO"][];
+            /**
+             * Mode
+             * @description "fitness" (§11, no active race goal) | "race" (§10)
+             * @default race
+             */
+            mode: string;
+            /** @description §11 week in fitness mode; null before the first block or for a future week */
+            fitness?: components["schemas"]["FitnessWeekDTO"] | null;
         };
         /** WeeklyDTO */
         WeeklyDTO: {

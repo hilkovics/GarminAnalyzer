@@ -218,6 +218,32 @@ class PlannedWorkout(SQLModel, table=True):
     completed_activity_id: int | None = Field(default=None, foreign_key="activity.id", ondelete="SET NULL")
 
 
+class CoachBlock(SQLModel, table=True):
+    """A 12-week block of the fitness coach (METRICS §11.4); `baseline` = progress metrics at its start."""
+
+    __tablename__ = "coach_block"
+
+    id: int | None = Field(default=None, primary_key=True)
+    start_monday: dt.date = Field(unique=True)
+    base_s: float  # §11.3 weekly run time of week 1
+    baseline: dict[str, Any] | None = Field(default=None, sa_column=Column(JSON))
+
+
+class CoachWeek(SQLModel, table=True):
+    """One ISO week of a fitness block (METRICS §11.3): the progression base and the week's run time."""
+
+    __tablename__ = "coach_week"
+
+    monday: dt.date = Field(primary_key=True)
+    block_id: int = Field(foreign_key="coach_block.id", index=True, ondelete="CASCADE")
+    week_no: int
+    base_s: float
+    target_s: float
+    brake: str | None = None  # None | "hold" | "cut"
+    recovery: bool = False
+    test: bool = False
+
+
 class CurveSnapshot(SQLModel, table=True):
     __tablename__ = "curve_snapshot"
     __table_args__ = (UniqueConstraint("month", "sport"),)

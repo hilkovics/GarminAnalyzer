@@ -5,9 +5,10 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 import { AXIS, GRID, legendStyle, tooltipStyle } from "@/components/charts";
 import { Badge, Card, Table, cx } from "@/components/ui";
 import { DASH, fmtDate, fmtDayMonth, fmtNum, isoWeekLabel, WEEKDAY_SHORT } from "@/lib/format";
-import { phaseText, PHASE_COLORS, ROLE_LABELS, ROLE_SHORT, statusBadge } from "@/lib/labels";
+import { FITNESS_SLOT_LABELS, FITNESS_SLOT_SHORT, phaseText, PHASE_COLORS, ROLE_LABELS, ROLE_SHORT, statusBadge } from "@/lib/labels";
 import { SportIcon } from "@/pages/dashboard/TodayCards";
 
+import { FitnessWeek } from "./FitnessWeek";
 import { addDays, type WeekPlan } from "./shared";
 
 type Day = WeekPlan["days"][number];
@@ -16,8 +17,20 @@ const estimate = (d: Day) => (d.planned && d.planned.sport !== "rest" ? fmtNum(d
 const actual = (d: Day) => (d.activities ? fmtNum(d.actual_load) : DASH);
 const dayLabel = (d: Day) => `${WEEKDAY_SHORT[d.weekday] ?? d.weekday} ${fmtDayMonth(d.date)}`;
 
-function DayCard({ day, today }: { day: Day; today: boolean }) {
-  const badge = statusBadge(day.planned, day.role);
+/** The day's chip: the template role (§10), or in fitness mode the menu item of its plan (§11.1). */
+function roleOf(day: Day, fitness: boolean): { short: string; label: string } {
+  if (fitness) {
+    const slot = day.planned?.slot ?? "";
+    return FITNESS_SLOT_SHORT[slot]
+      ? { short: FITNESS_SLOT_SHORT[slot], label: FITNESS_SLOT_LABELS[slot] }
+      : { short: "–", label: day.planned?.sport === "bike" ? "Bicykel navyše" : "Bez položky menu" };
+  }
+  return { short: ROLE_SHORT[day.role] ?? day.role, label: ROLE_LABELS[day.role] ?? day.role };
+}
+
+function DayCard({ day, today, fitness }: { day: Day; today: boolean; fitness: boolean }) {
+  const badge = statusBadge(day.planned, fitness ? null : day.role);
+  const role = roleOf(day, fitness);
   const sport = day.planned?.sport;
   return (
     <li
@@ -32,8 +45,8 @@ function DayCard({ day, today }: { day: Day; today: boolean }) {
           <div className="text-sm font-bold">{WEEKDAY_SHORT[day.weekday] ?? day.weekday}</div>
           <div className="num text-xs text-muted">{fmtDayMonth(day.date)}</div>
         </div>
-        <span title={ROLE_LABELS[day.role] ?? day.role} className="num hidden rounded border border-line-strong px-1.5 text-[11px] font-bold xl:inline">
-          {ROLE_SHORT[day.role] ?? day.role}
+        <span title={role.label} className="num hidden rounded border border-line-strong px-1.5 text-[11px] font-bold xl:inline">
+          {role.short}
         </span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5 xl:flex-none">
@@ -42,7 +55,7 @@ function DayCard({ day, today }: { day: Day; today: boolean }) {
           <span className="min-w-0 break-words">{day.planned?.name ?? DASH}</span>
         </div>
         <div className="num flex flex-wrap gap-x-2 text-xs text-muted xl:flex-col xl:gap-x-0">
-          <span className="xl:hidden">{ROLE_SHORT[day.role] ?? day.role}</span>
+          <span className="xl:hidden">{role.short}</span>
           <span>Odhad {estimate(day)}</span>
           <span>Skut. {actual(day)}</span>
           {day.commute_load ? <span>Doch. {fmtNum(day.commute_load)}</span> : null}
@@ -83,13 +96,14 @@ function WeekChart({ week }: { week: WeekPlan }) {
 }
 
 function WeekTable({ week }: { week: WeekPlan }) {
+  const fitness = week.mode === "fitness";
   const rows = week.days.map((d) => {
-    const badge = statusBadge(d.planned, d.role);
+    const badge = statusBadge(d.planned, fitness ? null : d.role);
     return [
       <span className="font-sans">
         {WEEKDAY_SHORT[d.weekday]} {fmtDate(d.date)}
       </span>,
-      <span className="font-sans">{ROLE_LABELS[d.role] ?? d.role}</span>,
+      <span className="font-sans">{roleOf(d, fitness).label}</span>,
       <span className="font-sans">{d.planned?.name ?? DASH}</span>,
       estimate(d),
       actual(d),
@@ -108,6 +122,7 @@ function WeekTable({ week }: { week: WeekPlan }) {
 
 export function WeekBlock({ week, today, onNavigate, pending }: { week: WeekPlan; today: string; onNavigate: (date: string) => void; pending: boolean }) {
   const progress = week.target_load > 0 ? Math.min(1, week.done_load / week.target_load) : 0;
+  const fitness = week.mode === "fitness";
   const nav = "rounded-lg border border-line-strong p-1.5 text-muted hover:bg-card-2 hover:text-text";
   const current = week.days.some((d) => d.date === today);
   return (
@@ -133,6 +148,32 @@ export function WeekBlock({ week, today, onNavigate, pending }: { week: WeekPlan
       }
       className={pending ? "opacity-70" : undefined}
     >
+      {fitness ? (
+        week.fitness ? (
+          <FitnessWeek fitness={week.fitness} />
+        ) : (
+          <p className="text-sm text-muted">Tento týždeň nie je v bloku trénera Kondícia (pred prvým blokom alebo v budúcnosti).</p>
+        )
+      ) : (
+        <LoadSummary week={week} progress={progress} />
+      )}
+      <div className="mt-3">
+        <WeekChart week={week} />
+      </div>
+      <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        {week.days.map((d) => (
+          <DayCard key={d.date} day={d} today={d.date === today} fitness={fitness} />
+        ))}
+      </ul>
+      <WeekTable week={week} />
+    </Card>
+  );
+}
+
+/** §10 weekly load: target / done / remaining and the progress bar. */
+function LoadSummary({ week, progress }: { week: WeekPlan; progress: number }) {
+  return (
+    <>
       <p className="text-sm text-muted">
         Fáza: <strong style={{ color: PHASE_COLORS[week.phase] }}>{phaseText(week.phase, week.recovery)}</strong> · cieľ{" "}
         <span className="num text-text">{fmtNum(week.target_load)}</span> (beh {fmtNum(week.run_target)}, bicykel {fmtNum(week.bike_target)}) · hotovo{" "}
@@ -152,15 +193,6 @@ export function WeekBlock({ week, today, onNavigate, pending }: { week: WeekPlan
         </div>
         <span className="num text-sm font-semibold">{fmtNum(progress * 100)} %</span>
       </div>
-      <div className="mt-3">
-        <WeekChart week={week} />
-      </div>
-      <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
-        {week.days.map((d) => (
-          <DayCard key={d.date} day={d} today={d.date === today} />
-        ))}
-      </ul>
-      <WeekTable week={week} />
-    </Card>
+    </>
   );
 }

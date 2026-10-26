@@ -16,7 +16,8 @@ import logging
 from sqlalchemy import func, not_, select
 from sqlmodel import Session
 
-from training.coach import library, rules, season, template
+from training import planning_fitness
+from training.coach import fitness, library, rules, season, template
 from training.coach.workout import estimated_load, from_structure, to_structure
 from training.commute import commute_expr
 from training.db import repo
@@ -35,6 +36,11 @@ class PlanError(ValueError):
 
 
 # --- inputs ------------------------------------------------------------------------------------------------
+
+
+def mode_for(session: Session, day: dt.date) -> str:
+    """ "race" with an active goal on or after `day` (METRICS §10), else "fitness" (§11)."""
+    return "race" if active_goal(session, day) is not None else "fitness"
 
 
 def active_goal(session: Session, day: dt.date) -> Goal | None:
@@ -267,8 +273,14 @@ def _decide_and_store(
 ) -> tuple[PlannedWorkout, rules.Decision]:
     if any(row.status not in REPLACEABLE for row in existing):
         raise PlanError(f"{day} already has a done or skipped workout – it is not replaced")
-    decision = rules.decide(build_context(session, day, sport_override))
-    provisional = not _inputs_complete(session, day)  # before the delete: a flush would free the old id
+    fitness_mode = mode_for(session, day) == "fitness"
+    if fitness_mode:  # METRICS §11: no race goal → the "Kondícia" coach
+        decision = fitness.decide(planning_fitness.build_context(session, day, sport_override))
+        waiting = planning_fitness.waiting_for_sleep(session, day)
+    else:
+        decision = rules.decide(build_context(session, day, sport_override))
+        waiting = False
+    provisional = waiting or not _inputs_complete(session, day)  # before the delete: a flush frees the id
     # a pushed workout's Garmin ids and pending markers move to the new plan, so the next push updates it
     # (or recovers an interrupted upload) instead of uploading a duplicate (METRICS §10.8)
     pushed = next(
@@ -278,6 +290,8 @@ def _decide_and_store(
         session.delete(row)
     workout = decision.workout
     structure = {**to_structure(workout), "origin": origin, "provisional": provisional}
+    if fitness_mode:
+        structure.update(mode="fitness", waiting_sleep=waiting)
     if pushed is not None and (pushed.structure or {}).get("garmin"):
         structure["garmin"] = dict(pushed.structure["garmin"])
     row = PlannedWorkout(

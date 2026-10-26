@@ -108,6 +108,31 @@ class WeekDayDTO(BaseModel):
     commute_load: float = Field(0.0, description="load of the day's commutes (fatigue, not training; §2.6)")
 
 
+class FitnessSlotDTO(BaseModel):
+    """One item of the §11.1 week menu."""
+
+    slot: str = Field(description='"k" quality | "d" longer run | "e" easy run')
+    label: str = Field(description="Slovak name of the item")
+    minutes: int = Field(description="§11.3 planned length (a longer run on the weekend may be longer)")
+    weekday_minutes: int = Field(description="§11.3 length on a weekday (≤ 60 min for the longer run)")
+    done_date: dt.date | None = Field(description="day it was done (a done plan, or an unplanned run for Ľ)")
+
+
+class FitnessWeekDTO(BaseModel):
+    """The coach "Kondícia" week (METRICS §11.3) inside its 12-week block."""
+
+    block_start: dt.date
+    week_no: int = Field(description="1 … block_weeks")
+    block_weeks: int
+    base_s: float = Field(description="weekly base running time, seconds")
+    target_s: float = Field(description="this week's running time T, seconds (recovery weeks 0.7 × base)")
+    run_s: float = Field(description="non-commute running time done this week, seconds")
+    brake: str | None = Field(description='null | "hold" | "cut" (§11.3 brakes from last week)')
+    recovery: bool
+    test: bool = Field(description="test week: the quality session is the check run")
+    menu: list[FitnessSlotDTO] = Field(description="K, D, Ľ")
+
+
 class WeekPlanDTO(BaseModel):
     """GET /plan/week – the ISO week containing the requested date: targets, planned vs done per day."""
 
@@ -121,6 +146,10 @@ class WeekPlanDTO(BaseModel):
     done_load: float = Field(description="Σ training load of the week's days (commutes excluded, §2.6)")
     remaining_load: float = Field(description="max(0, target_load − done_load)")
     days: list[WeekDayDTO] = Field(description="Monday … Sunday")
+    mode: str = Field("race", description='"fitness" (§11, no active race goal) | "race" (§10)')
+    fitness: FitnessWeekDTO | None = Field(
+        None, description="§11 week in fitness mode; null before the first block or for a future week"
+    )
 
 
 class DailyDecisionDTO(BaseModel):
@@ -135,6 +164,10 @@ class DailyDecisionDTO(BaseModel):
     acwr: float | None = Field(description="ACWR[D−1], the last complete day (rule input)")
     tsb: float | None = Field(description="TSB[D] (rule input)")
     created: bool = Field(description="true: decided just now; false: an existing plan was returned")
+    mode: str = Field("race", description='"fitness" (§11) | "race" (§10)')
+    waiting_sleep: bool = Field(
+        False, description="§11.2: provisional until the night's sleep arrives, decided by 12:00"
+    )
 
 
 class StatusIn(BaseModel):

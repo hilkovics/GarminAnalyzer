@@ -36,7 +36,7 @@ Jeden príkaz urobí celé ráno v tomto poradí:
 | Krok | Čo robí | Keď zlyhá |
 | --- | --- | --- |
 | sync | Stiahne nové aktivity a wellness z Garmin Connect a prepočíta metriky. | Beh pokračuje. Plán zostane predbežný a do Garminu sa nepošle. |
-| plan | Naplánuje dnešný tréning (alebo prepočíta predbežný plán). | Push sa preskočí. |
+| plan | Naplánuje dnešný tréning (alebo prepočíta predbežný plán). Tréner Kondícia (bez pretekového cieľa, METRICS §11) čaká na dnešný spánok z hodiniek: kým nie je synchronizovaný, krok má stav „čaká“ (…), push aj Telegram sa odložia; najneskôr o 12:00 sa rozhodne aj bez spánku. | Push sa preskočí. |
 | push | Pošle tréning do Garmin Connect kalendára. Nezmenený plán sa nepošle znova. | Zapíše sa chyba, ostatné kroky bežia ďalej. |
 | telegram | Pošle rannú správu, najviac raz za deň (ak je nastavený). | Zapíše sa chyba a pri ďalšom behu sa skúsi znova. |
 
@@ -45,13 +45,17 @@ uv run training morning                  # celý beh
 uv run training morning --no-push        # bez odoslania do Garminu
 uv run training morning --no-telegram
 uv run training morning --force-telegram # pošli správu aj druhýkrát v ten istý deň
+uv run training morning --once-per-day   # nič nerobí, ak dnes už prebehol kompletný beh (plánovače)
 ```
 
 - **Opakovanie:** dá sa spustiť koľkokrát chceš. Nič sa nezduplikuje: sync, plán ani tréning v Garmine.
 - **Návratový kód:**
   - `0` = všetko v poriadku;
   - `1` = niektorý krok zlyhal;
-  - `3` = práve beží iný ranný beh (zámok `data/logs/morning.lock`; zámok starší ako 3 hodiny sa prevezme).
+  - `3` = práve beží iný ranný beh (zámok `data/logs/morning.lock`; zámok starší ako 3 hodiny sa prevezme);
+  - `4` = plán čaká na dnešný spánok (ďalší pokus o hodinu).
+- **Opakovanie v plánovači:** úloha vo Windows aj cron sa od 09:00 opakujú každú hodinu do 13:00 s `--once-per-day`.
+  Po kompletnom behu ďalšie opakovania hneď skončia; zlyhaný beh alebo plán čakajúci na spánok sa skúsi znova.
 - **Logy:**
   - `data/logs/training.log` – JSON riadky, rotácia po 5 MB, 10 súborov. Tokeny a kľúče sa v nich maskujú.
   - `data/logs/task.out` (Windows) a `data/logs/cron.out` (Linux/macOS) – výstup plánovača.
@@ -67,7 +71,7 @@ Pred prvým spustením sa raz prihlás: `uv run training login`, potom `uv run t
 ### Windows (Plánovač úloh)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1            # denne o 09:00
+powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1            # denne o 09:00 (+ opakovanie do 13:00)
 powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -At 05:45  # iný čas
 Start-ScheduledTask -TaskName "GarminAnalyzer - training morning"                    # vyskúšaj hneď
 Get-ScheduledTaskInfo -TaskName "GarminAnalyzer - training morning"                  # LastTaskResult 0 = OK
@@ -91,7 +95,7 @@ Výsledok uvidíš aj v aplikácii *Plánovač úloh* pod rovnakým názvom.
 ### Linux / macOS (cron)
 
 ```bash
-scripts/install_cron.sh          # denne o 09:00
+scripts/install_cron.sh          # denne o 09:00 (+ každú hodinu do 13:00, --once-per-day)
 scripts/install_cron.sh 05:45
 scripts/install_cron.sh --remove
 crontab -l                       # kontrola

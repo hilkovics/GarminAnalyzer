@@ -15,6 +15,8 @@
     console window. That needs administrator rights once: the script asks for them (UAC prompt). With
     -InteractiveOnly it installs the old way instead: only while you are signed in, no admin rights needed.
   - "Run as soon as possible after a missed start" is on: a PC that was off at the run time runs it on start.
+  - Repeats hourly for 4 hours (09:00 ... 13:00) with --once-per-day: after a complete run the repeats do
+    nothing; a failed run or a plan waiting for last night's sleep (METRICS 11.2) is tried again.
   - Idempotent: re-running replaces the task. Output: data\logs\task.out; structured log: data\logs\training.log.
   - Run `uv run training login` once before.
 #>
@@ -65,9 +67,13 @@ if (-not $InteractiveOnly -and -not $isAdmin) {
 }
 
 New-Item -ItemType Directory -Force -Path (Join-Path $Repo "data\logs") | Out-Null
-$command = "/c cd /d `"$Repo`" && `"$uv`" run training morning >> data\logs\task.out 2>&1"
+$command = "/c cd /d `"$Repo`" && `"$uv`" run training morning --once-per-day >> data\logs\task.out 2>&1"
 $action = New-ScheduledTaskAction -Execute "cmd.exe" -Argument $command -WorkingDirectory $Repo
-$trigger = New-ScheduledTaskTrigger -Daily -At ([datetime]::ParseExact($At, "H:mm", [System.Globalization.CultureInfo]::InvariantCulture))
+$start = [datetime]::ParseExact($At, "H:mm", [System.Globalization.CultureInfo]::InvariantCulture)
+$trigger = New-ScheduledTaskTrigger -Daily -At $start
+# hourly repeats for 4 hours (a daily trigger takes its repetition from a one-time trigger)
+$trigger.Repetition = (New-ScheduledTaskTrigger -Once -At $start -RepetitionInterval (New-TimeSpan -Hours 1) `
+    -RepetitionDuration (New-TimeSpan -Hours 4)).Repetition
 # RunOnlyIfNetworkAvailable: a run caught up right after wake waits for Wi-Fi instead of failing the sync
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -RunOnlyIfNetworkAvailable -WakeToRun -AllowStartIfOnBatteries `
     -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 3) -MultipleInstances IgnoreNew
@@ -89,7 +95,7 @@ if ($InteractiveOnly) {
     powercfg /SETACTIVE SCHEME_CURRENT
 }
 
-Write-Host "Installed: '$TaskName' daily at $At (local time), $mode; wakes the PC from sleep."
+Write-Host "Installed: '$TaskName' daily at $At (local time), repeated hourly for 4 h if needed, $mode; wakes the PC from sleep."
 Write-Host "Test it now:  Start-ScheduledTask -TaskName '$TaskName'"
 Write-Host "Last result:  Get-ScheduledTaskInfo -TaskName '$TaskName'   (LastTaskResult 0 = OK)"
 if (-not $InteractiveOnly) {

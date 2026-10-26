@@ -540,3 +540,68 @@ rather than duplicates. Zone numbers refer to the user's Garmin Connect HR zones
 - A re-push with an unchanged payload and date sends nothing (safe for the daily cron). A workout deleted
   in Garmin Connect (404 on update) is uploaded again; a 404 on delete counts as deleted. Skipping a pushed
   workout leaves it in the Garmin calendar (delete it there if wanted).
+
+## 11. Coach "Kondícia" – fitness mode without a race
+*Added 2026-10-26 (approved by the user; proposal and decisions in `docs/COACH_V2.md`).* Applies to every day
+for which no active goal exists (no active goal with `race_date ≥` the Monday of that day, as §10.1); with a
+goal §10 applies unchanged.
+Runs only; rides are not planned (they count as load and as a hard day, below). Rest days and the Garmin push
+work as in §10.4 / §10.8.
+
+### 11.1 Week menu
+- Every ISO week has a menu of three runs: **K** (quality), **D** (longer), **Ľ** (easy). In test weeks
+  (block weeks 6 and 12, §11.4) K is the **check run**.
+- Available days: weekdays not marked `rest` in the athlete's `preferred_days` (default: all seven).
+- A menu item is done when a planned workout of that slot (`k`/`d`/`e`) on a day `Mon … D−1` is done.
+  A non-commute run on a day `Mon … D−1` that did not fulfil a planned slot fills **Ľ** (if still open).
+  Unfinished items lapse on Sunday (nothing carries over).
+
+### 11.2 Daily decision for day `D`
+- Colour from readiness `P` (§8, unrounded): **green** `P ≥ 70`, **yellow** `45 ≤ P < 70`, **red** `P < 45`;
+  `P` missing → yellow.
+- `hard_yesterday`: on `D−1` a done planned K / D / check run, or a non-commute activity with IF ≥ 0.85
+  (`if_pace` for rTSS, else `if_hr`), or a non-commute ride with `moving_s ≥ 5400`.
+- `must`: the number of available days `D … Sunday` ≤ the number of open menu items.
+- `weekend`: `D` is a Saturday or Sunday. `rested_yesterday`: no non-commute run on `D−1`.
+- First match wins:
+  1. red → **rest**;
+  2. `hard_yesterday` → **Ľ** if open, else rest;
+  3. green and K open → **K** (the check run in a test week);
+  4. D open and (`weekend` or `must`) → **D**;
+  5. Ľ open and (`must` or `rested_yesterday`) → **Ľ**;
+  6. K open and `must` (the day is yellow) → **mild K**;
+  7. otherwise **rest**.
+  A day that is not available gives rest without these rules. A user regeneration for "bike" gives a 75 min
+  Z2 endurance ride (no slot); "run" or no sport re-runs the rules.
+- Waiting for sleep: before 12:00 local time, a decision for today without last night's sleep
+  (`sleep_s` and `sleep_score` both null in today's wellness) is provisional (§10.4 timing) and decided
+  again after the next sync; from 12:00 it is final without it. The morning run reports such a plan as
+  "waiting" and is retried hourly (§ phase 8 retries; Task Scheduler / cron repeat until 13:00).
+
+### 11.3 Weekly time and session lengths
+- Week target `T` (seconds of running). Block start: `base = max(5400, median of the weekly non-commute run
+  `moving_s` of the 4 ISO weeks before the block's Monday)`.
+- Each following week: `base_w = base_{w−1} · f`, with `f = 1.07`, except
+  - `f = 1.00` (hold) if over the 7 days before the week's Monday the mean readiness is < 55 or the 7-night
+    sleep debt (§9 `sleep_debt_7` of that Sunday) > 5 h, or the ACWR of that Sunday > 1.3;
+  - `f = 0.85` if the mean readiness is < 45.
+  Missing inputs never trigger a brake. A recovery week (block weeks 4, 8, 12) has `T = 0.70 · base_w` and
+  does not change `base` for the next week (`base_{w+1}` grows from `base_w`). Otherwise `T = base_w`.
+- Split: **D 40 %, K 30 %, Ľ 30 %** of `T`, each rounded to whole 5 min and clamped: Ľ 25–60 min,
+  K 35–60 min, D 45–100 min; on a weekday D is capped at 60 min.
+- Ľ and D: one steady step in Z2 (`hr_zone` 2) of that length.
+- K: warm-up 15 min Z2 (10 min if K < 45 min), cool-down 10 min Z1, the rest `C` is the main set, rotating by
+  block week (`(week − 1) mod 4`): 0 threshold `n × (6 min Z4 / 2 min Z1)`, `n = clamp(⌊C / 8⌋, 3, 5)`;
+  1 VO2 `n × (3 min Z5 / 3 min Z1)`, `n = clamp(⌊C / 6⌋, 5, 6)`; 2 tempo one step Z4 of
+  `clamp(C rounded down to 5 min, 15, 25)` min; 3 hills `n × (60 s open effort 5 / 90 s Z1)`,
+  `n = clamp(⌊C / 2.5⌋, 6, 10)`.
+- Mild K: warm-up and cool-down as K, tempo Z3 of `clamp(C rounded down to 5 min, 15, 20)` min.
+- Check run: warm-up 15 min Z2, **30 min open effort 4 "naplno, bez zastavenia, vypni auto-pauzu"**, cool-down
+  10 min Z1 (time-based: the Garmin steps are timed, §10.8; a 30-min effort also feeds §6.3).
+- Estimated load as §10.6.
+
+### 11.4 Block of 12 weeks
+- A block starts on the Monday of the first fitness-mode decision without an open block, and after a block
+  ends (12 weeks). Weeks are numbered 1–12; recovery weeks 4, 8, 12; test weeks 6 and 12.
+- The block stores its baseline at the start (§6.1 pace at reference HR of the last 28 days, §7 predicted
+  5 km and 10 km times, §5.2 EF 28-day median) for the progress view (step 2 of COACH_V2).

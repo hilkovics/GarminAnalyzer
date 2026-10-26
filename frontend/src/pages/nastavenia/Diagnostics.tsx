@@ -18,6 +18,7 @@ const MARKS: Record<string, { mark: string; text: string; cls: string }> = {
   ok: { mark: "✓", text: "v poriadku", cls: "text-good" },
   failed: { mark: "✗", text: "zlyhalo", cls: "text-bad" },
   skipped: { mark: "–", text: "preskočené", cls: "text-muted" },
+  waiting: { mark: "…", text: "čaká na spánok z hodiniek", cls: "text-warn" },
 };
 
 function StepMark({ run, name }: { run: Run; name: string }) {
@@ -41,7 +42,13 @@ function MorningRuns({ runs, errors }: { runs: Run[]; errors: string[] }) {
             rows={runs.map((run) => [
               fmtDateTime(run.started_at),
               fmtDurationHms(run.duration_s),
-              run.ok ? <Badge tone="green">OK</Badge> : <Badge tone="red">Chyba</Badge>,
+              !run.ok ? (
+                <Badge tone="red">Chyba</Badge>
+              ) : run.waiting ? (
+                <Badge tone="yellow">Čaká na spánok</Badge>
+              ) : (
+                <Badge tone="green">OK</Badge>
+              ),
               ...STEPS.map(([name]) => <StepMark key={name} run={run} name={name} />),
             ])}
           />

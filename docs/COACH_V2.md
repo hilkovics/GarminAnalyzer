@@ -1,7 +1,7 @@
-# Návrh: tréner „Kondícia“ (na schválenie)
+# Tréner „Kondícia“
 
-Stav: **návrh 2026-10-26, čaká na schválenie používateľom.** Po schválení sa pravidlá prenesú do `docs/METRICS.md`
-(nová §11) a až potom do kódu. Čísla v návrhu sú počiatočné – dajú sa zmeniť.
+Stav: **schválené 2026-10-26.** Záväzné pravidlá sú v `docs/METRICS.md` §11 (tento dokument je zdôvodnenie).
+Krok 1 implementovaný 2026-10-26; kroky 2 a 3 nasledujú. Čísla sú počiatočné – dajú sa zmeniť (najprv v METRICS).
 
 ## Rozhodnutia používateľa (2026-10-26)
 
@@ -102,9 +102,9 @@ Dochádzka ostáva len únava.
    pripravenosti (METRICS §8). Označí **najlepšie dni na kvalitný tréning**. Je to orientačné; skutočné rozhodnutie
    padá každé ráno podľa skutočnej noci.
 
-## 8. Postup implementácie (po schválení)
+## 8. Postup implementácie
 
-1. Pravidlá do METRICS §11 → denné rozhodnutie, týždenný čas, čakanie na spánok do 12:00, odoslanie do Garminu,
+1. ✓ (2026-10-26) Pravidlá do METRICS §11 → denné rozhodnutie, týždenný čas, čakanie na spánok do 12:00, odoslanie do Garminu,
    stránka Plán (menu týždňa K/D/Ľ, farba dňa, dôvod).
 2. Blok a pokrok (východisko, kontrolné behy, súhrn) – Plán a Progres.
 3. Predpovede (ranná poznámka, 7-dňový výhľad) – Dashboard a Plán.

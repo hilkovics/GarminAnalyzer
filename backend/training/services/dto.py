@@ -19,6 +19,8 @@ from training.services.dto_health import (
 # phase-6 DTOs live in dto_plan.py
 from training.services.dto_plan import (
     DailyDecisionDTO as DailyDecisionDTO,
+    FitnessSlotDTO as FitnessSlotDTO,
+    FitnessWeekDTO as FitnessWeekDTO,
     GoalDTO as GoalDTO,
     GoalIn as GoalIn,
     PlannedWorkoutDTO as PlannedWorkoutDTO,
