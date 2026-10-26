@@ -41,8 +41,17 @@ find_import() {  # the first Download location that has file $1
   done
   return 1
 }
-has_garmin_data() {  # the database holds at least one stored Garmin response
-  [[ -f "$1" ]] && [[ "$(sqlite3 "$1" 'SELECT count(*) FROM raw_garmin' 2>/dev/null || echo 0)" -gt 0 ]]
+db_rows() {  # stored Garmin responses in database $1, or "error" (fails closed: an unreadable DB is never "empty")
+  local out
+  if out="$(sqlite3 -cmd '.timeout 5000' "$1" 'SELECT count(*) FROM raw_garmin' 2>/dev/null)" && [[ "$out" =~ ^[0-9]+$ ]]; then
+    printf '%s\n' "$out"
+  else
+    echo error
+  fi
+}
+remove_everywhere() {  # a secret: delete every copy from the shared Download locations
+  local dir
+  for dir in "${IMPORT_DIRS[@]}"; do rm -f "$dir/$1"; done
 }
 
 [[ "$PREFIX" == *com.termux* || -n "${GA_ALLOW_NON_TERMUX:-}" ]] || fail "Run this in Termux on the phone (docs/ANDROID.md)."
@@ -69,16 +78,37 @@ cd /root/GarminAnalyzer && UV_LINK_MODE=copy "$HOME/.local/bin/uv" sync --frozen
 # --- 3. data, Garmin login, settings ----------------------------------------------------------------------
 say "3/5 Data, Garmin login and settings"
 mkdir -p "$REPO/data/logs"
+imported=0
+replace_db() {  # $1 = the PC export; the phone's current DB (empty, or forced) is kept as a timestamped .bak
+  if pgrep -f "training morning" >/dev/null; then
+    echo "skipped the import: a morning run is in progress – run this script again in a few minutes"
+    return
+  fi
+  [[ -x "$BIN/garmin-server" ]] && "$BIN/garmin-server" stop >/dev/null  # nothing may hold the old file open
+  if [[ -f "$DB" ]]; then
+    local bak="$DB.bak-$(date +%Y%m%d-%H%M%S)"
+    mv "$DB" "$bak"
+    for side in -wal -shm; do [[ -f "$DB$side" ]] && mv "$DB$side" "$bak$side"; done
+    echo "kept the previous database as $(basename "$bak")"
+  fi
+  cp "$1" "$DB"
+  mv "$1" "$1.imported"  # never evaluated again by later runs (Aktualizovat)
+  imported=1
+  echo "imported: training.db from $1 (renamed there to training.db.imported)"
+}
 if src="$(find_import training.db)"; then
-  if has_garmin_data "$DB"; then
-    echo "ok: the phone's database has data – kept (ignored $src)"
+  if [[ ! -f "$DB" ]]; then
+    replace_db "$src"
   else
-    if [[ -f "$DB" ]]; then
-      mv "$DB" "$DB.bak" && rm -f "$DB-wal" "$DB-shm"
-      echo "kept the empty database as training.db.bak"
+    count="$(db_rows "$DB")"
+    if [[ "$count" == error ]]; then
+      echo "skipped the import: could not read the phone's database (busy or damaged) – nothing was changed"
+    elif [[ "$count" == 0 || -n "${GA_FORCE_IMPORT:-}" ]]; then
+      replace_db "$src"
+    else
+      echo "ok: the phone's database has data ($count Garmin responses) – kept, ignored $src"
+      echo "    (to replace it with the PC export anyway: GA_FORCE_IMPORT=1 bash scripts/android/setup.sh)"
     fi
-    cp "$src" "$DB"
-    echo "imported: training.db from $src"
   fi
 elif [[ -f "$DB" ]]; then
   echo "ok: data/training.db is on the phone"
@@ -88,7 +118,7 @@ else
 fi
 tokens="$TOKENS_DIR/garmin_tokens.json"
 if src="$(find_import garmin_tokens.json)"; then
-  cp "$src" "$tokens" && chmod 600 "$tokens" && rm -f "$src"  # a login does not belong in the shared Download
+  cp "$src" "$tokens" && chmod 600 "$tokens" && remove_everywhere garmin_tokens.json  # not in shared storage
   echo "imported: Garmin login (moved out of Download)"
 elif [[ -f "$tokens" ]]; then
   echo "ok: Garmin login"
@@ -96,7 +126,7 @@ else
   echo "note: no Garmin login – run: garmin login"
 fi
 if src="$(find_import env.txt)" || src="$(find_import .env)"; then
-  cp "$src" "$REPO/.env" && chmod 600 "$REPO/.env" && rm -f "$src"  # Telegram / Anthropic keys
+  cp "$src" "$REPO/.env" && chmod 600 "$REPO/.env" && remove_everywhere env.txt && remove_everywhere .env
   echo "imported: settings (.env with the Telegram and AI keys, moved out of Download)"
 elif [[ -f "$REPO/.env" ]]; then
   echo "ok: settings (.env)"
@@ -161,6 +191,10 @@ EOF
 cat > "$HOME/.shortcuts/Otvorit appku" <<EOF
 #!$PREFIX/bin/bash
 # Termux:Widget: start the app if needed and open it (in the foreground: Android lets it start the browser)
+if [ ! -f "$DB" ]; then  # the server would create an empty database before the PC data is imported
+  echo "Najprv dokonci instalaciu: databaza este nie je v mobile (docs/ANDROID.md, krok 3-4)."
+  read -r -p "Enter zavrie okno." _; exit 1
+fi
 "$BIN/garmin-server" start >/dev/null
 for _ in \$(seq 1 90); do curl -fs http://127.0.0.1:8000/api/health >/dev/null 2>&1 && break; sleep 1; done
 termux-open-url http://127.0.0.1:8000
@@ -200,7 +234,7 @@ line="0 9-13 * * * $BIN/garmin morning --once-per-day >> $REPO/data/logs/cron.ou
 { crontab -l 2>/dev/null | grep -v -F "$TAG" || true; echo "$line"; } | crontab -
 pgrep -x crond >/dev/null || crond
 termux-wake-lock || true
-"$BIN/garmin-server" start
+if [[ "$imported" == 1 ]]; then "$BIN/garmin-server" restart; else "$BIN/garmin-server" start; fi
 
 echo ""
 echo "Done. Next (docs/ANDROID.md):"

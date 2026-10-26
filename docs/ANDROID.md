@@ -67,8 +67,12 @@ Ak skript napíše, že databázu nenašiel (povolenie prišlo neskoro alebo sú
 Súbory do Download/GarminAnalyzer a spusti ho znova. Ranný beh a aplikácia sa zapnú až vtedy, keď je databáza
 v mobile.
 
-Skript dá databázu, prihlásenie a nastavenia na miesto a prihlásenie a nastavenia z priečinka Download presunie
-preč (sú to tajné údaje). Dá sa spustiť znova kedykoľvek: databázu, v ktorej už sú dáta, nikdy neprepíše.
+Skript dá databázu, prihlásenie a nastavenia na miesto. Prihlásenie a nastavenia z priečinka Download zmaže
+(sú to tajné údaje) a skopírovanú databázu tam premenuje na `training.db.imported`. Dá sa spustiť znova
+kedykoľvek: databázu, v ktorej už sú dáta, nikdy neprepíše. Ak ju chceš predsa nahradiť exportom z PC (napr. si
+medzitým v mobile skúšal `garmin login` a pár dní dát), skopíruj nový export do Download/GarminAnalyzer a spusti
+`GA_FORCE_IMPORT=1 bash ~/GarminAnalyzer/scripts/android/setup.sh`. Pôvodná databáza zostane ako
+`training.db.bak-dátum`.
 
 **Telegram bez `env.txt`:** vytvor v Termuxe `nano ~/GarminAnalyzer/.env` s riadkami
 `TRAINING_TELEGRAM_TOKEN=…` a `TRAINING_TELEGRAM_CHAT_ID=…` (rovnaké hodnoty ako na PC).

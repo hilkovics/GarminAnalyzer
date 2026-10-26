@@ -288,3 +288,18 @@
   (Android 10+ background activity start); cron env PATH (cronie default) vs wrapper's bare
   proot-distro/getprop; UV_LINK_MODE=copy must be in every uv call (proot link2symlink); "update" shortcuts
   that git pull but never re-run setup.sh leave old generated scripts/cron.
+
+## Android round 2 (2026-10-26, commit 3741c33)
+- Verified: .env -> env.txt round trip (600, moved out of Download), --extra ai in sync and wrapper, PATH /
+  UV_LINK_MODE pinned, TZ via `env` word (fake proot-distro now joins '<word>' and runs bash -c), backup API on
+  both sides, OneDrive refusal, cron/server only with a DB, Aktualizovat re-runs setup. 12 tests pass.
+- New pattern: "replace the DB file" steps (mv to .bak + rm -wal/-shm + cp) run while the app server may hold
+  the old file open (widget "Otvorit appku" is unguarded, API creates the DB on first request). Scratch-verified:
+  the old connection keeps reading the .bak inode (0 rows), and its last close unlinks `training.db-wal` BY NAME,
+  i.e. the NEW database's WAL with committed frames. Always stop every DB user before swapping files and
+  restart after; "start" that says "already running" is not a restart.
+- New pattern: "is it empty?" probes with `$(cmd || echo 0)` fail OPEN toward the destructive branch (any
+  sqlite3 error = empty -> live DB moved away). Guards protecting data must fail closed.
+- Imported files left in Download (training.db) make every later re-run evaluate the overwrite guard again.
+- uv run keeps an inherited SIG_IGN for SIGHUP (scratch: nohup uv run survives a setsid/script pty hangup).
+- STATUS stale wording again: the original bullet still says "checkpoints the DB ... Desktop folder".

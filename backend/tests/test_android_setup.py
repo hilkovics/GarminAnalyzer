@@ -47,7 +47,7 @@ def phone(tmp_path):
     crontab_file = tmp_path / "crontab.txt"
     for name in ("pkg", "termux-setup-storage", "termux-wake-lock", "crond", "termux-open-url", "git"):
         fake(bin_dir, name, f'echo "{name} $*" >> "{calls}"')
-    fake(bin_dir, "pgrep", "exit 1")
+    fake(bin_dir, "pgrep", '[ -n "$FAKE_RUNNING" ] && [[ "$*" == *"$FAKE_RUNNING"* ]]')
     fake(bin_dir, "pkill", f'echo "pkill $*" >> "{calls}"')
     fake(bin_dir, "getprop", "echo Europe/Prague")
     fake(bin_dir, "curl", "exit 0")
@@ -56,7 +56,10 @@ def phone(tmp_path):
         "sqlite3",
         f"""exec "{sys.executable}" - "$@" <<'PY'
 import sqlite3, sys
-db, sql = sys.argv[1], sys.argv[2]
+args = sys.argv[1:]
+if args[0] == "-cmd":
+    args = args[2:]
+db, sql = args
 con = sqlite3.connect(db)
 if sql.startswith(".backup"):
     con.backup(sqlite3.connect(sql.split("'")[1]))
@@ -144,6 +147,9 @@ def test_setup_installs_syncs_writes_commands_and_the_cron_line(phone):
     ):
         assert os.access(home / path, os.X_OK), path
     assert "setup.sh" in (home / ".shortcuts/Aktualizovat").read_text()  # updates also refresh the scripts
+    assert (
+        f'[ ! -f "{repo}/data/training.db" ]' in (home / ".shortcuts/Otvorit appku").read_text()
+    )  # no empty DB
     cron = crontab_file.read_text().splitlines()
     assert cron == [
         f"0 9-13 * * * {home}/.local/bin/garmin morning --once-per-day >> {repo}/data/logs/cron.out 2>&1 "
@@ -175,29 +181,68 @@ def test_the_garmin_wrapper_passes_arguments_time_zone_and_link_mode(phone):
 
 
 def test_imports_into_a_missing_or_empty_db_never_over_one_with_data(phone):
-    home, repo, _, _, _, downloads = phone
+    home, repo, calls, _, _, downloads = phone
     db = repo / "data" / "training.db"
     make_db(db, 0)  # an empty database the app created before the import
     make_db(downloads / "Quick Share" / "training.db", 5)
     (downloads / "garmin_tokens.json").write_text("{}")
+    (downloads / "Quick Share" / "garmin_tokens.json").write_text("{}")  # a second copy of the secret
     (downloads / "GarminAnalyzer").mkdir()
     (downloads / "GarminAnalyzer" / "env.txt").write_text("TRAINING_TELEGRAM_TOKEN=x\n")
     result = run_setup(phone)
     assert result.returncode == 0, result.stderr
-    assert rows(db) == 5 and rows(db.with_name("training.db.bak")) == 0
+    [bak] = db.parent.glob("training.db.bak-*")
+    assert rows(db) == 5 and rows(bak) == 0
+    assert (downloads / "Quick Share" / "training.db.imported").exists()  # not imported again later
+    assert "pkill -f training api" in calls.read_text()  # the server was stopped for the swap, then restarted
     tokens = home / ".garminconnect" / "garmin_tokens.json"
     assert tokens.exists() and oct(tokens.stat().st_mode)[-3:] == "600"
-    assert not (downloads / "garmin_tokens.json").exists()  # secrets are moved out of Download
+    assert not list(downloads.rglob("garmin_tokens.json"))  # every copy of the secret left shared storage
     settings = repo / ".env"
     assert (
         settings.read_text() == "TRAINING_TELEGRAM_TOKEN=x\n" and oct(settings.stat().st_mode)[-3:] == "600"
     )
-    assert not (downloads / "GarminAnalyzer" / "env.txt").exists()
+    assert not list(downloads.rglob("env.txt"))
     make_db(downloads / "GarminAnalyzer" / "training.db", 9)
     (downloads / "garmin_tokens.json").write_text('{"new": 1}')
     result = run_setup(phone)
-    assert rows(db) == 5 and "has data – kept" in result.stdout  # the phone's data wins
+    assert rows(db) == 5 and "has data (5 Garmin responses) – kept" in result.stdout  # the phone's data wins
     assert tokens.read_text() == '{"new": 1}' and not (downloads / "garmin_tokens.json").exists()
+
+
+def test_import_fails_closed_and_can_be_forced(phone):
+    _, repo, _, _, env, downloads = phone
+    db = repo / "data" / "training.db"
+    db.parent.mkdir(parents=True)
+    db.write_bytes(b"not a database")  # unreadable: never treated as empty
+    make_db(downloads / "training.db", 5)
+    result = run_setup(phone)
+    assert "could not read the phone's database" in result.stdout and db.read_bytes() == b"not a database"
+    db.unlink()
+    make_db(db, 2)
+    forced = subprocess.run(
+        ["bash", str(repo / "scripts" / "android" / "setup.sh")],
+        env={**env, "GA_FORCE_IMPORT": "1"},
+        capture_output=True,
+        text=True,
+    )
+    assert forced.returncode == 0 and rows(db) == 5
+    assert [rows(b) for b in db.parent.glob("training.db.bak-*")] == [2]
+
+
+def test_no_import_while_a_morning_run_is_in_progress(phone):
+    _, repo, _, _, env, downloads = phone
+    db = repo / "data" / "training.db"
+    make_db(db, 0)
+    make_db(downloads / "training.db", 5)
+    result = subprocess.run(
+        ["bash", str(repo / "scripts" / "android" / "setup.sh")],
+        env={**env, "FAKE_RUNNING": "training morning"},
+        capture_output=True,
+        text=True,
+    )
+    assert "a morning run is in progress" in result.stdout and rows(db) == 0
+    assert (downloads / "training.db").exists()  # still there for the next run
 
 
 def test_without_a_database_no_server_and_no_cron(phone):
