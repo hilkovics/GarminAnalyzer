@@ -277,12 +277,60 @@ def test_daily_loop_catches_up_and_survives_a_crash():
         ran_today=lambda day: False,
         now=lambda: clock.now,
         sleep=clock.sleep,
-        max_runs=2,
+        max_runs=3,
     )
     assert calls == [
         dt.datetime(2026, 10, 25, 9, 30),
+        dt.datetime(2026, 10, 25, 10, 30),
         dt.datetime(2026, 10, 26, 6, 0),
-    ]  # catch-up, then next day
+    ]  # catch-up (crashed), one retry an hour later (ok), then the next day
+
+
+def test_daily_loop_retries_a_failed_run_hourly_but_not_past_midnight():
+    clock = FakeClock(dt.datetime(2026, 10, 25, 8, 59))
+    calls = []
+
+    def run_once():
+        calls.append(clock.now)
+        return morning.EXIT_FAILED  # e.g. Garmin unreachable all day
+
+    morning.daily_loop(
+        run_once,
+        dt.time(9, 0),
+        ran_today=lambda day: True,
+        now=lambda: clock.now,
+        sleep=clock.sleep,
+        max_runs=1 + morning.MAX_RETRIES + 1,
+    )
+    day1 = [dt.datetime(2026, 10, 25, 9 + h, 0) for h in range(morning.MAX_RETRIES + 1)]
+    assert calls == [*day1, dt.datetime(2026, 10, 26, 9, 0)]  # 4 retries, then tomorrow as usual
+
+    late = FakeClock(dt.datetime(2026, 10, 25, 22, 30))
+    late_calls = []
+    morning.daily_loop(
+        lambda: late_calls.append(late.now) or morning.EXIT_FAILED,
+        dt.time(22, 0),
+        ran_today=lambda day: False,
+        now=lambda: late.now,
+        sleep=late.sleep,
+        max_runs=3,
+    )
+    assert late_calls[:2] == [dt.datetime(2026, 10, 25, 22, 30), dt.datetime(2026, 10, 25, 23, 30)]
+    assert late_calls[2] == dt.datetime(2026, 10, 26, 22, 0)  # no retry at 00:30 – the next day starts fresh
+
+
+def test_daily_loop_does_not_retry_a_successful_run():
+    clock = FakeClock(dt.datetime(2026, 10, 25, 8, 59))
+    calls = []
+    morning.daily_loop(
+        lambda: calls.append(clock.now) or 0,
+        dt.time(9, 0),
+        ran_today=lambda day: True,
+        now=lambda: clock.now,
+        sleep=clock.sleep,
+        max_runs=2,
+    )
+    assert calls == [dt.datetime(2026, 10, 25, 9, 0), dt.datetime(2026, 10, 26, 9, 0)]
 
 
 def test_ran_on_reads_the_run_log(engine, settings, fakes):

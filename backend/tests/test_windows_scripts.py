@@ -1,6 +1,5 @@
 """Windows helper scripts: encoding Windows PowerShell 5.1 reads correctly, and the files they reference."""
 
-
 from training.config import PROJECT_ROOT
 
 SCRIPTS = PROJECT_ROOT / "scripts"
@@ -26,3 +25,13 @@ def test_shortcut_points_at_existing_files():
 def test_launcher_keeps_the_server_local():
     text = (SCRIPTS / "start_app.ps1").read_text(encoding="utf-8-sig")
     assert "http://127.0.0.1:" in text and "--host" not in text  # `training api` binds 127.0.0.1 by default
+
+
+def test_move_to_server_hands_over_the_morning_run():
+    text = (SCRIPTS / "move_to_server.ps1").read_text(encoding="utf-8-sig")
+    # the WAL is folded in before copying, the Windows task is removed so only the server pushes to Garmin
+    assert "wal_checkpoint(TRUNCATE)" in text and 'start_app.ps1") -Stop' in text
+    assert 'install_task_windows.ps1") -Remove' in text
+    assert "-Force" in text and "garmin_tokens.json" in text
+    shortcut = (SCRIPTS / "install_shortcut_windows.ps1").read_text(encoding="utf-8-sig")
+    assert "--app=$Url" in shortcut

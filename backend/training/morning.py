@@ -279,6 +279,8 @@ def parse_time(text: str) -> dt.time:
 
 # --- the Docker daily loop (review phase 8, W2) -------------------------------------------------------------
 
+RETRY_DELAY = dt.timedelta(hours=1)  # a failed run (network, Garmin hiccup) is tried again the same day …
+MAX_RETRIES = 4  # … at most this many times, never past midnight; reruns are idempotent
 CHUNK_S = 300  # re-read the wall clock at least every 5 min: DST changes, host suspend, a Pi's clock jump
 
 
@@ -320,22 +322,47 @@ def daily_loop(
     max_runs: int | None = None,
 ) -> None:
     """Run `run_once` every day at local `at`; never dies on an error. On start, a day whose `at` has
-    passed without a run is caught up (a container restart or a host that slept through it)."""
+    passed without a run is caught up (a container restart or a host that slept through it). A failed run
+    (`run_once` returns non-zero or raises) is retried every `RETRY_DELAY`, at most `MAX_RETRIES` times and
+    only on the same day (an unattended home server must not lose a day to a short network outage)."""
     runs = 0
 
-    def safe() -> None:
+    def safe() -> bool:
         nonlocal runs
         runs += 1
         try:
-            run_once()
+            result = run_once()
         except Exception:
             log.exception("morning run crashed outside its steps – the loop continues")
+            return False
+        return result is None or result == 0
+
+    def done() -> bool:
+        return max_runs is not None and runs >= max_runs
+
+    def run_with_retries() -> None:
+        day = now().date()
+        ok = safe()
+        for attempt in range(1, MAX_RETRIES + 1):
+            if ok or done():
+                return
+            target = now() + RETRY_DELAY
+            if target.date() != day:
+                return
+            log.warning(
+                "morning run failed – retry %d/%d at %s",
+                attempt,
+                MAX_RETRIES,
+                target.isoformat("T", "minutes"),
+            )
+            wait_until(target, now=now, sleep=sleep)
+            ok = safe()
 
     current = now()
     if current.time() >= at and not ran_today(current.date()):
-        safe()
-    while max_runs is None or runs < max_runs:
+        run_with_retries()
+    while not done():
         target = next_run_at(now(), at)
         log.info("next morning run at %s", target.isoformat(timespec="minutes"))
         wait_until(target, now=now, sleep=sleep)
-        safe()
+        run_with_retries()

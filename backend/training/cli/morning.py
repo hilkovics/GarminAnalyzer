@@ -11,6 +11,7 @@ from training.cli._app import app, console, err
 from training.config import get_settings
 from training.db.session import get_engine
 
+DEFAULT_AT = "09:00"  # the daily run (user, 2026-10-26); scripts and docker-compose use the same default
 SYMBOLS = {"ok": "[green]✓[/]", "failed": "[red]✗[/]", "skipped": "[dim]–[/]"}
 
 
@@ -41,7 +42,7 @@ def morning_command(
     telegram: bool = typer.Option(True, "--telegram/--no-telegram", help="Send the Telegram message."),
     force_telegram: bool = typer.Option(False, "--force-telegram", help="Send even if already sent today."),
     loop: bool = typer.Option(False, "--loop", help="Stay running and repeat every day at --at (Docker)."),
-    at: str = typer.Option("06:00", "--at", help="Local time of the daily run with --loop (HH:MM)."),
+    at: str = typer.Option(DEFAULT_AT, "--at", help="Local time of the daily run with --loop (HH:MM)."),
 ) -> None:
     """Sync → metrics → plan today → push to Garmin → Telegram. Exit 1 on a failed step, 3 if already running.
 
@@ -51,7 +52,7 @@ def morning_command(
     log_file = log_redaction.add_file_handler(settings.log_dir)
     console.print(f"Log: {log_file}")
     if not loop:
-        if at != "06:00":
+        if at != DEFAULT_AT:
             err.print("[yellow]--at only applies with --loop; running once now.[/]")
         raise typer.Exit(_run_once(push, telegram, force_telegram))
     try:

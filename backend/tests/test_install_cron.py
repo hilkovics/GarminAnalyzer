@@ -38,7 +38,7 @@ def test_install_replace_and_remove(env):
     assert run(environ).returncode == 0
     lines = table.read_text().splitlines()
     assert lines[0] == "0 1 * * * echo other-job"
-    assert len(lines) == 2 and lines[1].startswith("0 6 * * * cd ") and "training morning" in lines[1]
+    assert len(lines) == 2 and lines[1].startswith("0 9 * * * cd ") and "training morning" in lines[1]
     assert run(environ, "05:45").returncode == 0  # replaced, not duplicated
     lines = table.read_text().splitlines()
     assert len(lines) == 2 and lines[1].startswith("45 5 * * * ")

@@ -4,6 +4,29 @@ Last updated: 2026-10-25 (phase 8 session)
 
 ## Done
 
+### Always-on home server (2026-10-26, user's choice: a small computer at home)
+- **Why:** the morning run (sync → plan → push → Telegram) must happen at **09:00** even with the PC off.
+  Chosen over a cloud VPS (Garmin blocks datacenter IPs more often; health data stays at home).
+- **docker-compose.yml:** `app` (React + API, published on 127.0.0.1 only, healthcheck), `morning`
+  (`training morning --loop --at ${MORNING_AT:-09:00}`), `streamlit` behind a profile. Access from PC and phone
+  through Tailscale (`tailscale serve` → HTTPS, PWA installable); the API has no login, so nothing is exposed on
+  the LAN or internet.
+- **Dockerfile:** runs `/opt/venv/bin/training` directly. Fixed a phase-8 bug found by actually running the
+  stack: as the host user, `uv run` failed on the root-owned build cache (`Permission denied` loop). uv pinned
+  (`ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.8.17`). Built and run here (x86-64, Docker 29): app healthy, `/` and
+  `/plan` served, morning loop waiting for 09:00 Europe/Bratislava, a manual run works (sync fails without tokens
+  as expected). Not yet built on a Raspberry Pi (arm64).
+- **Scripts:** `scripts/server_setup.sh` (checks Docker, writes `.env` with UID/GID/TZ/MORNING_AT keeping user
+  values, builds, waits for health, `tailscale serve`; tested with fakes in `test_server_setup.py`);
+  `scripts/move_to_server.ps1` (stops the local app, WAL checkpoint, scp of DB + Garmin tokens, removes the Windows
+  task so only the server pushes to Garmin, optional desktop icon); `install_shortcut_windows.ps1 -Url` opens the
+  server's address in an Edge app window. PowerShell scripts parse-checked with pwsh 7, not run on Windows.
+- **Retries:** `morning.daily_loop` retries a failed run (non-zero exit or crash) every hour, at most 4 times,
+  same day only (`RETRY_DELAY`, `MAX_RETRIES`); verified the catch-up on start in the running stack.
+- **Default time 09:00** everywhere (`training morning --at`, cron/Task Scheduler scripts, compose).
+- **Docs:** `docs/SERVER.md` (hardware, OS, Docker, Tailscale, moving data, operations), OPERATIONS.md §2.
+- **Next for the user:** buy/prepare the Pi, follow docs/SERVER.md, report the first 09:00 run.
+
 ### Phase 9 – React app (2026-10-25; code complete, Streamlit kept until the user retires it)
 - **Stack:** `frontend/` – Vite 6, React 18, TypeScript, Tailwind 4, TanStack Query + Router, Recharts, PWA
   (vite-plugin-pwa), fonts bundled (offline). Types generated from `docs/openapi.json` (`npm run gen:api`).
@@ -24,7 +47,7 @@ Last updated: 2026-10-25 (phase 8 session)
 - **Not done / open:** the phone cannot reach the PC server (127.0.0.1 only, no auth; PWA needs HTTPS – e.g.
   Tailscale serve, to be set up with the user); Streamlit is not deleted (PLAN says after parity – waiting for
   the user's go after trying the React app); date inputs follow the browser locale.
-- Tests: Python 1951 passed; frontend vitest 40 passed, `tsc -b` clean.
+- Tests: Python 1951 passed; frontend vitest 40 passed, `tsc -b` clean. (Home-server session: 1957 passed.)
 
 ### Commutes (2026-10-25, METRICS §2.6 – approved by the user)
 - **Rule:** a bike ride with < 25 min of moving time is a commute; a per-activity override

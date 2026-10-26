@@ -67,53 +67,40 @@ Pred prvým spustením sa raz prihlás: `uv run training login`, potom `uv run t
 ### Windows (Plánovač úloh)
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1            # denne o 06:00
+powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1            # denne o 09:00
 powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -At 05:45  # iný čas
 Start-ScheduledTask -TaskName "GarminAnalyzer - training morning"                    # vyskúšaj hneď
 Get-ScheduledTaskInfo -TaskName "GarminAnalyzer - training morning"                  # LastTaskResult 0 = OK
 powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -Remove    # odstrániť
 ```
 
-Úloha beží pod tvojím účtom, keď si prihlásený. Ak bol počítač o 06:00 uspatý, spustí sa po zobudení, hneď ako je pripojený na internet. Výsledok uvidíš aj v aplikácii *Plánovač úloh* pod rovnakým názvom.
+Úloha beží pod tvojím účtom, keď si prihlásený. Ak bol počítač o 09:00 uspatý, spustí sa po zobudení, hneď ako je pripojený na internet. Výsledok uvidíš aj v aplikácii *Plánovač úloh* pod rovnakým názvom.
 
 ### Linux / macOS (cron)
 
 ```bash
-scripts/install_cron.sh          # denne o 06:00
+scripts/install_cron.sh          # denne o 09:00
 scripts/install_cron.sh 05:45
 scripts/install_cron.sh --remove
 crontab -l                       # kontrola
 ```
 
-### Docker (Raspberry Pi, NAS, domáci server)
+### Domáci server (Docker) – odporúčané
 
-`docker-compose.yml` má dve služby z jedného image:
-- `ui` – Streamlit na porte 8501;
-- `morning` – `training morning --loop`, beží denne o `MORNING_AT` (predvolene 06:00) v časovom pásme `TZ` (predvolene Europe/Bratislava).
-
-1. **Tokeny (raz, na hostiteľovi):** prihlás sa mimo kontajnera – heslo a MFA sa do kontajnera nedajú zadať:
-   ```bash
-   uv run training login        # tokeny → ~/.garminconnect/garmin_tokens.json
-   ```
-   Priečinok s tokenmi sa pripája do kontajnera ako `/tokens`. Iné umiestnenie nastavíš cez `GARMIN_TOKENS_DIR=/cesta`.
-   Ak na serveri nie je `uv`, prihlás sa na inom počítači a súbor `garmin_tokens.json` prenes do `~/.garminconnect/` na serveri.
-2. **Voliteľné tajomstvá** – súbor `.env` vedľa `docker-compose.yml` (nie je v gite):
-   ```
-   TRAINING_TELEGRAM_TOKEN=...
-   TRAINING_TELEGRAM_CHAT_ID=...
-   TRAINING_ANTHROPIC_API_KEY=...
-   ```
-3. **Spustenie:**
-   ```bash
-   docker compose up -d --build
-   docker compose logs -f morning      # priebeh ranného behu
-   docker compose exec morning uv run --no-sync training morning   # spusti hneď
-   ```
-
-- Kontajnery bežia pod tvojím používateľom (`UID`/`GID`, predvolene 1000), aby súbor s tokenmi a `./data` zostali tvoje. Ak máš iné UID, zapíš `UID=…` a `GID=…` do `.env` (zistíš ich príkazom `id`).
-- Databáza, logy aj týždenné AI reporty (`data/reports`) sú v `./data` na hostiteľovi, takže prebudovanie image nič nezmaže. `./data` má byť na lokálnom disku, nie na sieťovom zdieľaní (SQLite).
-- Ranný beh v Dockeri čaká na `MORNING_AT` podľa nástenných hodín, takže zmenu času zvládne. Ak kontajner v daný deň po `MORNING_AT` ešte nebežal (reštart, výpadok), beh dobehne hneď po štarte.
-- `docker-compose.yml` vyžaduje Docker Compose 2.24 alebo novší. Image zatiaľ nebol vyskúšaný na Raspberry Pi.
+Aby ranný beh prebehol aj pri vypnutom počítači, beží aplikácia nonstop na malom počítači doma (Raspberry Pi,
+mini PC, NAS). Celý postup krok za krokom: **`docs/SERVER.md`**. V skratke:
+- `docker-compose.yml`: `app` (React aplikácia + API na 127.0.0.1:8000 servera, z počítača a mobilu cez
+  Tailscale s HTTPS) a `morning` (`training morning --loop`, denne o `MORNING_AT`, predvolene 09:00, v `TZ`);
+  stará Streamlit verzia len cez `docker compose --profile streamlit up -d`;
+- `scripts/server_setup.sh` na serveri (raz, dá sa opakovať), `scripts/move_to_server.ps1` na Windows presunie
+  databázu a Garmin prihlásenie a **vypne rannú úlohu vo Windows** – ranný beh nesmie bežať na dvoch počítačoch;
+- kontajnery bežia pod tvojím používateľom (`UID`/`GID` v `.env`), dáta sú v `./data` na serveri, takže
+  aktualizácia (`git pull && docker compose up -d --build`) nič nezmaže; `./data` má byť na lokálnom disku;
+- ranný beh čaká na `MORNING_AT` podľa nástenných hodín (zmena času nevadí); ak server v daný deň po `MORNING_AT`
+  ešte nebežal (výpadok, reštart), dobehne hneď po štarte; neúspešný beh skúsi znova každú hodinu, najviac 4-krát,
+  len v ten istý deň;
+- vyžaduje Docker Compose 2.24+. Image je otestovaný na x86-64; na Raspberry Pi (arm64) sa zostaví z rovnakého
+  Dockerfile, ale zatiaľ tam nebol vyskúšaný.
 
 ## 3. Keď prestane fungovať prihlásenie do Garminu
 

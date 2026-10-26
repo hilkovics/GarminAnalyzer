@@ -1,15 +1,22 @@
-# Optional always-on setup (Raspberry Pi / NAS / home server) – PLAN phase 8.
+# Always-on home server (Raspberry Pi / mini PC / NAS) – docs/SERVER.md has the step-by-step setup.
 #
-#   1. On the host, log in once:   uv run training login     (tokens → ~/.garminconnect)
-#   2. docker compose up -d --build
-#   3. UI on http://<host>:8501 ; the morning run happens daily at MORNING_AT (default 06:00, TZ below)
+#   scripts/server_setup.sh        # once: .env, build, start, Tailscale HTTPS
+#   docker compose up -d --build   # after `git pull`
 #
-# data/ (SQLite DB, logs) and the token directory are bind mounts, so rebuilding the image loses nothing.
-# Secrets (Telegram, Anthropic) go into an optional .env next to this file – never into this file.
+# Services (one image):
+#   app      – the React app + API (`training api`) on 127.0.0.1:8000 of the host only; phones and PCs reach it
+#              through Tailscale (`tailscale serve` → https://<host>.<tailnet>.ts.net). The API has no login, so the
+#              port is never published on the LAN.
+#   morning  – `training morning --loop`: sync → plan → push to Garmin → Telegram, daily at MORNING_AT
+#              (default 09:00) in TZ; a missed day (host off at 09:00) is caught up on start.
+#   streamlit – the old UI, only with `docker compose --profile streamlit up -d` (port 8501 on 127.0.0.1).
+#
+# data/ (SQLite DB, logs, reports) and the token directory are bind mounts: rebuilding the image loses nothing.
+# Secrets (Telegram, Anthropic) go into .env next to this file – never into this file.
 x-common: &common
   image: garmin-analyzer:latest
   restart: unless-stopped
-  # run as the host user so the token file and data/ keep their owner (export UID/GID or put them in .env)
+  # run as the host user so the token file and data/ keep their owner (UID/GID in .env)
   user: "${UID:-1000}:${GID:-1000}"
   env_file:
     - path: .env
@@ -21,13 +28,30 @@ x-common: &common
     - ${GARMIN_TOKENS_DIR:-${HOME}/.garminconnect}:/tokens
 
 services:
-  ui:
+  app:
     <<: *common
     build: .
     ports:
-      - "8501:8501"
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 60s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
 
   morning:
     <<: *common
-    pull_policy: never  # same image as `ui`, built locally
-    command: ["uv", "run", "--no-sync", "training", "morning", "--loop", "--at", "${MORNING_AT:-06:00}"]
+    pull_policy: never  # same image as `app`, built locally
+    depends_on:
+      app:
+        condition: service_started
+    command: ["training", "morning", "--loop", "--at", "${MORNING_AT:-09:00}"]
+
+  streamlit:
+    <<: *common
+    pull_policy: never
+    profiles: ["streamlit"]
+    ports:
+      - "127.0.0.1:8501:8501"
+    command: ["streamlit", "run", "ui-streamlit/app.py", "--server.address=0.0.0.0", "--server.port=8501", "--server.headless=true"]

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Install (or remove) the daily `training morning` run in the user's crontab – Linux / macOS (PLAN phase 8).
 #
-#   scripts/install_cron.sh            # daily at 06:00
+#   scripts/install_cron.sh            # daily at 09:00
 #   scripts/install_cron.sh 05:45      # another time (HH:MM, local)
 #   scripts/install_cron.sh --remove
 #
@@ -20,7 +20,7 @@ if [[ "${1:-}" == "--remove" ]]; then
   exit 0
 fi
 
-at="${1:-06:00}"
+at="${1:-09:00}"
 if [[ ! "$at" =~ ^([01]?[0-9]|2[0-3]):([0-5][0-9])$ ]]; then
   echo "Time must be HH:MM, got '$at'." >&2
   exit 2

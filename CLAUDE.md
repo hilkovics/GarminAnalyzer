@@ -37,6 +37,7 @@ uv run training diagnostics              # sync state + load sanity check vs Gar
 uv run training plan-today              # today's rule-based workout (§10.4)
 uv run training push-today [--dry-run]  # push it to the Garmin Connect calendar (§10.8)
 uv run training morning                 # daily run: sync → plan → push → telegram (cron; docs/OPERATIONS.md)
+scripts/server_setup.sh                  # home server (docs/SERVER.md): docker compose app + morning at 09:00, Tailscale HTTPS
 uv run training api                      # FastAPI on :8000, also serves the React app (frontend/dist) at /
 powershell -File scripts\start_app.ps1   # Windows: start the server if needed and open the app (desktop icon: install_shortcut_windows.ps1)
 cd frontend && npm ci && npm run dev     # React dev server :5173 (proxies /api); `npm run build` → commit frontend/dist

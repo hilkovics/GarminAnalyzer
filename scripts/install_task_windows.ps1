@@ -3,18 +3,18 @@
   Install (or remove) the daily `training morning` run in Windows Task Scheduler (PLAN phase 8).
 
 .EXAMPLE
-  powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1            # daily at 06:00
+  powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1            # daily at 09:00
   powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -At 05:45
   powershell -ExecutionPolicy Bypass -File scripts\install_task_windows.ps1 -Remove
 
 .NOTES
   - Runs as the current user (the Garmin tokens live in %USERPROFILE%\.garminconnect), only while logged on.
-  - "Run as soon as possible after a missed start" is on: a laptop that slept through 06:00 runs it on wake.
+  - "Run as soon as possible after a missed start" is on: a laptop that slept through 09:00 runs it on wake.
   - Idempotent: re-running replaces the task. Output: data\logs\task.out; structured log: data\logs\training.log.
   - Run `uv run training login` once before.
 #>
 param(
-    [string]$At = "06:00",
+    [string]$At = "09:00",
     [switch]$Remove
 )
 $ErrorActionPreference = "Stop"
