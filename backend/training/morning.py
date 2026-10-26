@@ -298,6 +298,7 @@ def parse_time(text: str) -> dt.time:
 
 RETRY_DELAY = dt.timedelta(hours=1)  # a failed run (network, Garmin hiccup) is tried again the same day …
 MAX_RETRIES = 4  # … at most this many times, never past midnight; reruns are idempotent
+RETRY_UNTIL = dt.time(13, 0)  # … and in any case until this local time (the §11.2 sleep wait ends at 12:00)
 CHUNK_S = 300  # re-read the wall clock at least every 5 min: DST changes, host suspend, a Pi's clock jump
 
 
@@ -376,16 +377,16 @@ def daily_loop(
     def run_with_retries() -> None:
         day = now().date()
         ok = safe()
-        for attempt in range(1, MAX_RETRIES + 1):
-            if ok or done():
-                return
+        attempt = 0
+        while not ok and not done():
+            attempt += 1
             target = now() + RETRY_DELAY
-            if target.date() != day:
+            # at most MAX_RETRIES, but always until RETRY_UNTIL (a plan waiting for sleep is final at 12:00)
+            if target.date() != day or (attempt > MAX_RETRIES and target.time() > RETRY_UNTIL):
                 return
             log.warning(
-                "morning run failed – retry %d/%d at %s",
+                "morning run not complete (failed or waiting for sleep) – retry %d at %s",
                 attempt,
-                MAX_RETRIES,
                 target.isoformat("T", "minutes"),
             )
             wait_until(target, now=now, sleep=sleep)

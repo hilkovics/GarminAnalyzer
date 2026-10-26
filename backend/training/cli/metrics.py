@@ -52,7 +52,7 @@ def recompute(
         )
     console.print(
         f"Re-normalized {result.rebuilt_activities} activities · metrics for {result.metrics_computed} · "
-        f"PMC {result.daily_load_days} days"
+        f"PMC {result.daily_load_days} days · coach weeks {result.coach_weeks}"
     )
     for line in result.errors[:10]:
         console.print(f"  [yellow]- {escape(line)}[/]")

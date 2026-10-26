@@ -8,10 +8,12 @@ Commutes (§2.6) never count as runs or hard days here.
 """
 
 import datetime as dt
+import logging
 import statistics
 from collections.abc import Callable
 
 from sqlalchemy import func, not_, select
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session
 
 from training import localtime
@@ -27,6 +29,8 @@ from training.db.models import (
     DailyWellness,
     PlannedWorkout,
 )
+
+log = logging.getLogger(__name__)
 
 HARD_SK = {"k": "kvalitný tréning", "d": "dlhší beh"}
 CHECK_KEY = "fit_check"
@@ -93,43 +97,88 @@ def _open_block(session: Session, monday: dt.date) -> CoachBlock | None:
     return block
 
 
-def ensure_week(session: Session, monday: dt.date) -> CoachWeek:
-    """The §11.3 row of the week starting `monday` (created on first use; commits)."""
-    existing = session.get(CoachWeek, monday)
-    if existing is not None:
-        return existing
-    block = _open_block(session, monday)
-    if block is None:
-        previous = [weekly_run_seconds(session, monday - dt.timedelta(weeks=i)) for i in range(1, 5)]
-        block = CoachBlock(start_monday=monday, base_s=fitness.first_base(previous))
+def _inputs_complete(session: Session, monday: dt.date) -> bool:
+    """§11.3: the week's numbers are final once the Monday sync ran (Sunday's data and ACWR are in)."""
+    from training import planning  # local: planning imports this module
+
+    return planning._inputs_complete(session, monday)
+
+
+def _start_base(session: Session, monday: dt.date) -> float:
+    weeks = [weekly_run_seconds(session, monday - dt.timedelta(weeks=i)) for i in range(1, 5)]
+    return fitness.first_base(weeks)
+
+
+def _derive(session: Session, block: CoachBlock, previous: CoachWeek | None, row: CoachWeek) -> None:
+    """Fill `row`'s §11.3 numbers from the previous week and the data before its Monday."""
+    if row.week_no == 1:
+        block.base_s = _start_base(session, block.start_monday)
         session.add(block)
-        session.flush()
+    reason = None if row.week_no == 1 else _brake_for(session, row.monday)
+    load = fitness.week_load(row.week_no, previous.base_s if previous else None, reason, block.base_s)
+    row.base_s, row.target_s, row.brake = load.base_s, load.target_s, load.brake
+    row.recovery, row.test = load.recovery, load.test
+    row.final = _inputs_complete(session, row.monday)
+    session.add(row)
+
+
+def _fill(session: Session, block: CoachBlock, upto: dt.date, rederive: bool = False) -> None:
+    """Create the block's weeks up to `upto` in order; a week that is not final (its Monday sync has not run
+    yet) is derived again, and so is every week after one that changed."""
     assert block.id is not None
-    week_no = (monday - block.start_monday).days // 7 + 1
-    prev_row = None
-    for no in range(1, week_no + 1):  # fill any gap so each week's brake and base are applied once
+    week_no = (upto - block.start_monday).days // 7 + 1
+    previous: CoachWeek | None = None
+    changed = rederive
+    for no in range(1, week_no + 1):
         day = block.start_monday + dt.timedelta(weeks=no - 1)
         row = session.get(CoachWeek, day)
         if row is None:
-            reason = None if no == 1 else _brake_for(session, day)
-            load = fitness.week_load(no, prev_row.base_s if prev_row else None, reason, block.base_s)
-            row = CoachWeek(
-                monday=day,
-                block_id=block.id,
-                week_no=no,
-                base_s=load.base_s,
-                target_s=load.target_s,
-                brake=load.brake,
-                recovery=load.recovery,
-                test=load.test,
-            )
-            session.add(row)
+            row = CoachWeek(monday=day, block_id=block.id, week_no=no, base_s=0.0, target_s=0.0)
+            changed = True
+        elif not row.final:
+            changed = True
+        if changed:
+            _derive(session, block, previous, row)
             session.flush()
-        prev_row = row
-    session.commit()
+        previous = row
+
+
+def ensure_week(session: Session, monday: dt.date) -> CoachWeek:
+    """The §11.3 row of the week starting `monday` (created on first use, kept up to date until final;
+    commits). A concurrent writer that created the same rows first wins (IntegrityError → re-read)."""
+    existing = session.get(CoachWeek, monday)
+    if existing is not None and existing.final:
+        return existing
+    try:
+        block = _open_block(session, monday)
+        if block is None:
+            block = CoachBlock(start_monday=monday, base_s=_start_base(session, monday))
+            session.add(block)
+            session.flush()
+        _fill(session, block, monday)
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        log.info("coach week %s was created concurrently – re-reading", monday)
     result = session.get(CoachWeek, monday)
-    assert result is not None
+    if result is None:
+        raise LookupError(f"coach week {monday} could not be created")
     return result
+
+
+def rederive_weeks(session: Session) -> int:
+    """`recompute`: derive every stored week again from the current data (block starts stay); commits."""
+    blocks = session.execute(select(CoachBlock).order_by(CoachBlock.start_monday)).scalars().all()
+    count = 0
+    for block in blocks:
+        last = session.execute(
+            select(func.max(CoachWeek.monday)).where(CoachWeek.block_id == block.id)
+        ).scalar_one()
+        if last is not None:
+            _fill(session, block, last, rederive=True)
+            count += (last - block.start_monday).days // 7 + 1
+    session.commit()
+    return count
 
 
 def week_load_of(row: CoachWeek) -> fitness.WeekLoad:
@@ -167,16 +216,29 @@ def _done_slots(session: Session, start: dt.date, end: dt.date) -> dict[dt.date,
     return out
 
 
+def _runs_per_day(session: Session, start: dt.date, end: dt.date) -> dict[dt.date, int]:
+    """Non-commute runs per day in [start, end)."""
+    rows = session.execute(
+        select(Activity.local_date, func.count())
+        .where(
+            Activity.sport == "run",
+            Activity.local_date >= start,
+            Activity.local_date < end,
+            not_(commute_expr()),
+        )
+        .group_by(Activity.local_date)
+    ).all()
+    return {day: int(n) for day, n in rows}
+
+
 def _run_days(session: Session, start: dt.date, end: dt.date) -> set[dt.date]:
-    return set(
-        session.execute(
-            select(Activity.local_date).where(
-                Activity.sport == "run",
-                Activity.local_date >= start,
-                Activity.local_date < end,
-                not_(commute_expr()),
-            )
-        ).scalars()
+    return set(_runs_per_day(session, start, end))
+
+
+def _extra_run_days(session: Session, start: dt.date, end: dt.date, done: dict) -> list[dt.date]:
+    """Days with a run that fulfilled no planned slot (a done plan uses up one run of its day), §11.1."""
+    return sorted(
+        day for day, n in _runs_per_day(session, start, end).items() if n > (1 if day in done else 0)
     )
 
 
@@ -185,7 +247,7 @@ def open_items(session: Session, day: dt.date) -> frozenset[str]:
     monday = monday_of(day)
     done = _done_slots(session, monday, day)
     remaining = set(fitness.SLOTS) - {slot for slot, _ in done.values()}
-    extra_runs = sorted(d for d in _run_days(session, monday, day) if d not in done)
+    extra_runs = _extra_run_days(session, monday, day, done)
     if extra_runs and "e" in remaining:
         remaining.discard("e")
     return frozenset(remaining)
@@ -199,7 +261,7 @@ def menu_done(session: Session, monday: dt.date) -> dict[str, dt.date]:
     out: dict[str, dt.date] = {}
     for day, (slot, _) in sorted(done.items()):
         out.setdefault(slot, day)
-    extra_runs = sorted(d for d in _run_days(session, monday, end) if d not in done)
+    extra_runs = _extra_run_days(session, monday, end, done)
     if extra_runs and "e" not in out:
         out["e"] = extra_runs[0]
     return out

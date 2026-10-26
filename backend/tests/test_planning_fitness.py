@@ -10,7 +10,7 @@ from training import planning, planning_fitness as pf
 from training.coach import fitness
 from training.coach.workout import to_structure
 from training.db import repo
-from training.db.models import CoachBlock, CoachWeek, DailyLoad, Goal, PlannedWorkout
+from training.db.models import ActivityMetric, CoachBlock, CoachWeek, DailyLoad, Goal, PlannedWorkout
 from training.db.session import make_engine
 from training.db.state_keys import LAST_ACTIVITY_SYNC, LAST_WELLNESS_DATE
 
@@ -81,6 +81,70 @@ def test_a_new_block_after_twelve_weeks(session):
     assert week13.week_no == 1 and len(session.execute(select(CoachBlock)).all()) == 2
 
 
+def daily(session, day, **values):
+    row = session.get(DailyLoad, day) or DailyLoad(date=day)
+    for key, value in values.items():
+        setattr(row, key, value)
+    session.add(row)
+    session.commit()
+
+
+def metric(session, activity_id, **values):
+    session.merge(ActivityMetric(activity_id=activity_id, **values))
+    session.commit()
+
+
+def test_weekly_run_time_ignores_commutes(session):
+    before = pf.weekly_run_seconds(session, MONDAY)
+    add_activity(session, 9200, MONDAY + dt.timedelta(days=1), seconds=1800, commute=True)
+    assert pf.weekly_run_seconds(session, MONDAY) == before == 1200
+    add_activity(session, 9201, MONDAY + dt.timedelta(days=1), seconds=1800)
+    assert pf.weekly_run_seconds(session, MONDAY) == 3000
+
+
+def test_acwr_and_sleep_debt_brakes(session):
+    week2 = MONDAY + dt.timedelta(weeks=1)
+    sunday = week2 - dt.timedelta(days=1)
+    assert pf._brake_for(session, week2) is None  # seeded week: no readiness, no sleep, low ACWR
+    daily(session, sunday, acwr=1.31)
+    assert pf._brake_for(session, week2) == "hold"
+    daily(session, sunday, acwr=1.0)
+    for i in range(7):  # 7 nights of 6 h against the 8 h floor → 14 h debt
+        sleep(session, sunday - dt.timedelta(days=i), 6 * 3600)
+    assert pf._brake_for(session, week2) == "hold"
+
+
+def test_week_numbers_are_final_only_after_the_monday_sync(session):
+    pf.ensure_week(session, MONDAY)
+    week2 = MONDAY + dt.timedelta(weeks=1)
+    sunday = week2 - dt.timedelta(days=1)
+    early = pf.ensure_week(session, week2)  # Monday 07:00, before the sync: Sunday's ACWR still low
+    assert not early.final and early.brake is None and early.base_s == pytest.approx(5400 * 1.07)
+    daily(session, sunday, acwr=1.4)  # the sync brings Sunday's long run
+    daily(session, week2)
+    for key in (LAST_ACTIVITY_SYNC, LAST_WELLNESS_DATE):
+        repo.set_state(session, key, week2.isoformat())
+    session.commit()
+    final = pf.ensure_week(session, week2)
+    assert final.final and final.brake == "hold" and final.base_s == pytest.approx(5400)
+    daily(session, sunday, acwr=1.0)
+    assert pf.ensure_week(session, week2).brake == "hold"  # final rows stay …
+    assert pf.rederive_weeks(session) == 2  # … until `recompute`
+    assert session.get(CoachWeek, week2).brake is None
+
+
+def test_recompute_rederives_the_weeks(session):
+    pf.ensure_week(session, MONDAY)
+    block = session.execute(select(CoachBlock)).scalar_one()
+    block.base_s = 1.0
+    session.add(block)
+    session.commit()
+    from training import pipeline
+
+    assert pipeline.recompute(session, renormalize=False, end=TODAY).coach_weeks == 1
+    assert session.execute(select(CoachBlock)).scalar_one().base_s == 5400
+
+
 # --- §11.2 inputs -------------------------------------------------------------------------------------------
 
 
@@ -89,6 +153,34 @@ def test_open_items_count_done_slots_and_unplanned_runs(session):
     # the seeded Monday run (no plan) fills Ľ; a done K on Tuesday
     done(session, MONDAY + dt.timedelta(days=1), "k", "fit_vo2")
     assert pf.open_items(session, TODAY) == frozenset("d")
+
+
+def test_commute_runs_count_for_nothing_but_a_second_run_fills_easy(session):
+    tuesday = MONDAY + dt.timedelta(days=1)
+    add_activity(session, 9300, tuesday, commute=True)  # a run marked as commute
+    assert not pf.build_context(session, TODAY).ran_yesterday
+    done(session, tuesday, "k", "fit_vo2")  # Monday's run already filled Ľ
+    assert pf.open_items(session, TODAY) == frozenset("d")
+    session.execute(PlannedWorkout.__table__.delete())
+    session.commit()
+    done(session, MONDAY, "k", "fit_vo2")  # the seeded Monday run fulfilled K
+    assert pf.open_items(session, TODAY) == frozenset("de")
+    add_activity(session, 9301, MONDAY, hour=17)  # a second run that day fills Ľ
+    assert pf.open_items(session, TODAY) == frozenset("d")
+    assert pf.menu_done(session, MONDAY) == {"k": MONDAY, "e": MONDAY}
+
+
+def test_hard_yesterday_uses_if_pace_for_rtss_and_ignores_commutes(session):
+    tuesday = MONDAY + dt.timedelta(days=1)
+    run = add_activity(session, 9400, tuesday)
+    metric(session, run, load_method="rtss", if_pace=0.9, if_hr=0.6)
+    assert pf.hard_yesterday(session, TODAY) == "náročný tréning"
+    metric(session, run, load_method="hrtss", if_pace=0.9, if_hr=0.6)
+    assert pf.hard_yesterday(session, TODAY) is None
+    friday = TODAY + dt.timedelta(days=2)  # (Wednesday has the seeded hard ride)
+    ride = add_activity(session, 9401, friday, sport="bike", seconds=6000, commute=True)
+    metric(session, ride, load_method="hrtss", if_hr=0.95)
+    assert pf.hard_yesterday(session, friday + dt.timedelta(days=1)) is None
 
 
 def test_hard_yesterday_from_a_done_long_run_or_a_long_ride(session):
@@ -135,6 +227,13 @@ def test_without_sleep_before_noon_the_plan_waits_and_is_redone(session, monkeyp
     sleep(session, TODAY)  # the watch synced
     redone = planning.nightly(session, TODAY)
     assert redone.structure["waiting_sleep"] is False and not planning.is_provisional(redone)
+
+
+def test_a_sleep_score_alone_ends_the_wait(session, monkeypatch):
+    monkeypatch.setattr(pf, "now_local", lambda: dt.datetime.combine(TODAY, dt.time(9)))
+    repo.upsert_wellness(session, {"date": TODAY, "sleep_score": 60.0})
+    session.commit()
+    assert not pf.waiting_for_sleep(session, TODAY)
 
 
 def test_from_noon_the_decision_is_final_without_sleep(session, monkeypatch):

@@ -22,6 +22,13 @@ Last updated: 2026-10-26 (coach "Kondícia" step 1)
   instead of the TSS target and the season; the day chips show K/D/Ľ; "čaká na spánok" on Plán, Dashboard and
   in the morning-run table.
 - **Tests:** existing §10 tests run in race mode (conftest fixture; mark `fitness_coach` for §11 tests).
+- **Spec review fixes:** week numbers are final only after the Monday sync (`coach_week.final`, migration 0006),
+  re-derived before that and by `recompute` (B1); known-answer tests for every commute filter, both brakes,
+  `if_pace` for rTSS and the sleep-score wait (B2); retries (Docker loop, Task Scheduler, cron) run at least
+  until 13:00 (W1); a restart catches up a waiting run (W2); check-run name says "vypni auto-pauzu" (W4);
+  concurrent week creation is tolerated (W6); a second run on a planned day fills Ľ; 5-min rounding halves up.
+- **Open question for the user (W5):** in a test week without a green day, rule 6 gives a mild K instead of
+  the check run (literal §11.2); the check run then waits for the next test week.
 - **Next:** step 2 (block progress: baseline, check-run results, end-of-block summary), step 3 (predictions).
   Open: Garmin HR zones must match LTHR 172; after 4 weeks check how many K days were green.
 

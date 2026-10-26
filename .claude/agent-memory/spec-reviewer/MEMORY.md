@@ -189,3 +189,23 @@
   every DTO field STATUS says is shown.
 - User's 3 recorded real rides are 740-1064 s moving -> all commutes under §2.6.
 - dto.py 470 lines. STATUS updated this time.
+
+## Coach "Kondícia" §11 step 1 (2026-10-26, commit 51e1b04)
+- Process: the orchestrator committed WHILE the review ran (asked for "uncommitted diff", tree was clean by
+  the 2nd git call). Always `git log -1` + `git status` first; review HEAD if the tree became clean.
+- Recurring (again): GET endpoints persist derived state. planning_fitness.ensure_week (called from GET
+  /plan/week via existing_week and GET /plan/today via plan_day) freezes coach_week brake (Sunday ACWR,
+  readiness, sleep debt) and coach_block base (4-week median) at first use, possibly before Monday's sync
+  (Sunday-afternoon run not synced yet). Rows are never re-derived (not in recompute). Check every new
+  "created on first use" table for input freshness + recompute.
+- New pattern: retry windows vs time-of-day rules. "Final at 12:00" relies on a run at >= 12:00, but cron/
+  Task Scheduler repeat `--at`+4 h and Docker MAX_RETRIES=4 x 1 h: `--at 05:45` never reaches noon ->
+  plan waits forever, never pushed. Also daily_loop catch-up used ran_on (any run, incl. waiting).
+- Mutation check again: 7/9 mutants survived in planning_fitness (all 3 commute filters, rTSS IF branch,
+  ACWR and sleep-debt brakes, sleep_score-only wait). Workflow: `git worktree add --detach <scratch>/wt HEAD`,
+  run with `UV_PROJECT_ENVIRONMENT=<repo>/.venv uv run --no-sync pytest` from the worktree (imports the
+  worktree's training/, verified). ~5 s per mutant on the 2 fitness test files.
+- conftest autouse fixture forces planning.mode_for -> "race" for all unmarked tests; real default mode
+  (fitness) is only exercised by tests marked fitness_coach.
+- Spec texts meant for the device ("vypni auto-pauzu") have no carrier: Step has no description field.
+- File sizes: dto.py 480, morning.py 401, planning.py 400. STATUS updated this time.

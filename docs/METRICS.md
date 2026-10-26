@@ -553,7 +553,8 @@ work as in §10.4 / §10.8.
   (block weeks 6 and 12, §11.4) K is the **check run**.
 - Available days: weekdays not marked `rest` in the athlete's `preferred_days` (default: all seven).
 - A menu item is done when a planned workout of that slot (`k`/`d`/`e`) on a day `Mon … D−1` is done.
-  A non-commute run on a day `Mon … D−1` that did not fulfil a planned slot fills **Ľ** (if still open).
+  A non-commute run on a day `Mon … D−1` that did not fulfil a planned slot fills **Ľ** (if still open); a done
+  planned slot uses up one run of its day, so a second run that day counts as such a run.
   Unfinished items lapse on Sunday (nothing carries over).
 
 ### 11.2 Daily decision for day `D`
@@ -576,18 +577,22 @@ work as in §10.4 / §10.8.
 - Waiting for sleep: before 12:00 local time, a decision for today without last night's sleep
   (`sleep_s` and `sleep_score` both null in today's wellness) is provisional (§10.4 timing) and decided
   again after the next sync; from 12:00 it is final without it. The morning run reports such a plan as
-  "waiting" and is retried hourly (§ phase 8 retries; Task Scheduler / cron repeat until 13:00).
+  "waiting" and is retried hourly, at least until 13:00 (the Docker loop, Task Scheduler and cron).
 
 ### 11.3 Weekly time and session lengths
 - Week target `T` (seconds of running). Block start: `base = max(5400, median of the weekly non-commute run
-  `moving_s` of the 4 ISO weeks before the block's Monday)`.
+  `moving_s` (else `duration_s`) of the 4 ISO weeks before the block's Monday)`.
 - Each following week: `base_w = base_{w−1} · f`, with `f = 1.07`, except
   - `f = 1.00` (hold) if over the 7 days before the week's Monday the mean readiness is < 55 or the 7-night
     sleep debt (§9 `sleep_debt_7` of that Sunday) > 5 h, or the ACWR of that Sunday > 1.3;
   - `f = 0.85` if the mean readiness is < 45.
   Missing inputs never trigger a brake. A recovery week (block weeks 4, 8, 12) has `T = 0.70 · base_w` and
   does not change `base` for the next week (`base_{w+1}` grows from `base_w`). Otherwise `T = base_w`.
-- Split: **D 40 %, K 30 %, Ľ 30 %** of `T`, each rounded to whole 5 min and clamped: Ľ 25–60 min,
+- A week's numbers are **final once the Monday sync has run** (§10.4 inputs complete for that Monday, so
+  Sunday's load, ACWR and sleep are in); before that they are derived again on every use, and so is every later
+  week of the block. `recompute` derives all stored weeks again (block starts stay).
+  *Clarified 2026-10-26 (spec review B1).*
+- Split: **D 40 %, K 30 %, Ľ 30 %** of `T`, each rounded to whole 5 min (halves up) and clamped: Ľ 25–60 min,
   K 35–60 min, D 45–100 min; on a weekday D is capped at 60 min.
 - Ľ and D: one steady step in Z2 (`hr_zone` 2) of that length.
 - K: warm-up 15 min Z2 (10 min if K < 45 min), cool-down 10 min Z1, the rest `C` is the main set, rotating by
@@ -604,4 +609,5 @@ work as in §10.4 / §10.8.
 - A block starts on the Monday of the first fitness-mode decision without an open block, and after a block
   ends (12 weeks). Weeks are numbered 1–12; recovery weeks 4, 8, 12; test weeks 6 and 12.
 - The block stores its baseline at the start (§6.1 pace at reference HR of the last 28 days, §7 predicted
-  5 km and 10 km times, §5.2 EF 28-day median) for the progress view (step 2 of COACH_V2).
+  5 km and 10 km times, §5.2 EF 28-day median) for the progress view – implemented in step 2 of COACH_V2;
+  until then the baseline is null.

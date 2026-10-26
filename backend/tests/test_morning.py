@@ -430,3 +430,22 @@ def test_once_per_day_skips_after_a_complete_run_and_exit_codes(engine, settings
         assert third.exit_code == 0 and "already completed" in third.output
     finally:
         get_settings.cache_clear()
+
+
+def test_daily_loop_retries_a_waiting_run_until_13_even_after_an_early_start():
+    clock = FakeClock(dt.datetime(2026, 10, 26, 5, 59))
+    calls = []
+
+    def run_once():
+        calls.append(clock.now.hour)
+        return morning.EXIT_WAITING  # the night's sleep never arrives
+
+    morning.daily_loop(
+        run_once,
+        dt.time(6, 0),
+        ran_today=lambda day: True,
+        now=lambda: clock.now,
+        sleep=clock.sleep,
+        max_runs=9,
+    )
+    assert calls == [6, 7, 8, 9, 10, 11, 12, 13, 6]  # > MAX_RETRIES, last retry at 13:00, then the next day

@@ -85,7 +85,7 @@ def morning_command(
 
     def ran_today(day: dt.date) -> bool:
         with Session(get_engine(settings)) as session:
-            return morning.ran_on(session, day)
+            return morning.ran_ok_on(session, day)  # a failed or waiting run is caught up after a restart
 
     console.print(f"Daily morning run at {at} (local time).")
     morning.daily_loop(lambda: _run_once(push, telegram, force_telegram), when, ran_today=ran_today)

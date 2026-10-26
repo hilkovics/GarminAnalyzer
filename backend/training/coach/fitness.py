@@ -115,9 +115,9 @@ def week_load(
 
 
 def session_minutes(target_s: float, slot: str, weekend: bool) -> int:
-    """§11.3 length of one session in whole 5-minute steps, clamped."""
+    """§11.3 length of one session in whole 5-minute steps (halves up), clamped."""
     minutes = target_s / 60.0 * SHARE[slot]
-    rounded = int(5 * round(minutes / 5.0))
+    rounded = 5 * math.floor(minutes / 5.0 + 0.5)
     low, high = LIMITS_MIN[slot]
     if slot == "d" and not weekend:
         high = WEEKDAY_D_MAX_MIN
@@ -219,7 +219,7 @@ def check_run() -> Workout:
     steps = [_hr("warmup", 900, 2), _open("work", 1800, 4), _hr("cooldown", 600, 1)]
     return Workout(
         sport="run",
-        name="Kontrolný beh – 30 min naplno, bez zastavenia",
+        name="Kontrolný beh – 30 min naplno, bez zastavenia, vypni auto-pauzu",
         key="fit_check",
         slot="k",
         param=30,

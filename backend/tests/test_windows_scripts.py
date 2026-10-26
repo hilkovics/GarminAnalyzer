@@ -45,5 +45,6 @@ def test_morning_task_wakes_the_pc_and_runs_without_sign_in():
     assert "-InteractiveOnly" in text  # the old behaviour stays available without admin rights
     # repeats hourly for 4 h; --once-per-day makes the repeats after a complete run no-ops (METRICS §11.2)
     assert "-RepetitionInterval (New-TimeSpan -Hours 1)" in text
-    assert "-RepetitionDuration (New-TimeSpan -Hours 4)" in text
+    assert "-RepetitionDuration (New-TimeSpan -Hours $repeatHours)" in text
+    assert "[Math]::Max(4, [Math]::Ceiling(($start.Date.AddHours(13) - $start).TotalHours))" in text
     assert "training morning --once-per-day" in text

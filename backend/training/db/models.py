@@ -242,6 +242,7 @@ class CoachWeek(SQLModel, table=True):
     brake: str | None = None  # None | "hold" | "cut"
     recovery: bool = False
     test: bool = False
+    final: bool = False  # the Monday sync ran: the numbers no longer change (except by `recompute`)
 
 
 class CurveSnapshot(SQLModel, table=True):

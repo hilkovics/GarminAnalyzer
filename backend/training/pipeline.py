@@ -53,6 +53,7 @@ class RecomputeResult:
     metrics_computed: int = 0
     daily_load_days: int = 0
     curve_months: int = 0
+    coach_weeks: int = 0
     errors: list[str] = field(default_factory=list)
 
 
@@ -275,6 +276,9 @@ def recompute(
     result.curve_months = _refresh_curves(
         session, end, None if since is None else _dates_since(session, since)
     )
+    from training import planning_fitness  # local: the coach glue imports analysis modules lazily too
+
+    result.coach_weeks = planning_fitness.rederive_weeks(session)  # METRICS §11.3 from the new loads
     return result
 
 

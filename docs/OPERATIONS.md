@@ -54,7 +54,7 @@ uv run training morning --once-per-day   # nič nerobí, ak dnes už prebehol ko
   - `1` = niektorý krok zlyhal;
   - `3` = práve beží iný ranný beh (zámok `data/logs/morning.lock`; zámok starší ako 3 hodiny sa prevezme);
   - `4` = plán čaká na dnešný spánok (ďalší pokus o hodinu).
-- **Opakovanie v plánovači:** úloha vo Windows aj cron sa od 09:00 opakujú každú hodinu do 13:00 s `--once-per-day`.
+- **Opakovanie v plánovači:** úloha vo Windows aj cron sa od 09:00 opakujú každú hodinu do 13:00 (pri skoršom čase tiež aspoň do 13:00, pri neskoršom 4 hodiny) s `--once-per-day`.
   Po kompletnom behu ďalšie opakovania hneď skončia; zlyhaný beh alebo plán čakajúci na spánok sa skúsi znova.
 - **Logy:**
   - `data/logs/training.log` – JSON riadky, rotácia po 5 MB, 10 súborov. Tokeny a kľúče sa v nich maskujú.
