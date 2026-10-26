@@ -4390,6 +4390,18 @@
               }
             ],
             "title": "Mad28"
+          },
+          "pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct",
+            "description": "7-day mean relative to the normal, % (§12.2)"
           }
         },
         "type": "object",
@@ -4398,7 +4410,8 @@
           "value",
           "mean7",
           "median28",
-          "mad28"
+          "mad28",
+          "pct"
         ],
         "title": "HealthPointDTO"
       },

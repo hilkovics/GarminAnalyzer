@@ -30,6 +30,10 @@ def test_trends_rolling_means_and_normal_band():
     assert np.isnan(t["median28"].iloc[6]) and t["median28"].iloc[7] == 50.0  # 7 days before
     assert t["median28"].iloc[10] == 50.0 and t["mad28"].iloc[10] == 0.0  # the day itself is excluded
     assert np.isnan(t["mean28"].iloc[12 - 2])  # < 14 values
+    assert t["pct"].iloc[10] == pytest.approx(((6 * 50 + 60) / 7 - 50) / 50 * 100)
+    assert np.isnan(t["pct"].iloc[6])  # no normal yet
+    zero = h.trends(series([0.0] * 10))
+    assert zero["pct"].isna().all()  # a normal of 0 has no relative scale
 
 
 def test_mad_of_the_28_days_before():

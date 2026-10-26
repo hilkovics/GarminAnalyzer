@@ -83,7 +83,7 @@ def get_series(session: Session, keys: list[str], *, days: int, today: dt.date) 
         t = (
             h.trends(frame[key])
             if len(frame)
-            else pd.DataFrame(columns=["value", "mean7", "median28", "mad28"])
+            else pd.DataFrame(columns=["value", "mean7", "median28", "mad28", "pct"])
         )
         t = t[[d >= start for d in t.index]] if len(t) else t
         points = [
@@ -93,6 +93,7 @@ def get_series(session: Session, keys: list[str], *, days: int, today: dt.date) 
                 mean7=_num(r["mean7"]),
                 median28=_num(r["median28"]),
                 mad28=_num(r["mad28"]),
+                pct=_num(r["pct"]),
             )
             for d, r in t.iterrows()
         ]

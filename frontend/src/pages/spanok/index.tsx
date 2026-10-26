@@ -63,23 +63,30 @@ function Charts({ days }: { days: Day[] }) {
   );
 }
 
-export default function Page() {
+/** The sleep content without a page header (the "Spánok a výkon" tab of Zdravie). */
+export function SleepContent() {
   const [days, setDays] = useState(90);
   const to = new Date();
   const from = new Date(to.getFullYear(), to.getMonth(), to.getDate() - (days - 1));
   const wellness = useApi<Schemas["WellnessDTO"]>("/wellness/daily", { from: isoDate(from), to: isoDate(to) }, { keepPrevious: true });
   return (
-    <>
-      <PageHeader
-        title="Spánok"
-        subtitle={wellness.data?.days.length ? `${fmtDate(wellness.data.date_from)} – ${fmtDate(wellness.data.date_to)}` : undefined}
-        right={<Segmented label="Rozsah" value={days} onChange={setDays} options={RANGES} />}
-      />
-      <div className="flex flex-col gap-4">
-        <Readiness />
-        <QueryState query={wellness}>{(w) => <Charts days={w.days} />}</QueryState>
-        <Findings />
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm text-muted">{wellness.data?.days.length ? `${fmtDate(wellness.data.date_from)} – ${fmtDate(wellness.data.date_to)}` : ""}</span>
+        <Segmented label="Rozsah" value={days} onChange={setDays} options={RANGES} />
       </div>
+      <Readiness />
+      <QueryState query={wellness}>{(w) => <Charts days={w.days} />}</QueryState>
+      <Findings />
+    </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <>
+      <PageHeader title="Spánok" />
+      <SleepContent />
     </>
   );
 }

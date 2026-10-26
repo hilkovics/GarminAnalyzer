@@ -22,6 +22,11 @@
   --yellow: #f0b429;
   --red: #f2615f;
   --neutral: #59626d;
+  /* categorical series for multi-metric charts (validated: dataviz validate_palette) */
+  --cat1: #3987e5;
+  --cat2: #d95926;
+  --cat3: #199e70;
+  --cat4: #9085e9;
   --grid: #232930;
   --z1: #a9cbf5;
   --z2: #79acee;
@@ -50,6 +55,11 @@
   --yellow: #d99a00;
   --red: #dc4544;
   --neutral: #aab2bc;
+  /* categorical series for multi-metric charts (validated: dataviz validate_palette) */
+  --cat1: #2a78d6;
+  --cat2: #eb6834;
+  --cat3: #1baf7a;
+  --cat4: #6250d6;
   --grid: #e3e6ea;
   --z1: #cfe2fa;
   --z2: #a9cbf5;
@@ -79,6 +89,11 @@
     --yellow: #d99a00;
     --red: #dc4544;
     --neutral: #aab2bc;
+    /* categorical series for multi-metric charts (validated: dataviz validate_palette) */
+    --cat1: #2a78d6;
+    --cat2: #eb6834;
+    --cat3: #1baf7a;
+    --cat4: #6250d6;
     --grid: #e3e6ea;
     --z1: #cfe2fa;
     --z2: #a9cbf5;

@@ -693,6 +693,8 @@ Negative Garmin values ("no data") and missing keys are null. `intensity_min` ne
 ### 12.2 Trends
 - Daily value, **7-day mean** and **28-day mean** (trailing, including `D`; need ≥ 4 resp. ≥ 14 values),
   and the **normal band** = §8-style 28-day baseline: median ± MAD of `D−28 … D−1` (≥ 7 values).
+- **Relative to normal** (for overlaying metrics of different units on one axis): `pct = (mean7 − median28)
+  / |median28| · 100` (null when either is null or `median28 = 0`).
 - **Monthly mean** per calendar month (≥ 10 values).
 - **Recent change:** mean of the last 28 days `[T−27, T]` vs the 28 days before `[T−55, T−28]` (`T` =
   today), each needing ≥ 14 values; difference and percentage of the earlier mean. It is **notable** when the

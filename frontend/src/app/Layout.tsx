@@ -1,6 +1,6 @@
 // App shell: sidebar on desktop (lg+), bottom navigation on mobile; theme switch and sync status.
 import { Link, Outlet } from "@tanstack/react-router";
-import { Activity, CalendarDays, Footprints, LayoutDashboard, Moon, Settings, Sun, SunMoon, TrendingUp, type LucideIcon } from "lucide-react";
+import { Activity, CalendarDays, Footprints, HeartPulse, LayoutDashboard, Moon, Settings, Sun, SunMoon, TrendingUp, type LucideIcon } from "lucide-react";
 
 import { useApi, type Schemas } from "@/api/client";
 import { cx } from "@/components/ui";
@@ -13,7 +13,7 @@ export const NAV: { to: string; label: string; short: string; icon: LucideIcon }
   { to: "/aktivity", label: "Aktivity", short: "Aktivity", icon: Footprints },
   { to: "/fitness", label: "Fitness", short: "Fitness", icon: Activity },
   { to: "/progres", label: "Progres", short: "Progres", icon: TrendingUp },
-  { to: "/spanok", label: "Spánok", short: "Spánok", icon: Moon },
+  { to: "/zdravie", label: "Zdravie", short: "Zdravie", icon: HeartPulse },
   { to: "/plan", label: "Plán", short: "Plán", icon: CalendarDays },
   { to: "/nastavenia", label: "Nastavenia", short: "Nastav.", icon: Settings },
 ];

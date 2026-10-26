@@ -1,8 +1,24 @@
 # STATUS
 
-Last updated: 2026-10-26 (coach "Kondícia" step 3)
+Last updated: 2026-10-26 (Health page)
 
 ## Done
+
+### Health page "Zdravie" (2026-10-26, user request; METRICS §12)
+- **New wellness fields** from the stored raw JSON (migration 0007): sleep stress, sleep respiration,
+  restless moments, night Body Battery charge, highest Body Battery, time in high stress, intensity minutes.
+  `training recompute` fills the history offline (the user runs it once after updating).
+- **Pure** `analysis/health.py`: 7/28-day means, personal normal band (median ± MAD of the 28 days before),
+  % relative to normal, monthly means, the 28-day change (Mann–Whitney, better/worse by metric) and
+  relationships between deviations from the normal (same day and next day, Spearman + Fisher CI,
+  Benjamini–Hochberg, |ρ| ≥ 0.2; trivial same-family pairs skipped), quartile contrast.
+- **API:** `GET /api/wellness/health`, `/health/series?metrics=&days=`, `/health/relationships`.
+- **UI:** nav "Spánok" → **Zdravie** (`/zdravie`; `/spanok` still works) with tabs Trendy (tiles with the
+  change and monthly sparkline; click adds to the charts), the overlay chart of up to 4 metrics relative to
+  their normal (one axis) + small multiples with a shared time axis and the normal band, a 14-day table;
+  Súvislosti (sentences, ρ, CI, n, contrast, "V grafe"); Spánok a výkon (the former page). Categorical
+  series colours added as tokens --cat1…4 (validated for both themes and colour-blindness). Checked in the
+  browser on demo data (desktop dark, phone light).
 
 ### Coach "Kondícia" – step 3: predictions (2026-10-26, METRICS §11.5)
 - **Pure** `training/coach/forecast.py`: the personal sleep → pace effect (OLS pace at reference HR ~ last
@@ -14,8 +30,6 @@ Last updated: 2026-10-26 (coach "Kondícia" step 3)
   message adds the note and the best days.
 - **UI:** card "Výhľad na 7 dní" on Plán (coloured days, ★ best days, rest days dimmed, the sleep-effect
   line), the note and best days on the Dashboard. Checked in the browser on demo data (desktop, phone).
-- **Next:** the Health page (user request: overlaid sleep / RHR / stress / Body Battery trends and
-  relationships).
 
 ### Coach "Kondícia" – step 2: block progress (2026-10-26, METRICS §11.4)
 - **Pure** `training/coach/block_progress.py`: fitness snapshot on a day (28-day median pace at the reference

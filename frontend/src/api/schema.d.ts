@@ -1759,6 +1759,11 @@ export interface components {
             median28: number | null;
             /** Mad28 */
             mad28: number | null;
+            /**
+             * Pct
+             * @description 7-day mean relative to the normal, % (§12.2)
+             */
+            pct: number | null;
         };
         /** HealthRelationshipDTO */
         HealthRelationshipDTO: {

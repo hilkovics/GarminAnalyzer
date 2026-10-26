@@ -502,6 +502,7 @@ GET /wellness/health – every §12.1 metric with its trend summary.
 | `mean7` | number \| null |  |
 | `median28` | number \| null |  |
 | `mad28` | number \| null |  |
+| `pct` | number \| null | 7-day mean relative to the normal, % (§12.2) |
 
 ### HealthRelationshipDTO
 

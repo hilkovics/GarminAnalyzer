@@ -145,6 +145,8 @@ Garmin z času na čas zmení prihlasovanie a knižnica `garminconnect` potrebuj
 
 - **Záloha:** stačí `data/training.db`, napríklad raz týždenne skopírovať. Tokeny (`~/.garminconnect`) sa dajú vždy vytvoriť znova prihlásením.
 - **Prepočet bez internetu:** `uv run training recompute` – všetky metriky z uložených odpovedí Garminu, napríklad po zmene prahov alebo po aktualizácii aplikácie.
+  Po aktualizácii so sekciou **Zdravie** ho spusti raz: nové údaje (stres v spánku, dýchanie, nabitie Body Battery,
+  čas vo vysokom strese, intenzívne minúty) sa doplnia do celej histórie z uložených dát, bez sťahovania.
 - **Úplne od nuly:** premenuj `data/training.db` a spusti `uv run training backfill --months 24`. Prahy a údaje atléta potom zadaj znova.
 - **Prerušený backfill:** rovnaký príkaz pokračuje tam, kde skončil. `--restart` prejde celé obdobie znova.
 

@@ -51,6 +51,7 @@ class HealthPointDTO(BaseModel):
     mean7: float | None
     median28: float | None
     mad28: float | None
+    pct: float | None = Field(description="7-day mean relative to the normal, % (§12.2)")
 
 
 class HealthSeriesDTO(BaseModel):

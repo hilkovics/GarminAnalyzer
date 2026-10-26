@@ -80,16 +80,20 @@ def _mad(window: np.ndarray) -> float:
 
 def trends(series: pd.Series) -> pd.DataFrame:
     """§12.2 on a daily series: value, mean7, mean28 (trailing, including the day), median28 / mad28 of the
-    28 days before the day (the normal band)."""
+    28 days before the day (the normal band) and pct = mean7 relative to median28 in %."""
     s = series.astype(float)
     previous = s.shift(1)
+    mean7 = s.rolling(7, min_periods=MEAN7_MIN).mean()
+    median28 = previous.rolling(WINDOW, min_periods=BASELINE_MIN).median()
+    base = median28.abs().where(median28 != 0)
     return pd.DataFrame(
         {
             "value": s,
-            "mean7": s.rolling(7, min_periods=MEAN7_MIN).mean(),
+            "mean7": mean7,
             "mean28": s.rolling(WINDOW, min_periods=MEAN28_MIN).mean(),
-            "median28": previous.rolling(WINDOW, min_periods=BASELINE_MIN).median(),
+            "median28": median28,
             "mad28": previous.rolling(WINDOW, min_periods=1).apply(_mad, raw=True),
+            "pct": (mean7 - median28) / base * 100.0,
         },
         index=s.index,
     )

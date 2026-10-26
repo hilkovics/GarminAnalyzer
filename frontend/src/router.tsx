@@ -11,6 +11,7 @@ import SettingsPage from "@/pages/nastavenia";
 import PlanPage from "@/pages/plan";
 import ProgressPage from "@/pages/progres";
 import SleepPage from "@/pages/spanok";
+import HealthPage from "@/pages/zdravie";
 
 const root = createRootRoute({ component: Layout, notFoundComponent: NotFound });
 
@@ -25,7 +26,8 @@ const routes = [
   createRoute({ getParentRoute: () => root, path: "/aktivity/$activityId", component: ActivityDetailRoute }),
   createRoute({ getParentRoute: () => root, path: "/fitness", component: FitnessPage }),
   createRoute({ getParentRoute: () => root, path: "/progres", component: ProgressPage }),
-  createRoute({ getParentRoute: () => root, path: "/spanok", component: SleepPage }),
+  createRoute({ getParentRoute: () => root, path: "/zdravie", component: HealthPage }),
+  createRoute({ getParentRoute: () => root, path: "/spanok", component: SleepPage }), // old links keep working
   createRoute({ getParentRoute: () => root, path: "/plan", component: PlanPage }),
   createRoute({ getParentRoute: () => root, path: "/nastavenia", component: SettingsPage }),
 ];
