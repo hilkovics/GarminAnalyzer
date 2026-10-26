@@ -7,8 +7,10 @@ from fastapi import APIRouter, Query, Response
 
 from training.api.deps import ConfigDep, SessionDep, TodayDep
 from training.api.errors import INVALID, NOT_FOUND, UPSTREAM
-from training.services import plan as service, plan_push
+from training.services import coach_block, plan as service, plan_push
 from training.services.dto import (
+    BlockProgressDTO,
+    BlockRefDTO,
     DailyDecisionDTO,
     GoalDTO,
     GoalIn,
@@ -64,6 +66,23 @@ def get_plan_week(
     session: SessionDep, today: TodayDep, day: Annotated[dt.date | None, Query(alias="date")] = None
 ) -> WeekPlanDTO:
     return service.get_week(session, day or today, today=today)
+
+
+@router.get(
+    "/block",
+    response_model=BlockProgressDTO | None,
+    responses=NOT_FOUND,
+    summary='Coach "Kondícia" block (§11.4): the one starting `start`, else the current one; null if none',
+)
+def get_plan_block(
+    session: SessionDep, today: TodayDep, start: Annotated[dt.date | None, Query()] = None
+) -> BlockProgressDTO | None:
+    return coach_block.get_block(session, today=today, start=start)
+
+
+@router.get("/blocks", response_model=list[BlockRefDTO], summary='Coach "Kondícia" blocks, newest first')
+def get_plan_blocks(session: SessionDep, today: TodayDep) -> list[BlockRefDTO]:
+    return coach_block.list_blocks(session, today=today)
 
 
 @router.get(

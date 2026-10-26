@@ -10,6 +10,17 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+# coach "Kondícia" block progress DTOs live in dto_coach.py
+from training.services.dto_coach import (
+    BlockProgressDTO as BlockProgressDTO,
+    BlockRefDTO as BlockRefDTO,
+    BlockSummaryDTO as BlockSummaryDTO,
+    BlockWeekDTO as BlockWeekDTO,
+    CheckRunDTO as CheckRunDTO,
+    FitnessChangeDTO as FitnessChangeDTO,
+    FitnessSnapshotDTO as FitnessSnapshotDTO,
+)
+
 # phase-8 DTOs live in dto_health.py
 from training.services.dto_health import (
     MorningRunDTO as MorningRunDTO,

@@ -5,6 +5,8 @@ import { useApi, type Schemas } from "@/api/client";
 import { Card, Notice, PageHeader, QueryState, Segmented } from "@/components/ui";
 import { fmtNum, fmtPace } from "@/lib/format";
 
+import { BlockSection } from "@/pages/plan/BlockProgress";
+
 import { CurvesChart } from "./CurvesChart";
 import { EffortsTable, HrEfforts, SpeedEfforts } from "./Efforts";
 import { DECOUPLING_KIND, EF_KIND, latestTrend, PACE_REF_KIND, SeriesChart } from "./SeriesChart";
@@ -86,6 +88,7 @@ export default function ProgressPage() {
         }
       />
       <div className="flex flex-col gap-4">
+        {run && <BlockSection withPicker />}
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           <SeriesCard
             title="Efektivita (EF) – trend"

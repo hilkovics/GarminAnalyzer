@@ -1,11 +1,13 @@
 // Plán (coach): today's workout, this week planned vs done, the season, the goal and the preferred days.
+import { useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useApi, useApiMutation, type Schemas } from "@/api/client";
 import { Button, Loading, PageHeader, QueryState, Segmented } from "@/components/ui";
 import { fmtLongDate, isoWeekLabel } from "@/lib/format";
 
+import { BlockSection } from "./BlockProgress";
 import { GoalForm } from "./GoalForm";
 import { PreferredDays } from "./PreferredDays";
 import { SeasonBlock } from "./SeasonBlock";
@@ -47,6 +49,12 @@ export default function PlanPage() {
   const goal = useApi<Goal | null>("/plan/goal");
   const settings = useApi<Schemas["SettingsDTO"]>("/settings");
   const todayIso = today.data?.date ?? season.data?.today;
+  const client = useQueryClient();
+  const created = today.data?.created;
+  useEffect(() => {
+    // the week and the block were fetched in parallel, before today's plan was decided: fetch them again
+    if (created) void client.invalidateQueries({ predicate: (q) => q.queryKey[0] === "/plan/week" || q.queryKey[0] === "/plan/block" });
+  }, [created, client]);
 
   return (
     <>
@@ -60,6 +68,7 @@ export default function PlanPage() {
         <QueryState query={week}>
           {(w) => <WeekBlock week={w} today={todayIso ?? ""} onNavigate={setWeekDate} pending={week.isPlaceholderData} />}
         </QueryState>
+        {today.data?.mode === "fitness" && <BlockSection />}
         {today.data?.mode === "fitness" ? (
           <p className="text-sm text-muted">
             Bez pretekového cieľa plánuje tréner <strong className="text-text">Kondícia</strong>: každý týždeň kvalita, dlhší a ľahký beh,

@@ -114,3 +114,34 @@ describe("FitnessWeek", () => {
     expect(screen.getByText("bez rastu")).toBeTruthy();
   });
 });
+
+describe("BlockProgressCard", () => {
+  const snap = (day: string, pace: number, ef: number | null, t5k: number) => ({ day, pace_at_ref_hr: pace, ef, vdot: 50, t5k_s: t5k, t10k_s: t5k * 2.08, reference_date: day });
+  it("shows the summary, the change from the baseline in the better/worse colour and the check runs", async () => {
+    vi.stubGlobal("ResizeObserver", class { observe() {} unobserve() {} disconnect() {} }); // recharts' container
+    const { BlockProgressCard } = await import("./BlockProgress");
+    const week = {
+      monday: "2026-10-26", week_no: 6, target_s: 6000, run_s: 4800, items_done: 2, brake: null, recovery: false, test: true,
+      mean_readiness: 61, mean_sleep_s: 6.5 * 3600, value: snap("2026-11-15", 1000 / 290, 1.6, 1500), change: null,
+    };
+    render(
+      <BlockProgressCard
+        block={{
+          start: "2026-10-05", end: "2026-12-27", block_weeks: 12,
+          baseline: snap("2026-10-04", 1000 / 300, 1.6, 1530),
+          weeks: [week],
+          check_runs: [{ date: "2026-11-11", activity_id: 3, distance_m: 6000, avg_hr: 172, vdot: 48, t5k_s: 1501, t10k_s: 3120 }],
+          summary: { final: false, weeks: 6, items_done: 14, items_planned: 18, run_s: 30000, target_s: 36000, brake_weeks: 1, mean_readiness: 60, mean_sleep_s: 6.4 * 3600, green_share: 0.25, change: null },
+        }}
+      />,
+    );
+    expect(screen.getByText("Zatiaľ v bloku")).toBeTruthy();
+    expect(screen.getByText("14/18")).toBeTruthy();
+    expect(screen.getByText("týždeň 1/12")).toBeTruthy();
+    const faster = screen.getByText(/−0:10\/km/);  // 5:00 → 4:50 per km
+    expect(faster.className).toContain("text-good");
+    expect(screen.getByText(/−0:30$/).className).toContain("text-good"); // 5 km 25:30 → 25:00
+    expect(screen.getAllByText("bez zmeny").length).toBe(1); // EF unchanged
+    expect(screen.getByText("6,00 km")).toBeTruthy();
+  });
+});

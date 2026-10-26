@@ -697,6 +697,99 @@
         }
       }
     },
+    "/api/plan/block": {
+      "get": {
+        "tags": [
+          "plan"
+        ],
+        "summary": "Coach \"Kondícia\" block (§11.4): the one starting `start`, else the current one; null if none",
+        "operationId": "get_plan_block",
+        "parameters": [
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/components/schemas/BlockProgressDTO"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "title": "Response Get Plan Block"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The requested entity does not exist.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/plan/blocks": {
+      "get": {
+        "tags": [
+          "plan"
+        ],
+        "summary": "Coach \"Kondícia\" blocks, newest first",
+        "operationId": "get_plan_blocks",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BlockRefDTO"
+                  },
+                  "type": "array",
+                  "title": "Response Get Plan Blocks"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/plan/season": {
       "get": {
         "tags": [
@@ -2410,6 +2503,329 @@
         "title": "BestEffortsDTO",
         "description": "GET /progress/best-efforts?sport&range=90d|all (§6.2)."
       },
+      "BlockProgressDTO": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "block_weeks": {
+            "type": "integer",
+            "title": "Block Weeks"
+          },
+          "baseline": {
+            "$ref": "#/components/schemas/FitnessSnapshotDTO",
+            "description": "snapshot on the day before the block"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/BlockWeekDTO"
+            },
+            "type": "array",
+            "title": "Weeks",
+            "description": "weeks that have started, oldest first"
+          },
+          "check_runs": {
+            "items": {
+              "$ref": "#/components/schemas/CheckRunDTO"
+            },
+            "type": "array",
+            "title": "Check Runs"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/BlockSummaryDTO"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "block_weeks",
+          "baseline",
+          "weeks",
+          "check_runs",
+          "summary"
+        ],
+        "title": "BlockProgressDTO",
+        "description": "GET /plan/block – one 12-week block of the coach \"Kondícia\"."
+      },
+      "BlockRefDTO": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date",
+            "title": "End"
+          },
+          "current": {
+            "type": "boolean",
+            "title": "Current"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "current"
+        ],
+        "title": "BlockRefDTO"
+      },
+      "BlockSummaryDTO": {
+        "properties": {
+          "final": {
+            "type": "boolean",
+            "title": "Final",
+            "description": "week 12 is over (else: so far)"
+          },
+          "weeks": {
+            "type": "integer",
+            "title": "Weeks"
+          },
+          "items_done": {
+            "type": "integer",
+            "title": "Items Done"
+          },
+          "items_planned": {
+            "type": "integer",
+            "title": "Items Planned"
+          },
+          "run_s": {
+            "type": "number",
+            "title": "Run S"
+          },
+          "target_s": {
+            "type": "number",
+            "title": "Target S"
+          },
+          "brake_weeks": {
+            "type": "integer",
+            "title": "Brake Weeks"
+          },
+          "mean_readiness": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Readiness"
+          },
+          "mean_sleep_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Sleep S"
+          },
+          "green_share": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Green Share",
+            "description": "share of days with readiness ≥ 70"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FitnessChangeDTO"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "last week value − baseline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "final",
+          "weeks",
+          "items_done",
+          "items_planned",
+          "run_s",
+          "target_s",
+          "brake_weeks",
+          "mean_readiness",
+          "mean_sleep_s",
+          "green_share",
+          "change"
+        ],
+        "title": "BlockSummaryDTO"
+      },
+      "BlockWeekDTO": {
+        "properties": {
+          "monday": {
+            "type": "string",
+            "format": "date",
+            "title": "Monday"
+          },
+          "week_no": {
+            "type": "integer",
+            "title": "Week No"
+          },
+          "target_s": {
+            "type": "number",
+            "title": "Target S"
+          },
+          "run_s": {
+            "type": "number",
+            "title": "Run S",
+            "description": "non-commute running time done"
+          },
+          "items_done": {
+            "type": "integer",
+            "title": "Items Done",
+            "description": "menu items done (0–3)"
+          },
+          "brake": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Brake"
+          },
+          "recovery": {
+            "type": "boolean",
+            "title": "Recovery"
+          },
+          "test": {
+            "type": "boolean",
+            "title": "Test"
+          },
+          "mean_readiness": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Readiness"
+          },
+          "mean_sleep_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Sleep S"
+          },
+          "value": {
+            "$ref": "#/components/schemas/FitnessSnapshotDTO",
+            "description": "snapshot on the week's Sunday (today for the running week)"
+          },
+          "change": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FitnessChangeDTO"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "value − baseline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "monday",
+          "week_no",
+          "target_s",
+          "run_s",
+          "items_done",
+          "brake",
+          "recovery",
+          "test",
+          "mean_readiness",
+          "mean_sleep_s",
+          "value",
+          "change"
+        ],
+        "title": "BlockWeekDTO"
+      },
+      "CheckRunDTO": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "activity_id": {
+            "type": "integer",
+            "title": "Activity Id"
+          },
+          "distance_m": {
+            "type": "number",
+            "title": "Distance M",
+            "description": "distance in the 30-min effort"
+          },
+          "avg_hr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Hr",
+            "description": "mean HR of the 30-min HR effort"
+          },
+          "vdot": {
+            "type": "number",
+            "title": "Vdot"
+          },
+          "t5k_s": {
+            "type": "number",
+            "title": "T5K S"
+          },
+          "t10k_s": {
+            "type": "number",
+            "title": "T10K S"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "activity_id",
+          "distance_m",
+          "avg_hr",
+          "vdot",
+          "t5k_s",
+          "t10k_s"
+        ],
+        "title": "CheckRunDTO",
+        "description": "A check run's result: the 30-min effort and its Daniels equivalents."
+      },
       "CommuteIn": {
         "properties": {
           "commute": {
@@ -3184,6 +3600,75 @@
         ],
         "title": "ErrorBody"
       },
+      "FitnessChangeDTO": {
+        "properties": {
+          "pace_at_ref_hr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace At Ref Hr"
+          },
+          "ef": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ef"
+          },
+          "vdot": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vdot"
+          },
+          "t5k_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T5K S"
+          },
+          "t10k_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T10K S"
+          }
+        },
+        "type": "object",
+        "required": [
+          "pace_at_ref_hr",
+          "ef",
+          "vdot",
+          "t5k_s",
+          "t10k_s"
+        ],
+        "title": "FitnessChangeDTO",
+        "description": "Week value − baseline: pace, EF, VDOT + = better; times − = better."
+      },
       "FitnessSlotDTO": {
         "properties": {
           "slot": {
@@ -3230,6 +3715,100 @@
         ],
         "title": "FitnessSlotDTO",
         "description": "One item of the §11.1 week menu."
+      },
+      "FitnessSnapshotDTO": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "pace_at_ref_hr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace At Ref Hr",
+            "description": "m/s, 28-day median of pace at the reference HR (§6.1)"
+          },
+          "ef": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ef",
+            "description": "§5.2 EF trend, m/min/bpm"
+          },
+          "vdot": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vdot",
+            "description": "§7 reference VDOT as of the day"
+          },
+          "t5k_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T5K S",
+            "description": "Daniels equivalent 5 km time"
+          },
+          "t10k_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "T10K S",
+            "description": "Daniels equivalent 10 km time"
+          },
+          "reference_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Date",
+            "description": "date of the §7 reference (stale when > 60 days old)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "pace_at_ref_hr",
+          "ef",
+          "vdot",
+          "t5k_s",
+          "t10k_s",
+          "reference_date"
+        ],
+        "title": "FitnessSnapshotDTO",
+        "description": "§11.4 fitness on `day` (runs only); every part is null without data."
       },
       "FitnessWeekDTO": {
         "properties": {
@@ -3417,6 +3996,19 @@
         ],
         "title": "GoalIn",
         "description": "PUT /plan/goal body: the race the season is built towards. Replaces the active goal."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
       },
       "LapDTO": {
         "properties": {
@@ -5268,6 +5860,46 @@
           "value"
         ],
         "title": "TrendPointDTO"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
       },
       "WeekDayDTO": {
         "properties": {

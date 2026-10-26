@@ -27,6 +27,8 @@ docs at `/docs`).
 | POST | `/api/plan/today/regenerate` | `sport`? | `DailyDecisionDTO` | Decide today again, optionally for another sport (run \| bike); a done workout stays |
 | POST | `/api/plan/today/push` | `dry_run`? | `PushResultDTO[]` | Push today's planned workout(s) to Garmin Connect; a re-push updates, never duplicates |
 | GET | `/api/plan/week` | `date`? | `WeekPlanDTO` | The ISO week containing `date` (default today): targets, planned vs done per day |
+| GET | `/api/plan/block` | `start`? | `BlockProgressDTO \| null` | Coach "Kondícia" block (§11.4): the one starting `start`, else the current one; null if none |
+| GET | `/api/plan/blocks` | – | `BlockRefDTO[]` | Coach "Kondícia" blocks, newest first |
 | GET | `/api/plan/season` | – | `SeasonDTO` | Season plan: this week and the projected weeks up to the race (phases, targets) |
 | GET | `/api/plan/goal` | – | `GoalDTO \| null` | The active goal, or null |
 | PUT | `/api/plan/goal` | body: `GoalIn` | `GoalDTO` | Set the goal race (replaces the active goal) |
@@ -168,6 +170,75 @@ GET /progress/best-efforts?sport&range=90d|all (§6.2).
 | `range` | string | "90d" \| "all" |
 | `efforts` | BestEffortDTO[] | best per (kind, window_s) |
 
+### BlockProgressDTO
+
+GET /plan/block – one 12-week block of the coach "Kondícia".
+
+| Field | Type | Description |
+|---|---|---|
+| `start` | date |  |
+| `end` | date |  |
+| `block_weeks` | integer |  |
+| `baseline` | FitnessSnapshotDTO | snapshot on the day before the block |
+| `weeks` | BlockWeekDTO[] | weeks that have started, oldest first |
+| `check_runs` | CheckRunDTO[] |  |
+| `summary` | BlockSummaryDTO |  |
+
+### BlockRefDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `start` | date |  |
+| `end` | date |  |
+| `current` | boolean |  |
+
+### BlockSummaryDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `final` | boolean | week 12 is over (else: so far) |
+| `weeks` | integer |  |
+| `items_done` | integer |  |
+| `items_planned` | integer |  |
+| `run_s` | number |  |
+| `target_s` | number |  |
+| `brake_weeks` | integer |  |
+| `mean_readiness` | number \| null |  |
+| `mean_sleep_s` | number \| null |  |
+| `green_share` | number \| null | share of days with readiness ≥ 70 |
+| `change` | FitnessChangeDTO \| null | last week value − baseline |
+
+### BlockWeekDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `monday` | date |  |
+| `week_no` | integer |  |
+| `target_s` | number |  |
+| `run_s` | number | non-commute running time done |
+| `items_done` | integer | menu items done (0–3) |
+| `brake` | string \| null |  |
+| `recovery` | boolean |  |
+| `test` | boolean |  |
+| `mean_readiness` | number \| null |  |
+| `mean_sleep_s` | number \| null |  |
+| `value` | FitnessSnapshotDTO | snapshot on the week's Sunday (today for the running week) |
+| `change` | FitnessChangeDTO \| null | value − baseline |
+
+### CheckRunDTO
+
+A check run's result: the 30-min effort and its Daniels equivalents.
+
+| Field | Type | Description |
+|---|---|---|
+| `date` | date |  |
+| `activity_id` | integer |  |
+| `distance_m` | number | distance in the 30-min effort |
+| `avg_hr` | number \| null | mean HR of the 30-min HR effort |
+| `vdot` | number |  |
+| `t5k_s` | number |  |
+| `t10k_s` | number |  |
+
 ### CommuteIn
 
 PUT /activities/{id}/commute body (METRICS §2.6).
@@ -301,6 +372,18 @@ GET /plan/today – the day's planned workout with the inputs the decision used 
 |---|---|---|
 | `detail` | string |  |
 
+### FitnessChangeDTO
+
+Week value − baseline: pace, EF, VDOT + = better; times − = better.
+
+| Field | Type | Description |
+|---|---|---|
+| `pace_at_ref_hr` | number \| null |  |
+| `ef` | number \| null |  |
+| `vdot` | number \| null |  |
+| `t5k_s` | number \| null |  |
+| `t10k_s` | number \| null |  |
+
 ### FitnessSlotDTO
 
 One item of the §11.1 week menu.
@@ -312,6 +395,20 @@ One item of the §11.1 week menu.
 | `minutes` | integer | §11.3 planned length (a longer run on the weekend may be longer) |
 | `weekday_minutes` | integer | §11.3 length on a weekday (≤ 60 min for the longer run) |
 | `done_date` | date \| null | day it was done (a done plan, or an unplanned run for Ľ) |
+
+### FitnessSnapshotDTO
+
+§11.4 fitness on `day` (runs only); every part is null without data.
+
+| Field | Type | Description |
+|---|---|---|
+| `day` | date |  |
+| `pace_at_ref_hr` | number \| null | m/s, 28-day median of pace at the reference HR (§6.1) |
+| `ef` | number \| null | §5.2 EF trend, m/min/bpm |
+| `vdot` | number \| null | §7 reference VDOT as of the day |
+| `t5k_s` | number \| null | Daniels equivalent 5 km time |
+| `t10k_s` | number \| null | Daniels equivalent 10 km time |
+| `reference_date` | date \| null | date of the §7 reference (stale when > 60 days old) |
 
 ### FitnessWeekDTO
 

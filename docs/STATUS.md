@@ -1,8 +1,25 @@
 # STATUS
 
-Last updated: 2026-10-26 (coach "Kondícia" step 1)
+Last updated: 2026-10-26 (coach "Kondícia" step 2)
 
 ## Done
+
+### Coach "Kondícia" – step 2: block progress (2026-10-26, METRICS §11.4)
+- **Pure** `training/coach/block_progress.py`: fitness snapshot on a day (28-day median pace at the reference
+  HR, §5.2 EF trend, §7 reference VDOT with Daniels 5/10 km), change vs the baseline, check-run result
+  (Daniels from the 30-min `gap_speed` effort), block summary (menu items, run time, brake weeks, sleep,
+  readiness, green-day share). 7 known-answer tests.
+- **Glue** `planning_block.py`: baseline = snapshot of the day before the block, stored in
+  `coach_block.baseline` (filled lazily, refreshed by `training recompute`); week records for started weeks;
+  check runs from done `fit_check` plans with a linked activity.
+- **API:** `GET /api/plan/block?start=` (`BlockProgressDTO`, null without blocks; never creates a block in
+  race mode), `GET /api/plan/blocks`.
+- **UI:** card "Blok" on Plán (fitness mode) and Progres (runs, with a block picker): summary tiles, start vs
+  now with green/red change, weekly running time chart + table, check runs. Checked in the browser on demo
+  data (desktop dark, phone light; fixed a phone overflow). Plán refetches the week and block after today's
+  first decision.
+- **Rule 6 changed (user):** in a test week without a green day the check run is given on a yellow day.
+- **Next:** step 3 (predictions: morning note from the personal sleep→performance relation, 7-day outlook).
 
 ### Coach "Kondícia" – step 1 (2026-10-26; docs/COACH_V2.md approved by the user, rules in METRICS §11)
 - **When:** every day without an active race goal (`planning.mode_for` → "fitness"); with a goal the §10 rules

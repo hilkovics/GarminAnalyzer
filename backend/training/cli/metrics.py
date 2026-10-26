@@ -7,7 +7,7 @@ from rich.markup import escape
 from rich.table import Table
 from sqlmodel import Session
 
-from training import pipeline, planning_fitness
+from training import pipeline, planning_block, planning_fitness
 from training.cli._app import app, console
 from training.config import get_settings
 from training.db import demo
@@ -51,6 +51,7 @@ def recompute(
             session, since=since.date() if since else None, renormalize=not metrics_only, end=dt.date.today()
         )
         weeks = planning_fitness.rederive_weeks(session)  # §11.3: only this command rewrites final weeks
+        planning_block.refresh_baselines(session)  # §11.4
     console.print(
         f"Re-normalized {result.rebuilt_activities} activities · metrics for {result.metrics_computed} · "
         f"PMC {result.daily_load_days} days · coach weeks {weeks}"

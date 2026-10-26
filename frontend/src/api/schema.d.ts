@@ -208,6 +208,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plan/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Coach "Kondícia" block (§11.4): the one starting `start`, else the current one; null if none */
+        get: operations["get_plan_block"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/plan/blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Coach "Kondícia" blocks, newest first */
+        get: operations["get_plan_blocks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plan/season": {
         parameters: {
             query?: never;
@@ -870,6 +904,145 @@ export interface components {
             efforts: components["schemas"]["BestEffortDTO"][];
         };
         /**
+         * BlockProgressDTO
+         * @description GET /plan/block – one 12-week block of the coach "Kondícia".
+         */
+        BlockProgressDTO: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Block Weeks */
+            block_weeks: number;
+            /** @description snapshot on the day before the block */
+            baseline: components["schemas"]["FitnessSnapshotDTO"];
+            /**
+             * Weeks
+             * @description weeks that have started, oldest first
+             */
+            weeks: components["schemas"]["BlockWeekDTO"][];
+            /** Check Runs */
+            check_runs: components["schemas"]["CheckRunDTO"][];
+            summary: components["schemas"]["BlockSummaryDTO"];
+        };
+        /** BlockRefDTO */
+        BlockRefDTO: {
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /** Current */
+            current: boolean;
+        };
+        /** BlockSummaryDTO */
+        BlockSummaryDTO: {
+            /**
+             * Final
+             * @description week 12 is over (else: so far)
+             */
+            final: boolean;
+            /** Weeks */
+            weeks: number;
+            /** Items Done */
+            items_done: number;
+            /** Items Planned */
+            items_planned: number;
+            /** Run S */
+            run_s: number;
+            /** Target S */
+            target_s: number;
+            /** Brake Weeks */
+            brake_weeks: number;
+            /** Mean Readiness */
+            mean_readiness: number | null;
+            /** Mean Sleep S */
+            mean_sleep_s: number | null;
+            /**
+             * Green Share
+             * @description share of days with readiness ≥ 70
+             */
+            green_share: number | null;
+            /** @description last week value − baseline */
+            change: components["schemas"]["FitnessChangeDTO"] | null;
+        };
+        /** BlockWeekDTO */
+        BlockWeekDTO: {
+            /**
+             * Monday
+             * Format: date
+             */
+            monday: string;
+            /** Week No */
+            week_no: number;
+            /** Target S */
+            target_s: number;
+            /**
+             * Run S
+             * @description non-commute running time done
+             */
+            run_s: number;
+            /**
+             * Items Done
+             * @description menu items done (0–3)
+             */
+            items_done: number;
+            /** Brake */
+            brake: string | null;
+            /** Recovery */
+            recovery: boolean;
+            /** Test */
+            test: boolean;
+            /** Mean Readiness */
+            mean_readiness: number | null;
+            /** Mean Sleep S */
+            mean_sleep_s: number | null;
+            /** @description snapshot on the week's Sunday (today for the running week) */
+            value: components["schemas"]["FitnessSnapshotDTO"];
+            /** @description value − baseline */
+            change: components["schemas"]["FitnessChangeDTO"] | null;
+        };
+        /**
+         * CheckRunDTO
+         * @description A check run's result: the 30-min effort and its Daniels equivalents.
+         */
+        CheckRunDTO: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Activity Id */
+            activity_id: number;
+            /**
+             * Distance M
+             * @description distance in the 30-min effort
+             */
+            distance_m: number;
+            /**
+             * Avg Hr
+             * @description mean HR of the 30-min HR effort
+             */
+            avg_hr: number | null;
+            /** Vdot */
+            vdot: number;
+            /** T5K S */
+            t5k_s: number;
+            /** T10K S */
+            t10k_s: number;
+        };
+        /**
          * CommuteIn
          * @description PUT /activities/{id}/commute body (METRICS §2.6).
          */
@@ -1214,6 +1387,22 @@ export interface components {
             detail: string;
         };
         /**
+         * FitnessChangeDTO
+         * @description Week value − baseline: pace, EF, VDOT + = better; times − = better.
+         */
+        FitnessChangeDTO: {
+            /** Pace At Ref Hr */
+            pace_at_ref_hr: number | null;
+            /** Ef */
+            ef: number | null;
+            /** Vdot */
+            vdot: number | null;
+            /** T5K S */
+            t5k_s: number | null;
+            /** T10K S */
+            t10k_s: number | null;
+        };
+        /**
          * FitnessSlotDTO
          * @description One item of the §11.1 week menu.
          */
@@ -1243,6 +1432,47 @@ export interface components {
              * @description day it was done (a done plan, or an unplanned run for Ľ)
              */
             done_date: string | null;
+        };
+        /**
+         * FitnessSnapshotDTO
+         * @description §11.4 fitness on `day` (runs only); every part is null without data.
+         */
+        FitnessSnapshotDTO: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Pace At Ref Hr
+             * @description m/s, 28-day median of pace at the reference HR (§6.1)
+             */
+            pace_at_ref_hr: number | null;
+            /**
+             * Ef
+             * @description §5.2 EF trend, m/min/bpm
+             */
+            ef: number | null;
+            /**
+             * Vdot
+             * @description §7 reference VDOT as of the day
+             */
+            vdot: number | null;
+            /**
+             * T5K S
+             * @description Daniels equivalent 5 km time
+             */
+            t5k_s: number | null;
+            /**
+             * T10K S
+             * @description Daniels equivalent 10 km time
+             */
+            t10k_s: number | null;
+            /**
+             * Reference Date
+             * @description date of the §7 reference (stale when > 60 days old)
+             */
+            reference_date: string | null;
         };
         /**
          * FitnessWeekDTO
@@ -1354,6 +1584,11 @@ export interface components {
              * @default true
              */
             active: boolean;
+        };
+        /** HTTPValidationError */
+        HTTPValidationError: {
+            /** Detail */
+            detail?: components["schemas"]["ValidationError"][];
         };
         /** LapDTO */
         LapDTO: {
@@ -2229,6 +2464,19 @@ export interface components {
              */
             value: number | null;
         };
+        /** ValidationError */
+        ValidationError: {
+            /** Location */
+            loc: (string | number)[];
+            /** Message */
+            msg: string;
+            /** Error Type */
+            type: string;
+            /** Input */
+            input?: unknown;
+            /** Context */
+            ctx?: Record<string, never>;
+        };
         /** WeekDayDTO */
         WeekDayDTO: {
             /**
@@ -2973,6 +3221,66 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_plan_block: {
+        parameters: {
+            query?: {
+                start?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockProgressDTO"] | null;
+                };
+            };
+            /** @description The requested entity does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plan_blocks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BlockRefDTO"][];
                 };
             };
         };
