@@ -153,6 +153,8 @@ def test_rule5_easy_spreads_runs():
 def test_rule6_mild_quality_when_no_green_day_comes():
     d = f.decide(ctx(WEEK[6], 60, "k", ran_yesterday=True))  # Sunday, only K left
     assert (d.rule, d.workout.key) == (6, "fit_tempo_mild")
+    d = f.decide(ctx(WEEK[6], 60, "k", ran_yesterday=True, week=week(6, test=True)))
+    assert (d.rule, d.workout.key) == (6, "fit_check") and "žltý deň" in d.reason
 
 
 def test_week_done_and_unavailable_days_rest():

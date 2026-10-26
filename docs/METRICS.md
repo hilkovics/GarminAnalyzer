@@ -570,7 +570,8 @@ work as in §10.4 / §10.8.
   3. green and K open → **K** (the check run in a test week);
   4. D open and (`weekend` or `must`) → **D**;
   5. Ľ open and (`must` or `rested_yesterday`) → **Ľ**;
-  6. K open and `must` (the day is yellow) → **mild K**;
+  6. K open and `must` (the day is yellow) → **mild K**, in a test week the **check run**
+     (*changed 2026-10-26, user: the check run also on a yellow day, so a test week never loses it*);
   7. otherwise **rest**.
   A day that is not available gives rest without these rules. A user regeneration for "bike" gives a 75 min
   Z2 endurance ride (no slot); "run" or no sport re-runs the rules.
@@ -609,6 +610,21 @@ work as in §10.4 / §10.8.
 ### 11.4 Block of 12 weeks
 - A block starts on the Monday of the first fitness-mode decision without an open block, and after a block
   ends (12 weeks). Weeks are numbered 1–12; recovery weeks 4, 8, 12; test weeks 6 and 12.
-- The block stores its baseline at the start (§6.1 pace at reference HR of the last 28 days, §7 predicted
-  5 km and 10 km times, §5.2 EF 28-day median) for the progress view – implemented in step 2 of COACH_V2;
-  until then the baseline is null.
+- **Fitness snapshot** on day `d` (runs only, commutes excluded):
+  - `pace_at_ref_hr` = median of the runs' `pace_at_ref_hr_day` (§6.1) with `local_date` in `[d − 27, d]`;
+  - `ef` = the §5.2 trend value on `d`;
+  - `vdot`, `t5k`, `t10k` = the §7 reference picked as of `d` (candidates with `local_date ≤ d`) and its
+    Daniels equivalent times for 5 km and 10 km; `reference_date` is kept so a stale one (> 60 days) is flagged.
+  Every part is null without data.
+- The block's **baseline** is the snapshot on the day before its start; it is stored with the block (filled
+  when missing, refreshed by `training recompute`). The **week value** is the snapshot on the week's Sunday
+  (today for the running week). Change = week value − baseline (pace and EF: + is better; times: − is better).
+- **Check run result** (test weeks): the done check-run plan's linked activity, its 1800 s `gap_speed` best
+  effort (§6.2, distance in 30 min) and its 1800 s HR effort; equivalent 5 km / 10 km by Daniels from
+  (distance, 1800 s). Without a linked activity or effort there is no result.
+- **Week record:** menu items done (§11.1), run time vs `T`, brake, mean readiness and mean `sleep_s` of the
+  week's days with values.
+- **Block summary** (shown during the block as "so far", final after week 12): items done / `3 ·` weeks
+  elapsed, run time done / Σ `T`, weeks with a brake, mean readiness and sleep, share of green days
+  (readiness ≥ 70 of the days with readiness), and the change of every snapshot part from the baseline to the
+  last week value. *Added 2026-10-26 (step 2 of COACH_V2, approved with the proposal).*

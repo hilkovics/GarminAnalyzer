@@ -27,8 +27,8 @@ Last updated: 2026-10-26 (coach "Kondícia" step 1)
   `if_pace` for rTSS and the sleep-score wait (B2); retries (Docker loop, Task Scheduler, cron) run at least
   until 13:00 (W1); a restart catches up a waiting run (W2); check-run name says "vypni auto-pauzu" (W4);
   concurrent week creation is tolerated (W6); a second run on a planned day fills Ľ; 5-min rounding halves up.
-- **Open question for the user (W5):** in a test week without a green day, rule 6 gives a mild K instead of
-  the check run (literal §11.2); the check run then waits for the next test week.
+- **W5 decided by the user:** in a test week without a green day, rule 6 gives the check run (also on a
+  yellow day) instead of the mild K.
 - **Next:** step 2 (block progress: baseline, check-run results, end-of-block summary), step 3 (predictions).
   Open: Garmin HR zones must match LTHR 172; after 4 weeks check how many K days were green.
 

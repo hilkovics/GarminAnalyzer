@@ -311,6 +311,9 @@ def decide(ctx: FitnessContext) -> Decision:
         why = "do nedele už treba odbehnúť zvyšné behy" if must else "včera bez behu"
         return _decision(ctx, easy_run(minutes["e"]), 5, f"Ľahký beh – {why} ({_p(ctx)}).")
     if "k" in open_ and must:
+        if ctx.week.test:  # the check run is never lost to a week without a green day (user, 2026-10-26)
+            why = "kontrolný beh aj v žltý deň, aby testovací týždeň neprepadol"
+            return _decision(ctx, check_run(), 6, f"Tento týždeň ešte nebol zelený deň – {why} ({_p(ctx)}).")
         return _decision(
             ctx,
             mild_quality_run(minutes["k"]),
