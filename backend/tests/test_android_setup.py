@@ -1,11 +1,15 @@
 """scripts/android/setup.sh with fake Termux tools on PATH (no phone, no network, no Debian).
 
-The fake `proot-distro login … -- bash -lc CMD …` runs CMD for real when it is the generated `garmin` wrapper
-(with a fake `uv` in a fake Debian home), so quoting, the time zone and argument passing are exercised.
+The fake `proot-distro login … -- CMD ARGS…` behaves like proot-distro: every word after `--` is wrapped in
+single quotes and the joined string runs in a login shell (`su -l root -c`), here `bash -c` with a fake Debian
+home. For the generated `garmin` wrapper it runs for real (with a fake `uv`), so the quoting, the time zone
+and the argument passing are exercised; the repository bind mount is emulated by rewriting
+/root/GarminAnalyzer.
 """
 
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -31,9 +35,15 @@ def phone(tmp_path):
     debian_home = tmp_path / "debian-root"
     (debian_home / ".local" / "bin").mkdir(parents=True)
     calls = tmp_path / "calls.txt"
-    fake(debian_home / ".local" / "bin", "uv", f'echo "uv TZ=$TZ PWD=$PWD ARGS:$*" >> "{calls}"')
-    bin_dir = tmp_path / "bin"
-    bin_dir.mkdir()
+    fake(
+        debian_home / ".local" / "bin",
+        "uv",
+        f'echo "uv TZ=$TZ LINK=$UV_LINK_MODE PWD=$PWD ARGS:$*" >> "{calls}"',
+    )
+    prefix = tmp_path / "usr"  # Termux's $PREFIX: the generated scripts put $PREFIX/bin first on PATH
+    bin_dir = prefix / "bin"
+    bin_dir.mkdir(parents=True)
+    (bin_dir / "bash").symlink_to(shutil.which("bash"))
     crontab_file = tmp_path / "crontab.txt"
     for name in ("pkg", "termux-setup-storage", "termux-wake-lock", "crond", "termux-open-url", "git"):
         fake(bin_dir, name, f'echo "{name} $*" >> "{calls}"')
@@ -41,6 +51,19 @@ def phone(tmp_path):
     fake(bin_dir, "pkill", f'echo "pkill $*" >> "{calls}"')
     fake(bin_dir, "getprop", "echo Europe/Prague")
     fake(bin_dir, "curl", "exit 0")
+    fake(  # sqlite3 DB SQL: the count query, or .backup 'target'
+        bin_dir,
+        "sqlite3",
+        f"""exec "{sys.executable}" - "$@" <<'PY'
+import sqlite3, sys
+db, sql = sys.argv[1], sys.argv[2]
+con = sqlite3.connect(db)
+if sql.startswith(".backup"):
+    con.backup(sqlite3.connect(sql.split("'")[1]))
+else:
+    print(con.execute(sql).fetchone()[0])
+PY""",
+    )
     fake(
         bin_dir,
         "crontab",
@@ -55,21 +78,24 @@ if [ "$1" = login ]; then
   while [ "$1" != "--" ]; do echo "  opt $1" >> "{calls}"; shift; done
   shift
   [ "$1" = true ] && exit 0
-  case "$3" in *training*)  # emulate the bind mount of the repository
-    cmd="${{3//"/root/GarminAnalyzer"/{repo}}}"; shift 3; HOME="{debian_home}" exec bash -c "$cmd" "$@" ;;
+  joined=""; for word in "$@"; do joined="$joined '$word'"; done
+  case "$joined" in
+    *" training "*) cd /; HOME="{debian_home}" exec bash -c "${{joined//"/root/GarminAnalyzer"/{repo}}}" ;;
   esac
-  echo "  debian-cmd: $3" >> "{calls}"
+  echo "  debian-cmd: $*" >> "{calls}"
 fi""",
     )
+    downloads = tmp_path / "Download"
+    downloads.mkdir()
     env = {
         **os.environ,
         "HOME": str(home),
-        "PREFIX": "/usr",
+        "PREFIX": str(prefix),
         "GA_ALLOW_NON_TERMUX": "1",
-        "GA_IMPORT_DIR": str(tmp_path / "Download" / "GarminAnalyzer"),
+        "GA_DOWNLOADS": str(downloads),
         "PATH": f"{bin_dir}{os.pathsep}/usr/bin{os.pathsep}/bin",
     }
-    return home, repo, calls, crontab_file, env, tmp_path
+    return home, repo, calls, crontab_file, env, downloads
 
 
 def run_setup(phone):
@@ -79,14 +105,29 @@ def run_setup(phone):
     )
 
 
+def make_db(path: Path, rows: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    con = sqlite3.connect(path)
+    con.execute("CREATE TABLE raw_garmin (id INTEGER)")
+    con.executemany("INSERT INTO raw_garmin VALUES (?)", [(i,) for i in range(rows)])
+    con.commit()
+    con.close()
+
+
+def rows(path: Path) -> int:
+    return sqlite3.connect(path).execute("SELECT count(*) FROM raw_garmin").fetchone()[0]
+
+
 def test_setup_installs_syncs_writes_commands_and_the_cron_line(phone):
-    home, repo, calls, crontab_file, _, _ = phone
+    home, repo, calls, crontab_file, _, downloads = phone
+    make_db(downloads / "GarminAnalyzer" / "training.db", 3)
     result = run_setup(phone)
     assert result.returncode == 0, result.stderr
     log = calls.read_text()
-    assert "pkg install -y proot-distro cronie termux-api procps curl" in log
+    assert "pkg install -y proot-distro cronie termux-api procps curl sqlite" in log
     assert (
-        'uv" sync --frozen --no-dev' in log and "apt-get install -y -q curl ca-certificates git tzdata" in log
+        "sync --frozen --no-dev --extra ai" in log
+        and "apt-get install -y -q curl ca-certificates git tzdata" in log
     )
     assert (
         f"opt {repo}:/root/GarminAnalyzer" in log and f"opt {home}/.garminconnect:/root/.garminconnect" in log
@@ -94,54 +135,94 @@ def test_setup_installs_syncs_writes_commands_and_the_cron_line(phone):
     for path in (
         ".local/bin/garmin",
         ".local/bin/garmin-server",
+        ".local/bin/garmin-backup",
         ".shortcuts/Ranny beh",
-        ".shortcuts/tasks/Otvorit appku",
+        ".shortcuts/Otvorit appku",
         ".shortcuts/Aktualizovat",
+        ".shortcuts/Zaloha",
         ".termux/boot/garminanalyzer",
     ):
         assert os.access(home / path, os.X_OK), path
+    assert "setup.sh" in (home / ".shortcuts/Aktualizovat").read_text()  # updates also refresh the scripts
     cron = crontab_file.read_text().splitlines()
     assert cron == [
         f"0 9-13 * * * {home}/.local/bin/garmin morning --once-per-day >> {repo}/data/logs/cron.out 2>&1 "
         "# garminanalyzer-morning"
     ]
     assert "crond" in log and "termux-wake-lock" in log
-    assert "garmin login" in result.stdout  # no tokens yet
+    assert "garmin login" in result.stdout and "no .env" in result.stdout
     run_setup(phone)  # idempotent: one cron line
     assert len(crontab_file.read_text().splitlines()) == 1
 
 
-def test_the_garmin_wrapper_passes_arguments_and_the_phone_time_zone(phone):
-    home, _, calls, _, env, _ = phone
+def test_the_garmin_wrapper_passes_arguments_time_zone_and_link_mode(phone):
+    home, repo, calls, _, env, downloads = phone
+    make_db(downloads / "training.db", 1)
     assert run_setup(phone).returncode == 0
     calls.write_text("")
+    fakes = env["PATH"].split(os.pathsep)[0]
+    bare = {"HOME": env["HOME"], "PATH": f"{fakes}{os.pathsep}/usr/bin"}  # cron's bare environment
     result = subprocess.run(
         [str(home / ".local/bin/garmin"), "morning", "--once-per-day", "a b"],
-        env=env,
+        env=bare,
         capture_output=True,
         text=True,
     )
     assert result.returncode == 0, result.stderr
     line = next(x for x in calls.read_text().splitlines() if x.startswith("uv ") and " morning " in x)
-    assert "TZ=Europe/Prague" in line and line.split()[2] == f"PWD={home / 'GarminAnalyzer'}"
-    assert line.endswith("ARGS:run --frozen --no-dev training morning --once-per-day a b")
+    assert "TZ=Europe/Prague" in line and "LINK=copy" in line and f"PWD={repo}" in line
+    assert line.endswith("ARGS:run --frozen --no-dev --extra ai training morning --once-per-day a b")
 
 
-def test_data_and_tokens_are_imported_once_and_never_overwritten(phone):
-    home, repo, _, _, _, tmp = phone
-    download = tmp / "Download" / "GarminAnalyzer"
-    download.mkdir(parents=True)
-    (download / "training.db").write_bytes(b"phone-db")
-    (download / "garmin_tokens.json").write_text("{}")
+def test_imports_into_a_missing_or_empty_db_never_over_one_with_data(phone):
+    home, repo, _, _, _, downloads = phone
+    db = repo / "data" / "training.db"
+    make_db(db, 0)  # an empty database the app created before the import
+    make_db(downloads / "Quick Share" / "training.db", 5)
+    (downloads / "garmin_tokens.json").write_text("{}")
+    (downloads / "GarminAnalyzer").mkdir()
+    (downloads / "GarminAnalyzer" / "env.txt").write_text("TRAINING_TELEGRAM_TOKEN=x\n")
     result = run_setup(phone)
     assert result.returncode == 0, result.stderr
-    assert (repo / "data" / "training.db").read_bytes() == b"phone-db"
+    assert rows(db) == 5 and rows(db.with_name("training.db.bak")) == 0
     tokens = home / ".garminconnect" / "garmin_tokens.json"
     assert tokens.exists() and oct(tokens.stat().st_mode)[-3:] == "600"
-    assert not (download / "garmin_tokens.json").exists()  # removed from the shared folder
-    (download / "training.db").write_bytes(b"newer-pc-db")
-    run_setup(phone)
-    assert (repo / "data" / "training.db").read_bytes() == b"phone-db"  # the phone's data wins
+    assert not (downloads / "garmin_tokens.json").exists()  # secrets are moved out of Download
+    settings = repo / ".env"
+    assert (
+        settings.read_text() == "TRAINING_TELEGRAM_TOKEN=x\n" and oct(settings.stat().st_mode)[-3:] == "600"
+    )
+    assert not (downloads / "GarminAnalyzer" / "env.txt").exists()
+    make_db(downloads / "GarminAnalyzer" / "training.db", 9)
+    (downloads / "garmin_tokens.json").write_text('{"new": 1}')
+    result = run_setup(phone)
+    assert rows(db) == 5 and "has data – kept" in result.stdout  # the phone's data wins
+    assert tokens.read_text() == '{"new": 1}' and not (downloads / "garmin_tokens.json").exists()
+
+
+def test_without_a_database_no_server_and_no_cron(phone):
+    _, repo, calls, crontab_file, _, _ = phone
+    result = run_setup(phone)
+    assert result.returncode == 0, result.stderr
+    assert "skipped: no database yet" in result.stdout and not crontab_file.exists()
+    assert not (repo / "data" / "training.db").exists() and "uv " not in calls.read_text()
+
+
+def test_backup_and_server_control(phone):
+    home, _, calls, _, env, downloads = phone
+    make_db(downloads / "training.db", 4)
+    assert run_setup(phone).returncode == 0
+    out = subprocess.run([str(home / ".local/bin/garmin-backup")], env=env, capture_output=True, text=True)
+    copy = next(downloads.glob("training-*.db"))
+    assert out.returncode == 0 and rows(copy) == 4
+    server = str(home / ".local/bin/garmin-server")
+    assert subprocess.run([server, "stop"], env=env, capture_output=True, text=True).returncode == 0
+    assert "pkill -f training api --host 127.0.0.1 --port 8000" in calls.read_text()
+    assert (
+        subprocess.run([server, "status"], env=env, capture_output=True, text=True).stdout.strip()
+        == "stopped"
+    )
+    assert subprocess.run([server, "bogus"], env=env, capture_output=True, text=True).returncode == 2
 
 
 def test_refuses_outside_termux(phone):
@@ -151,16 +232,3 @@ def test_refuses_outside_termux(phone):
         ["bash", str(repo / "scripts" / "android" / "setup.sh")], env=env, capture_output=True, text=True
     )
     assert result.returncode == 1 and "Termux" in result.stderr
-
-
-def test_server_control_finds_the_server_by_its_command_line(phone):
-    home, _, calls, _, env, _ = phone
-    assert run_setup(phone).returncode == 0
-    server = str(home / ".local/bin/garmin-server")
-    stop = subprocess.run([server, "stop"], env=env, capture_output=True, text=True)
-    assert "pkill -f training api --host 127.0.0.1 --port 8000" in calls.read_text() and stop.returncode == 0
-    assert (
-        subprocess.run([server, "status"], env=env, capture_output=True, text=True).stdout.strip()
-        == "stopped"
-    )
-    assert subprocess.run([server, "bogus"], env=env, capture_output=True, text=True).returncode == 2

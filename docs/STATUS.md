@@ -15,9 +15,16 @@ Last updated: 2026-10-26 (Health page)
   `garmin` (= `uv run training …` in Debian with the phone's time zone; repo and token dir bound in, no rootfs
   path used), `garmin-server`, Termux:Widget shortcuts (Ranny beh, Otvorit appku, Aktualizovat), a Termux:Boot
   script (wake lock, crond, server) and the cron line `0 9-13 * * * garmin morning --once-per-day`.
-  Tested with fake Termux tools (`test_android_setup.py`, the wrapper's quoting and TZ really executed).
+  Tested with fake Termux tools (`test_android_setup.py`).
 - `scripts/export_for_phone.ps1` (PC): stops the app, checkpoints the DB, copies DB + tokens to a Desktop folder,
   removes the Windows task (`-KeepTask` to keep it). Guide: `docs/ANDROID.md` (Slovak).
+- **Review fixes:** the PC settings (.env → env.txt: Telegram / AI keys) travel with the DB and the AI extra is
+  installed; a DB is imported while the phone's is missing or empty (kept as .bak), searched also in Download
+  and Download/Quick Share; cron and the server start only once a DB exists; secrets are always moved out of
+  Download; consistent copies via SQLite's backup API on both sides (`garmin-backup`, export); the export
+  folder is outside the (OneDrive) Desktop; PATH and UV_LINK_MODE pinned in the wrapper; "Otvorit appku" runs
+  in the foreground (Android blocks starting the browser from the background); "Aktualizovat" re-runs setup.
+  The test's fake proot-distro now quotes like proot-distro (each word in single quotes, run by a shell).
 
 ### Health page "Zdravie" (2026-10-26, user request; METRICS §12)
 - **New wellness fields** from the stored raw JSON (migration 0007): sleep stress, sleep respiration,

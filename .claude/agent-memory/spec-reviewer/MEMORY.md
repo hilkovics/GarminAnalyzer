@@ -269,3 +269,22 @@
   primary value's label. Grep `??` next to labelled values.
 - "No data = negative" clamps applied to a field that can be legitimately negative (sleep bodyBatteryChange).
 - dto.py 408 lines again.
+
+## Android / Termux runner (2026-10-26, commit 3fa90f6)
+- New pattern: machine-migration scripts move DB + Garmin tokens but forget `.env` (TRAINING_TELEGRAM_*,
+  TRAINING_ANTHROPIC_API_KEY; Settings env_file=".env" relative to CWD). Telegram step then "skipped" silently.
+  For every "move/install elsewhere" script list ALL state: DB, tokens, .env, extras (`--extra ai`).
+- New pattern: "import once, never overwrite" guards (`[[ -f data/training.db ]]`) are defeated by the app
+  itself creating an empty DB on first use (API deps get_engine -> migrate on first request, cron morning).
+  Check what runs between a failed import and the advised re-run.
+- Raw `cp` of a WAL-mode SQLite file (session.py sets journal_mode=WAL) in docs/backups: flag every one;
+  suggest sqlite3 backup API / `.backup`. PS export: wal_checkpoint result row (busy) is ignored.
+- Secrets to `[Environment]::GetFolderPath("Desktop")` -> OneDrive Known Folder Move uploads them.
+- Fake CLI tools in tests can bypass the real tool's own quoting: proot-distro login wraps every arg after
+  `--` in '...' and runs `su -l root -c "<joined>"` (from memory, could not fetch source: GitHub 403/404).
+  The wrapper's `TZ='$zone'` only works by quote-break concatenation; an arg containing ' breaks.
+  Scratch emulator of that join: scratchpad ph1/bin/proot-distro approach.
+- Termux checklist: tasks/ shortcuts are background -> `termux-open-url` needs "Display over other apps"
+  (Android 10+ background activity start); cron env PATH (cronie default) vs wrapper's bare
+  proot-distro/getprop; UV_LINK_MODE=copy must be in every uv call (proot link2symlink); "update" shortcuts
+  that git pull but never re-run setup.sh leave old generated scripts/cron.

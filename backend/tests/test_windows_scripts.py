@@ -52,6 +52,8 @@ def test_morning_task_wakes_the_pc_and_runs_without_sign_in():
 
 def test_export_for_phone_hands_over_the_morning_run():
     text = (SCRIPTS / "export_for_phone.ps1").read_text(encoding="utf-8-sig")
-    assert "wal_checkpoint(TRUNCATE)" in text and 'start_app.ps1") -Stop' in text
+    assert "s.backup(d)" in text and 'start_app.ps1") -Stop' in text  # consistent copy, not a raw file copy
+    assert 'Join-Path $env:USERPROFILE "GarminAnalyzer-telefon"' in text and "OneDrive" in text
+    assert '"env.txt"' in text  # the Telegram / AI settings go with it
     assert 'install_task_windows.ps1") -Remove' in text and "-KeepTask" in text
     assert "garmin_tokens.json" in text and "scripts/android/setup.sh" in text
