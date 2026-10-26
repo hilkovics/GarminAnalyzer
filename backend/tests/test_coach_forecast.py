@@ -130,3 +130,68 @@ def test_best_days():
     available = [TODAY + timedelta(days=i) for i in (1, 2, 3, 4, 5)]  # Sunday (6) is a rest day
     assert fc.best_days(days, available) == [TODAY + timedelta(days=2), TODAY + timedelta(days=3)]
     assert fc.best_days([day(1, 69.0)], available) == []
+
+
+# --- boundaries and branches (spec review step 3, W2) -------------------------------------------------------
+
+
+def test_a_negative_slope_is_reliable_too_and_shown_per_hour():
+    effect = fc.sleep_effect(dataset(60, -0.05), n_boot=300)
+    assert effect.status == fc.RELIABLE and effect.ci_high < 0
+    assert effect.s_per_km_per_hour == pytest.approx(
+        1000 / effect.pace_typ - 1000 / (effect.pace_typ + effect.slope)
+    )
+    assert effect.s_per_km_per_hour < 0  # more sleep → slower
+    assert fc.SleepEffect(fc.RELIABLE, 50, -4.0, -5, -3, 7 * 3600.0, 3.0).s_per_km_per_hour is None
+
+
+def test_too_many_singular_resamples_give_no_ci():
+    frame = dataset(30, 0.05)
+    frame["tsb"] = 0.0
+    frame.loc[0, "tsb"] = 5.0  # most resamples miss this row → a constant TSB column → singular
+    effect = fc.sleep_effect(frame, n_boot=200)
+    assert effect.status == fc.UNCERTAIN and effect.slope is not None and effect.ci_low is None
+
+
+def test_note_guards_and_threshold(monkeypatch):
+    assert fc.sleep_note(fc.SleepEffect(fc.RELIABLE, 50, 2.0, 1, 3, 7 * 3600.0, 3.0), 5 * 3600.0) is None
+    exact = 1000 / (3.0 - 0.1) - 1000 / 3.0  # the Δ of a 5-hour night with EFFECT
+    monkeypatch.setattr(fc, "NOTE_MIN_S_PER_KM", exact)
+    assert fc.sleep_note(EFFECT, 5 * 3600.0) is not None  # |Δ| == threshold → shown
+    monkeypatch.setattr(fc, "NOTE_MIN_S_PER_KM", exact + 1e-9)
+    assert fc.sleep_note(EFFECT, 5 * 3600.0) is None
+
+
+def test_best_day_at_exactly_70():
+    assert fc.best_days([day(1, 70.0)], [TODAY + timedelta(days=1)]) == [TODAY + timedelta(days=1)]
+
+
+def test_outlook_uses_the_sleep_duration_fallback():
+    tuesdays = [TODAY + timedelta(days=1) - timedelta(weeks=k) for k in range(1, 9)]
+    wellness = {d: {"sleep_s": 6 * 3600.0} for d in tuesdays}
+    [first, *_] = fc.outlook(
+        today=TODAY,
+        ctl_prev=0.0,
+        atl_prev=0.0,
+        load_today=0.0,
+        wellness=wellness,
+        loads={},
+        rhr_median28=None,
+        sleep_s_median28=8 * 3600.0,
+    )
+    expected = readiness(
+        rhr=None,
+        rhr_median28=None,
+        sleep_score=None,
+        sleep_s=6 * 3600.0,
+        sleep_s_median28=8 * 3600.0,
+        body_battery_wake=None,
+        tsb=0.0,
+    )
+    assert first.readiness == pytest.approx(expected.score) == pytest.approx(0.6 * 75 + 0.4 * 50)
+
+
+def test_carry_forward():
+    assert fc.carry_forward(60.0, 40.0, 0) == (60.0, 40.0)
+    ctl, atl = fc.carry_forward(60.0, 40.0, 2)
+    assert ctl == pytest.approx(60 * (41 / 42) ** 2) and atl == pytest.approx(40 * (6 / 7) ** 2)

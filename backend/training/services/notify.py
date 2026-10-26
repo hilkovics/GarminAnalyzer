@@ -106,7 +106,10 @@ def morning_message(session: Session, today: dt.date) -> MorningMessageDTO:
         lines.append(f"Prečo: {decision.reason}")
     if workout.steps:
         lines.append(f"Kroky: {step_summary(workout.steps)}")
-    lines.extend(_forecast_lines(session, today))
+    try:  # orientation only: a failure here must never cost the whole message (review step 3, W3)
+        lines.extend(_forecast_lines(session, today))
+    except Exception as exc:
+        log.warning("morning message: forecast lines skipped (%s)", type(exc).__name__)
     yesterday = today - dt.timedelta(days=1)
     point = fitness.get_pmc(session, date_from=yesterday, date_to=yesterday).latest
     if point is None:

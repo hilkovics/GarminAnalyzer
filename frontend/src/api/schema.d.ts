@@ -652,6 +652,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/wellness/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Health metrics (§12): latest, 7/28-day means, personal normal, 28-day change, monthly means */
+        get: operations["get_health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wellness/health/series": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Daily series of 1–4 health metrics with the 7-day mean and the normal band (§12.2) */
+        get: operations["get_health_series"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wellness/health/relationships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Relationships between deviations of health metrics (§12.3), findings first */
+        get: operations["get_health_relationships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -1631,6 +1682,152 @@ export interface components {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
         };
+        /** HealthMetricDTO */
+        HealthMetricDTO: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /**
+             * Unit
+             * @description "s", "bpm", "min", … ("" for scores and counts)
+             */
+            unit: string;
+            /**
+             * Better
+             * @description "up" | "down" | null
+             */
+            better: string | null;
+            /**
+             * Latest
+             * @description the newest daily value
+             */
+            latest: number | null;
+            /** Latest Date */
+            latest_date: string | null;
+            /**
+             * Mean7
+             * @description 7-day mean on today
+             */
+            mean7: number | null;
+            /** Mean28 */
+            mean28: number | null;
+            /**
+             * Median28
+             * @description personal normal (median of the 28 days before today)
+             */
+            median28: number | null;
+            /** Mad28 */
+            mad28: number | null;
+            change: components["schemas"]["RecentChangeDTO"];
+            /**
+             * Monthly
+             * @description calendar-month means, oldest first
+             */
+            monthly: components["schemas"]["MonthValueDTO"][];
+        };
+        /**
+         * HealthOverviewDTO
+         * @description GET /wellness/health – every §12.1 metric with its trend summary.
+         */
+        HealthOverviewDTO: {
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
+            /**
+             * First Date
+             * @description first day with any health data
+             */
+            first_date: string | null;
+            /** Metrics */
+            metrics: components["schemas"]["HealthMetricDTO"][];
+        };
+        /** HealthPointDTO */
+        HealthPointDTO: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Value */
+            value: number | null;
+            /** Mean7 */
+            mean7: number | null;
+            /** Median28 */
+            median28: number | null;
+            /** Mad28 */
+            mad28: number | null;
+        };
+        /** HealthRelationshipDTO */
+        HealthRelationshipDTO: {
+            /** X */
+            x: string;
+            /** Y */
+            y: string;
+            /**
+             * Lag
+             * @description 0 = same day, 1 = y on the next day
+             */
+            lag: number;
+            /** N */
+            n: number;
+            /** Rho */
+            rho: number;
+            /** Ci Low */
+            ci_low: number;
+            /** Ci High */
+            ci_high: number;
+            /** P */
+            p: number;
+            /**
+             * Finding
+             * @description |ρ| ≥ 0.2 and passes Benjamini–Hochberg (q = 0.05)
+             */
+            finding: boolean;
+            /**
+             * Contrast
+             * @description mean y (raw unit of y) top − bottom quartile of x deviation
+             */
+            contrast: number | null;
+            /**
+             * Text
+             * @description plain Slovak sentence
+             */
+            text: string;
+        };
+        /**
+         * HealthRelationshipsDTO
+         * @description GET /wellness/health/relationships – findings first (§12.3).
+         */
+        HealthRelationshipsDTO: {
+            /**
+             * Tested
+             * @description pairs with n ≥ 30
+             */
+            tested: number;
+            /** Findings */
+            findings: components["schemas"]["HealthRelationshipDTO"][];
+            /**
+             * Others
+             * @description the strongest non-findings (max 20), for context
+             */
+            others: components["schemas"]["HealthRelationshipDTO"][];
+        };
+        /** HealthSeriesDTO */
+        HealthSeriesDTO: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+            /** Unit */
+            unit: string;
+            /** Better */
+            better: string | null;
+            /** Points */
+            points: components["schemas"]["HealthPointDTO"][];
+        };
         /** LapDTO */
         LapDTO: {
             /**
@@ -1701,6 +1898,16 @@ export interface components {
              * @description "good" (r > 0.8) | "fair" | "warning" (r < 0.7) | "insufficient"
              */
             status: string;
+        };
+        /** MonthValueDTO */
+        MonthValueDTO: {
+            /**
+             * Month
+             * @description "YYYY-MM"
+             */
+            month: string;
+            /** Value */
+            value: number;
         };
         /**
          * MorningRunDTO
@@ -2186,6 +2393,38 @@ export interface components {
              */
             message: string;
         };
+        /**
+         * RecentChangeDTO
+         * @description Last 28 days vs the 28 before (§12.2).
+         */
+        RecentChangeDTO: {
+            /** Recent */
+            recent: number | null;
+            /** Previous */
+            previous: number | null;
+            /** Diff */
+            diff: number | null;
+            /**
+             * Pct
+             * @description diff / previous
+             */
+            pct: number | null;
+            /**
+             * P
+             * @description Mann–Whitney U, two-sided
+             */
+            p: number | null;
+            /**
+             * Notable
+             * @description p < 0.05
+             */
+            notable: boolean;
+            /**
+             * Direction
+             * @description "better" | "worse" | null (no preferred direction)
+             */
+            direction: string | null;
+        };
         /** ReferenceDTO */
         ReferenceDTO: {
             /** Distance M */
@@ -2398,6 +2637,11 @@ export interface components {
              * @description m/s per hour of sleep
              */
             slope: number | null;
+            /**
+             * S Per Km Per Hour
+             * @description seconds per km faster per extra hour of sleep at the typical pace (− = slower)
+             */
+            s_per_km_per_hour: number | null;
             /** Ci Low */
             ci_low: number | null;
             /** Ci High */
@@ -4168,6 +4412,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthOverviewDTO"];
+                };
+            };
+        };
+    };
+    get_health_series: {
+        parameters: {
+            query: {
+                /** @description comma-separated metric keys */
+                metrics: string;
+                days?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthSeriesDTO"][];
+                };
+            };
+            /** @description Invalid or unacceptable parameters / body. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_health_relationships: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthRelationshipsDTO"];
                 };
             };
         };

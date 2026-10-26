@@ -106,3 +106,51 @@ def test_service_api_and_telegram_note(engine, session, monkeypatch):
     good_weeks(session)
     text = notify.morning_message(session, TODAY).text
     assert dto.note.text in text and "Výhľad: najlepšie dni na kvalitný tréning – št 17. 9." in text
+
+
+def test_ctl_atl_and_today_load_wiring_and_a_sync_gap(session):
+    yesterday = session.get(DailyLoad, TODAY - dt.timedelta(days=1))
+    yesterday.ctl, yesterday.atl = 60.0, 40.0
+    session.add(yesterday)
+    session.commit()
+    load = pfc._load_today(session, TODAY)
+    first = pfc.outlook(session, TODAY).days[0]
+    ctl, atl = 60 + (load - 60) / 42, 40 + (load - 40) / 7
+    assert first.tsb == pytest.approx(ctl - atl)
+    # a sync gap: today − 1 and today − 2 missing, the last stored day is today − 3
+    for back in (1, 2):
+        session.delete(session.get(DailyLoad, TODAY - dt.timedelta(days=back)))
+    last = session.get(DailyLoad, TODAY - dt.timedelta(days=3))
+    last.ctl, last.atl = 60.0, 40.0
+    session.add(last)
+    session.commit()
+    ctl, atl = fc.carry_forward(60.0, 40.0, 2)
+    ctl, atl = ctl + (load - ctl) / 42, atl + (load - atl) / 7
+    assert pfc.outlook(session, TODAY).days[0].tsb == pytest.approx(ctl - atl)
+
+
+def test_pushed_counts_rest_does_not(session):
+    base = pfc._load_today(session, TODAY)
+    session.add(PlannedWorkout(date=TODAY, sport="run", name="p", status="pushed", estimated_load=20.0))
+    session.add(PlannedWorkout(date=TODAY, sport="rest", name="r", status="planned", estimated_load=50.0))
+    session.commit()
+    assert pfc._load_today(session, TODAY) == pytest.approx(base + 20.0)
+
+
+def test_today_baselines(session):
+    good_weeks(session)
+    rhr, sleep = pfc._today_baselines(session, TODAY)
+    assert rhr == 50.0 and sleep is None  # the 28 days before today: RHR 50 on most days, no sleep_s
+    for k in range(1, 29):
+        repo.upsert_wellness(session, {"date": TODAY - dt.timedelta(days=k), "sleep_s": 7 * 3600.0})
+    session.commit()
+    assert pfc._today_baselines(session, TODAY)[1] == 7 * 3600.0
+
+
+def test_a_forecast_error_never_drops_the_morning_message(session, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("bootstrap failed")
+
+    monkeypatch.setattr(svc, "get_forecast", boom)
+    text = notify.morning_message(session, TODAY).text
+    assert text.startswith("Dobré ráno") and "Výhľad" not in text

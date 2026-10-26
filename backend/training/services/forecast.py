@@ -16,7 +16,9 @@ def get_forecast(session: Session, today: dt.date) -> ForecastDTO:
     outlook = planning_forecast.outlook(session, today)
     return ForecastDTO(
         date=today,
-        sleep_effect=SleepEffectDTO(**asdict(effect), min_n=fc.MIN_ROWS),
+        sleep_effect=SleepEffectDTO(
+            **asdict(effect), min_n=fc.MIN_ROWS, s_per_km_per_hour=effect.s_per_km_per_hour
+        ),
         note=SleepNoteDTO(**asdict(note)) if note is not None else None,
         days=[
             OutlookDayDTO(

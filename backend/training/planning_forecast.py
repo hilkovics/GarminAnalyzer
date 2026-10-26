@@ -82,12 +82,19 @@ def outlook(session: Session, today: dt.date) -> Outlook:
             )
         ).all()
     )
-    prev = session.get(DailyLoad, today - dt.timedelta(days=1))
+    last = session.execute(
+        select(DailyLoad).where(DailyLoad.date < today).order_by(DailyLoad.date.desc()).limit(1)
+    ).scalar()
+    ctl_prev, atl_prev = (0.0, 0.0) if last is None else (float(last.ctl or 0.0), float(last.atl or 0.0))
+    if last is not None:  # a sync gap: the missing days had no known load (§11.5)
+        ctl_prev, atl_prev = fc.carry_forward(
+            ctl_prev, atl_prev, (today - dt.timedelta(days=1) - last.date).days
+        )
     rhr_median, sleep_median = _today_baselines(session, today)
     days = fc.outlook(
         today=today,
-        ctl_prev=float(prev.ctl or 0.0) if prev is not None else 0.0,
-        atl_prev=float(prev.atl or 0.0) if prev is not None else 0.0,
+        ctl_prev=ctl_prev,
+        atl_prev=atl_prev,
         load_today=_load_today(session, today),
         wellness=wellness,
         loads=loads,

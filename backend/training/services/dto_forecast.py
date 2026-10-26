@@ -12,6 +12,9 @@ class SleepEffectDTO(BaseModel):
     n: int = Field(description="run days with pace at reference HR, last night's sleep and TSB")
     min_n: int
     slope: float | None = Field(description="m/s per hour of sleep")
+    s_per_km_per_hour: float | None = Field(
+        description="seconds per km faster per extra hour of sleep at the typical pace (− = slower)"
+    )
     ci_low: float | None
     ci_high: float | None
     sleep_typ_s: float | None = Field(description="median sleep of those days")

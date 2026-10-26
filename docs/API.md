@@ -887,6 +887,7 @@ The personal effect of last night's sleep on the pace at the reference HR (TSB h
 | `n` | integer | run days with pace at reference HR, last night's sleep and TSB |
 | `min_n` | integer |  |
 | `slope` | number \| null | m/s per hour of sleep |
+| `s_per_km_per_hour` | number \| null | seconds per km faster per extra hour of sleep at the typical pace (− = slower) |
 | `ci_low` | number \| null |  |
 | `ci_high` | number \| null |  |
 | `sleep_typ_s` | number \| null | median sleep of those days |

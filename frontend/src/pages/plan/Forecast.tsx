@@ -18,13 +18,6 @@ const BAND_CLASSES: Record<string, string> = {
   red: "border-bad/50 bg-bad/10",
 };
 
-/** Seconds per km gained per extra hour of sleep at the typical pace (negative slope → slower). */
-function secondsPerHour(effect: Effect): number | null {
-  const { slope, pace_typ: v } = effect;
-  if (slope === null || slope === undefined || !v || v + slope <= 0) return null;
-  return 1000 / v - 1000 / (v + slope);
-}
-
 export function EffectLine({ effect }: { effect: Effect }) {
   if (effect.status === "insufficient") {
     return (
@@ -33,8 +26,8 @@ export function EffectLine({ effect }: { effect: Effect }) {
       </p>
     );
   }
-  const perHour = secondsPerHour(effect);
-  if (effect.status === "uncertain" || perHour === null) {
+  const perHour = effect.s_per_km_per_hour;
+  if (effect.status === "uncertain" || perHour === null || perHour === undefined) {
     return <p className="text-xs text-muted">Vplyv spánku na tempo zatiaľ nie je preukázateľný ({effect.n} dní) – rozhoduje deň, nie priemer.</p>;
   }
   return (

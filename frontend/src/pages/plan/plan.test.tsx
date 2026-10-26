@@ -149,7 +149,7 @@ describe("BlockProgressCard", () => {
 });
 
 describe("Forecast", () => {
-  const effect = (patch: object) => ({ status: "reliable", n: 54, min_n: 30, slope: 0.05, ci_low: 0.02, ci_high: 0.08, sleep_typ_s: 7 * 3600, pace_typ: 3.0, ...patch });
+  const effect = (patch: object) => ({ status: "reliable", n: 54, min_n: 30, slope: 0.05, ci_low: 0.02, ci_high: 0.08, sleep_typ_s: 7 * 3600, pace_typ: 3.0, s_per_km_per_hour: 1000 / 3.0 - 1000 / 3.05, ...patch });
   it("explains the sleep effect for each status", async () => {
     const { EffectLine } = await import("./Forecast");
     const { rerender } = render(<EffectLine effect={effect({})} />);

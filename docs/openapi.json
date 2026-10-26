@@ -6249,6 +6249,18 @@
             "title": "Slope",
             "description": "m/s per hour of sleep"
           },
+          "s_per_km_per_hour": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "S Per Km Per Hour",
+            "description": "seconds per km faster per extra hour of sleep at the typical pace (− = slower)"
+          },
           "ci_low": {
             "anyOf": [
               {
@@ -6302,6 +6314,7 @@
           "n",
           "min_n",
           "slope",
+          "s_per_km_per_hour",
           "ci_low",
           "ci_high",
           "sleep_typ_s",

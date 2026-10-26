@@ -42,6 +42,13 @@ class SleepEffect:
     sleep_typ_s: float | None = None
     pace_typ: float | None = None  # m/s
 
+    @property
+    def s_per_km_per_hour(self) -> float | None:
+        """§11.5: seconds per km faster per extra hour of sleep at the typical pace (− = slower)."""
+        if self.slope is None or self.pace_typ is None or self.pace_typ + self.slope <= 0:
+            return None
+        return 1000.0 / self.pace_typ - 1000.0 / (self.pace_typ + self.slope)
+
 
 @dataclass(frozen=True)
 class SleepNote:
@@ -154,6 +161,14 @@ def typical_wellness(
 def typical_load(loads: Mapping[date, float], day: date, today: date) -> float:
     """§11.5 typical load of `day`: median `load_total` of the same weekday over 8 weeks (missing days 0)."""
     return float(statistics.median(float(loads.get(d, 0.0) or 0.0) for d in _same_weekday(day, today)))
+
+
+def carry_forward(ctl: float, atl: float, days: int) -> tuple[float, float]:
+    """§11.5: CTL/ATL after `days` days without load (§4 recursion with daily_load 0)."""
+    for _ in range(max(0, days)):
+        ctl -= ctl / CTL_DAYS
+        atl -= atl / ATL_DAYS
+    return ctl, atl
 
 
 def outlook(
