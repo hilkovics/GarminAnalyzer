@@ -220,6 +220,8 @@ EXPECTED_ROUTES = {
     ("post", "/api/plan/today/regenerate"),
     ("post", "/api/plan/today/push"),
     ("get", "/api/plan/week"),
+    ("get", "/api/plan/block"),
+    ("get", "/api/plan/blocks"),
     ("get", "/api/plan/season"),
     ("get", "/api/plan/goal"),
     ("put", "/api/plan/goal"),
