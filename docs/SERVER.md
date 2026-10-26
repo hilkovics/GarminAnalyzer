@@ -27,7 +27,23 @@ Odporúčané (cca 110–150 €):
 
 Funguje aj ľubovoľný starší notebook / mini PC s Linuxom (Debian/Ubuntu), ktorý necháš zapnutý.
 
-## 2. Inštalácia systému (raz, cca 20 min)
+**Mini PC (napr. Beelink SER9) – výborná voľba:** x86-64 je presne architektúra, na ktorej je Docker image otestovaný,
+NVMe disk je spoľahlivejší než SD karta a výkonu je viac než dosť (aplikácia potrebuje < 1 GB RAM). Spotreba v
+nečinnosti býva okolo 6–10 W (cca 15–25 € ročne). Odporúčaný postup – mini PC venovať len serveru:
+- nainštaluj **Ubuntu Server 24.04 LTS** (USB kľúč z ubuntu.com, pri inštalácii zaškrtni *Install OpenSSH server*,
+  hostname `trening`) – Windows z neho zmizne;
+- v BIOSe (pri štarte F7/Del) nastav **„Power on after AC loss“ / „Restore on AC power loss“ = Power On**, aby sa po
+  výpadku prúdu zapol sám;
+- potom pokračuj krokom 3 (prihlásenie `ssh samuel@trening.local`, Docker, Tailscale) – je rovnaký ako pri Pi.
+
+Ak chceš na mini PC nechať Windows (napr. ho používaš aj na iné veci), dá sa to – ranný beh cez Plánovač úloh
+(`install_task_windows.ps1`) a aplikácia cez `start_app.ps1` + Tailscale pre Windows. Musí však ostať zapnutý,
+prihlásený a s vypnutým uspávaním, a reštarty po aktualizáciách Windows ho občas vyradia; Linux s Dockerom je
+na nonstop beh spoľahlivejší.
+
+## 2. Inštalácia systému (raz, cca 20 min) – Raspberry Pi
+
+(Mini PC s Ubuntu: pozri vyššie a pokračuj krokom 3.)
 
 1. Na počítači stiahni **Raspberry Pi Imager** (raspberrypi.com/software).
 2. Vyber *Raspberry Pi 5* → *Raspberry Pi OS Lite (64-bit)* → tvoj SSD/kartu.
