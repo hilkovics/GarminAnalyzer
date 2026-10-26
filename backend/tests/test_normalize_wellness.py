@@ -20,6 +20,8 @@ DAY = date(2026, 9, 28)
 CONTRACT_KEYS = [
     "date", "sleep_start", "sleep_end", "sleep_s", "deep_s", "light_s", "rem_s", "awake_s", "sleep_score",
     "rhr", "body_battery_wake", "body_battery_min", "stress_avg", "steps", "weight_kg",
+    "sleep_stress", "respiration_sleep", "restless_count", "bb_charge", "bb_high", "stress_high_s",
+    "intensity_min",
 ]  # fmt: skip
 
 EXPECTED = {
@@ -38,6 +40,13 @@ EXPECTED = {
     "stress_avg": 26,
     "steps": 11873,
     "weight_kg": None,
+    "sleep_stress": 14.6,
+    "respiration_sleep": 14.0,
+    "restless_count": 18,
+    "bb_charge": 52,
+    "bb_high": 90,
+    "stress_high_s": None,  # not in the synthetic summary
+    "intensity_min": None,
 }
 
 
@@ -243,3 +252,37 @@ def test_inputs_not_mutated(payloads):
     before = copy.deepcopy(payloads)
     normalize_wellness(DAY, **payloads)
     assert payloads == before
+
+
+RECORDED = Path(__file__).parent / "fixtures"
+
+
+def test_health_fields_from_a_recorded_day():
+    """METRICS §12.1 fields from the anonymized recorded fixtures of 2026-10-14."""
+
+    def recorded(kind: str) -> Any:
+        return json.loads((RECORDED / f"wellness_2026-10-14_{kind}.json").read_text(encoding="utf-8"))
+
+    row = normalize_wellness(
+        date(2026, 10, 14), sleep=recorded("sleep"), user_summary=recorded("user_summary")
+    )
+    assert {k: row[k] for k in CONTRACT_KEYS[15:]} == {
+        "sleep_stress": 12.0,
+        "respiration_sleep": 14.0,
+        "restless_count": 60,
+        "bb_charge": 73,
+        "bb_high": 93,
+        "stress_high_s": 3600,
+        "intensity_min": 5,  # 5 moderate + 2 · 0 vigorous
+    }
+
+
+def test_health_fields_reject_no_data_values():
+    sleep = {"dailySleepDTO": {"avgSleepStress": -1.0, "averageRespirationValue": 0}, "bodyBatteryChange": -2}
+    summary = {"moderateIntensityMinutes": 10, "vigorousIntensityMinutes": None, "highStressDuration": -1}
+    row = normalize_wellness(DAY, sleep=sleep, user_summary=summary)
+    assert all(row[k] is None for k in CONTRACT_KEYS[15:])
+    row = normalize_wellness(
+        DAY, user_summary={"moderateIntensityMinutes": 10, "vigorousIntensityMinutes": 15}
+    )
+    assert row["intensity_min"] == 40

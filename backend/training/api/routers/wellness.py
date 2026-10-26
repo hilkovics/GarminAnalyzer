@@ -7,8 +7,15 @@ from fastapi import APIRouter, Query
 
 from training.api.deps import SessionDep, TodayDep
 from training.api.errors import INVALID
-from training.services import sleep as service
-from training.services.dto import CorrelationsDTO, ReadinessDTO, WellnessDTO
+from training.services import health, sleep as service
+from training.services.dto import (
+    CorrelationsDTO,
+    HealthOverviewDTO,
+    HealthRelationshipsDTO,
+    HealthSeriesDTO,
+    ReadinessDTO,
+    WellnessDTO,
+)
 
 router = APIRouter(prefix="/wellness", tags=["wellness"])
 
@@ -54,3 +61,36 @@ def get_readiness(session: SessionDep, day: dt.date) -> ReadinessDTO:
 )
 def get_correlations(session: SessionDep, sport: str | None = None) -> CorrelationsDTO:
     return service.get_correlations(session, sport=sport)
+
+
+@router.get(
+    "/health",
+    response_model=HealthOverviewDTO,
+    summary="Health metrics (§12): latest, 7/28-day means, personal normal, 28-day change, monthly means",
+)
+def get_health(session: SessionDep, today: TodayDep) -> HealthOverviewDTO:
+    return health.get_overview(session, today)
+
+
+@router.get(
+    "/health/series",
+    response_model=list[HealthSeriesDTO],
+    responses=INVALID,
+    summary="Daily series of 1–4 health metrics with the 7-day mean and the normal band (§12.2)",
+)
+def get_health_series(
+    session: SessionDep,
+    today: TodayDep,
+    metrics: Annotated[str, Query(description="comma-separated metric keys")],
+    days: int = 180,
+) -> list[HealthSeriesDTO]:
+    return health.get_series(session, [m for m in metrics.split(",") if m], days=days, today=today)
+
+
+@router.get(
+    "/health/relationships",
+    response_model=HealthRelationshipsDTO,
+    summary="Relationships between deviations of health metrics (§12.3), findings first",
+)
+def get_health_relationships(session: SessionDep, today: TodayDep) -> HealthRelationshipsDTO:
+    return health.get_relationships(session, today)

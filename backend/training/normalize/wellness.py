@@ -28,6 +28,15 @@ from typing import Any
 
 log = logging.getLogger(__name__)
 
+HEALTH_COLUMNS = (  # METRICS §12.1
+    "sleep_stress",
+    "respiration_sleep",
+    "restless_count",
+    "bb_charge",
+    "bb_high",
+    "stress_high_s",
+    "intensity_min",
+)
 WELLNESS_COLUMNS = [
     "date",
     "sleep_start",
@@ -44,6 +53,7 @@ WELLNESS_COLUMNS = [
     "stress_avg",
     "steps",
     "weight_kg",
+    *HEALTH_COLUMNS,
 ]
 
 BB_WAKE_WINDOW = timedelta(minutes=60)
@@ -105,6 +115,24 @@ def normalize_wellness(
         "stress_avg": stress_avg,
         "steps": _non_negative_int(summary.get("totalSteps")),
         "weight_kg": None,
+        **_health_fields(sleep_d, dto, summary),
+    }
+
+
+def _health_fields(sleep_d: Mapping[str, Any], dto: Mapping[str, Any], summary: Mapping[str, Any]) -> dict:
+    """METRICS §12.1 fields; negative Garmin values ("no data") and missing keys are None."""
+    moderate = _non_negative_int(summary.get("moderateIntensityMinutes"))
+    vigorous = _non_negative_int(summary.get("vigorousIntensityMinutes"))
+    respiration = _as_float(dto.get("averageRespirationValue"))
+    sleep_stress = _as_float(dto.get("avgSleepStress"))
+    return {
+        "sleep_stress": sleep_stress if sleep_stress is not None and sleep_stress >= 0 else None,
+        "respiration_sleep": respiration if respiration is not None and respiration > 0 else None,
+        "restless_count": _non_negative_int(sleep_d.get("restlessMomentsCount")),
+        "bb_charge": _non_negative_int(sleep_d.get("bodyBatteryChange")),
+        "bb_high": _non_negative_int(summary.get("bodyBatteryHighestValue")),
+        "stress_high_s": _non_negative_int(summary.get("highStressDuration")),
+        "intensity_min": moderate + 2 * vigorous if moderate is not None and vigorous is not None else None,
     }
 
 

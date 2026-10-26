@@ -34,6 +34,18 @@ from training.services.dto_health import (
     MorningStepDTO as MorningStepDTO,
 )
 
+# health page DTOs live in dto_health_trends.py
+from training.services.dto_health_trends import (
+    HealthMetricDTO as HealthMetricDTO,
+    HealthOverviewDTO as HealthOverviewDTO,
+    HealthPointDTO as HealthPointDTO,
+    HealthRelationshipDTO as HealthRelationshipDTO,
+    HealthRelationshipsDTO as HealthRelationshipsDTO,
+    HealthSeriesDTO as HealthSeriesDTO,
+    MonthValueDTO as MonthValueDTO,
+    RecentChangeDTO as RecentChangeDTO,
+)
+
 # phase-6 DTOs live in dto_plan.py
 from training.services.dto_plan import (
     DailyDecisionDTO as DailyDecisionDTO,

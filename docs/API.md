@@ -55,6 +55,9 @@ docs at `/docs`).
 | GET | `/api/wellness/readiness/today` | – | `ReadinessDTO` | Readiness of today with the component breakdown |
 | GET | `/api/wellness/readiness/{day}` | `day` | `ReadinessDTO` | Readiness of one day with the component breakdown |
 | GET | `/api/wellness/correlations` | `sport`? | `CorrelationsDTO` | Sleep ↔ performance findings (n ≥ 30) sorted by \|ρ\|, plus pairs with insufficient data |
+| GET | `/api/wellness/health` | – | `HealthOverviewDTO` | Health metrics (§12): latest, 7/28-day means, personal normal, 28-day change, monthly means |
+| GET | `/api/wellness/health/series` | `metrics`, `days`? | `HealthSeriesDTO[]` | Daily series of 1–4 health metrics with the 7-day mean and the normal band (§12.2) |
+| GET | `/api/wellness/health/relationships` | – | `HealthRelationshipsDTO` | Relationships between deviations of health metrics (§12.3), findings first |
 | GET | `/api/health` | – | `map<string, string>` | Liveness check |
 
 ## Schemas
@@ -463,6 +466,79 @@ PUT /plan/goal body: the race the season is built towards. Replaces the active g
 | `sport` (optional) | string | "run" \| "bike" |
 | `active` (optional) | boolean | false stores the goal without using it (all others off) |
 
+### HealthMetricDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `key` | string |  |
+| `label` | string |  |
+| `unit` | string | "s", "bpm", "min", … ("" for scores and counts) |
+| `better` | string \| null | "up" \| "down" \| null |
+| `latest` | number \| null | the newest daily value |
+| `latest_date` | date \| null |  |
+| `mean7` | number \| null | 7-day mean on today |
+| `mean28` | number \| null |  |
+| `median28` | number \| null | personal normal (median of the 28 days before today) |
+| `mad28` | number \| null |  |
+| `change` | RecentChangeDTO |  |
+| `monthly` | MonthValueDTO[] | calendar-month means, oldest first |
+
+### HealthOverviewDTO
+
+GET /wellness/health – every §12.1 metric with its trend summary.
+
+| Field | Type | Description |
+|---|---|---|
+| `today` | date |  |
+| `first_date` | date \| null | first day with any health data |
+| `metrics` | HealthMetricDTO[] |  |
+
+### HealthPointDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `date` | date |  |
+| `value` | number \| null |  |
+| `mean7` | number \| null |  |
+| `median28` | number \| null |  |
+| `mad28` | number \| null |  |
+
+### HealthRelationshipDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `x` | string |  |
+| `y` | string |  |
+| `lag` | integer | 0 = same day, 1 = y on the next day |
+| `n` | integer |  |
+| `rho` | number |  |
+| `ci_low` | number |  |
+| `ci_high` | number |  |
+| `p` | number |  |
+| `finding` | boolean | \|ρ\| ≥ 0.2 and passes Benjamini–Hochberg (q = 0.05) |
+| `contrast` | number \| null | mean y (raw unit of y) top − bottom quartile of x deviation |
+| `text` | string | plain Slovak sentence |
+
+### HealthRelationshipsDTO
+
+GET /wellness/health/relationships – findings first (§12.3).
+
+| Field | Type | Description |
+|---|---|---|
+| `tested` | integer | pairs with n ≥ 30 |
+| `findings` | HealthRelationshipDTO[] |  |
+| `others` | HealthRelationshipDTO[] | the strongest non-findings (max 20), for context |
+
+### HealthSeriesDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `key` | string |  |
+| `label` | string |  |
+| `unit` | string |  |
+| `better` | string \| null |  |
+| `points` | HealthPointDTO[] |  |
+
 ### LapDTO
 
 | Field | Type | Description |
@@ -495,6 +571,13 @@ METRICS §2.5: Pearson r between load_primary and Garmin training load.
 | `r` | number \| null | Pearson correlation coefficient, null if n < 3 |
 | `n` | integer | activities with both values |
 | `status` | string | "good" (r > 0.8) \| "fair" \| "warning" (r < 0.7) \| "insufficient" |
+
+### MonthValueDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `month` | string | "YYYY-MM" |
+| `value` | number |  |
 
 ### MorningRunDTO
 
@@ -697,6 +780,20 @@ GET /wellness/readiness/{date} – readiness of one day (METRICS §8).
 | `band` | string \| null | "green" (≥ 70) \| "yellow" (45–69) \| "red" (< 45) |
 | `components` | ReadinessComponentDTO[] | always the four components, in table order |
 | `message` | string | Slovak advice for the band |
+
+### RecentChangeDTO
+
+Last 28 days vs the 28 before (§12.2).
+
+| Field | Type | Description |
+|---|---|---|
+| `recent` | number \| null |  |
+| `previous` | number \| null |  |
+| `diff` | number \| null |  |
+| `pct` | number \| null | diff / previous |
+| `p` | number \| null | Mann–Whitney U, two-sided |
+| `notable` | boolean | p < 0.05 |
+| `direction` | string \| null | "better" \| "worse" \| null (no preferred direction) |
 
 ### ReferenceDTO
 

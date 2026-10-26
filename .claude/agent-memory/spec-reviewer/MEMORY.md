@@ -236,3 +236,19 @@
 - Recurring: stored "filled when missing" values (coach_block.baseline) filled by a GET before the Monday
   sync and refreshed only by `training recompute` -> frozen stale for the whole block.
 - dto.py 491 lines.
+
+## Kondícia step 3 §11.5 predictions (2026-10-26, commit 4a65068)
+- Process: other uncommitted work (wellness normalize/models/router = next Health task) sat in the tree while
+  HEAD was reviewed; review only HEAD and do not attribute those files.
+- Recurring (5th time): mutation survivors. 13/16 survived in coach/forecast.py + planning_forecast.py: >10 %
+  singular-resample branch, negative-CI branch (tests use only positive slopes), v+dv<=0 guard, >=3 s/km and
+  >=70 boundaries, sleep_s fallback in outlook, "pushed" status, both baselines, CTL/ATL prev + load_today
+  wiring. Pure-function known-answer tests do not cover the DB glue; ask for one glue test per input.
+- New pattern: "carry forward from X[today−1]" read with session.get(row of yesterday) silently falls back to 0
+  when the row is missing (sync gap) instead of the last stored row -> TSB 0 (scratch: CTL 60/ATL 40 three days
+  old -> tsb 0.0). Check every "yesterday's state" lookup for a missing-row fallback.
+- New pattern: orientation-only extras appended inside an existing message builder (notify.morning_message)
+  without their own try/except: any exception drops the whole Telegram message (send_morning catches all).
+- Recurring: UI derives a spec-less quantity from DTO fields (Forecast.tsx secondsPerHour = s/km per hour of
+  sleep) - business logic + formula outside METRICS.
+- dto.py down to 396 (forecast DTOs split into dto_forecast.py). STATUS updated.

@@ -161,6 +161,14 @@ class DailyWellness(SQLModel, table=True):
     stress_avg: float | None = None
     steps: int | None = None
     weight_kg: float | None = None
+    # METRICS §12.1 (health page), from the same raw JSON
+    sleep_stress: float | None = None
+    respiration_sleep: float | None = None
+    restless_count: int | None = None
+    bb_charge: int | None = None
+    bb_high: int | None = None
+    stress_high_s: int | None = None
+    intensity_min: int | None = None
 
 
 class DailyLoad(SQLModel, table=True):

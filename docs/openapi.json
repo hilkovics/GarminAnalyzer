@@ -1780,6 +1780,106 @@
         }
       }
     },
+    "/api/wellness/health": {
+      "get": {
+        "tags": [
+          "wellness"
+        ],
+        "summary": "Health metrics (§12): latest, 7/28-day means, personal normal, 28-day change, monthly means",
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthOverviewDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wellness/health/series": {
+      "get": {
+        "tags": [
+          "wellness"
+        ],
+        "summary": "Daily series of 1–4 health metrics with the 7-day mean and the normal band (§12.2)",
+        "operationId": "get_health_series",
+        "parameters": [
+          {
+            "name": "metrics",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "comma-separated metric keys",
+              "title": "Metrics"
+            },
+            "description": "comma-separated metric keys"
+          },
+          {
+            "name": "days",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 180,
+              "title": "Days"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HealthSeriesDTO"
+                  },
+                  "title": "Response Get Health Series"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid or unacceptable parameters / body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/wellness/health/relationships": {
+      "get": {
+        "tags": [
+          "wellness"
+        ],
+        "summary": "Relationships between deviations of health metrics (§12.3), findings first",
+        "operationId": "get_health_relationships",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthRelationshipsDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/health": {
       "get": {
         "tags": [
@@ -4077,6 +4177,380 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "HealthMetricDTO": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit",
+            "description": "\"s\", \"bpm\", \"min\", … (\"\" for scores and counts)"
+          },
+          "better": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Better",
+            "description": "\"up\" | \"down\" | null"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest",
+            "description": "the newest daily value"
+          },
+          "latest_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Date"
+          },
+          "mean7": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean7",
+            "description": "7-day mean on today"
+          },
+          "mean28": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean28"
+          },
+          "median28": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median28",
+            "description": "personal normal (median of the 28 days before today)"
+          },
+          "mad28": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mad28"
+          },
+          "change": {
+            "$ref": "#/components/schemas/RecentChangeDTO"
+          },
+          "monthly": {
+            "items": {
+              "$ref": "#/components/schemas/MonthValueDTO"
+            },
+            "type": "array",
+            "title": "Monthly",
+            "description": "calendar-month means, oldest first"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "unit",
+          "better",
+          "latest",
+          "latest_date",
+          "mean7",
+          "mean28",
+          "median28",
+          "mad28",
+          "change",
+          "monthly"
+        ],
+        "title": "HealthMetricDTO"
+      },
+      "HealthOverviewDTO": {
+        "properties": {
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today"
+          },
+          "first_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Date",
+            "description": "first day with any health data"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/HealthMetricDTO"
+            },
+            "type": "array",
+            "title": "Metrics"
+          }
+        },
+        "type": "object",
+        "required": [
+          "today",
+          "first_date",
+          "metrics"
+        ],
+        "title": "HealthOverviewDTO",
+        "description": "GET /wellness/health – every §12.1 metric with its trend summary."
+      },
+      "HealthPointDTO": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "mean7": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean7"
+          },
+          "median28": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median28"
+          },
+          "mad28": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mad28"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "value",
+          "mean7",
+          "median28",
+          "mad28"
+        ],
+        "title": "HealthPointDTO"
+      },
+      "HealthRelationshipDTO": {
+        "properties": {
+          "x": {
+            "type": "string",
+            "title": "X"
+          },
+          "y": {
+            "type": "string",
+            "title": "Y"
+          },
+          "lag": {
+            "type": "integer",
+            "title": "Lag",
+            "description": "0 = same day, 1 = y on the next day"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "rho": {
+            "type": "number",
+            "title": "Rho"
+          },
+          "ci_low": {
+            "type": "number",
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "type": "number",
+            "title": "Ci High"
+          },
+          "p": {
+            "type": "number",
+            "title": "P"
+          },
+          "finding": {
+            "type": "boolean",
+            "title": "Finding",
+            "description": "|ρ| ≥ 0.2 and passes Benjamini–Hochberg (q = 0.05)"
+          },
+          "contrast": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contrast",
+            "description": "mean y (raw unit of y) top − bottom quartile of x deviation"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "plain Slovak sentence"
+          }
+        },
+        "type": "object",
+        "required": [
+          "x",
+          "y",
+          "lag",
+          "n",
+          "rho",
+          "ci_low",
+          "ci_high",
+          "p",
+          "finding",
+          "contrast",
+          "text"
+        ],
+        "title": "HealthRelationshipDTO"
+      },
+      "HealthRelationshipsDTO": {
+        "properties": {
+          "tested": {
+            "type": "integer",
+            "title": "Tested",
+            "description": "pairs with n ≥ 30"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/HealthRelationshipDTO"
+            },
+            "type": "array",
+            "title": "Findings"
+          },
+          "others": {
+            "items": {
+              "$ref": "#/components/schemas/HealthRelationshipDTO"
+            },
+            "type": "array",
+            "title": "Others",
+            "description": "the strongest non-findings (max 20), for context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tested",
+          "findings",
+          "others"
+        ],
+        "title": "HealthRelationshipsDTO",
+        "description": "GET /wellness/health/relationships – findings first (§12.3)."
+      },
+      "HealthSeriesDTO": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "better": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Better"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/HealthPointDTO"
+            },
+            "type": "array",
+            "title": "Points"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "label",
+          "unit",
+          "better",
+          "points"
+        ],
+        "title": "HealthSeriesDTO"
+      },
       "LapDTO": {
         "properties": {
           "index": {
@@ -4239,6 +4713,25 @@
         ],
         "title": "LoadSanityDTO",
         "description": "METRICS §2.5: Pearson r between load_primary and Garmin training load."
+      },
+      "MonthValueDTO": {
+        "properties": {
+          "month": {
+            "type": "string",
+            "title": "Month",
+            "description": "\"YYYY-MM\""
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "month",
+          "value"
+        ],
+        "title": "MonthValueDTO"
       },
       "MorningRunDTO": {
         "properties": {
@@ -5278,6 +5771,96 @@
         ],
         "title": "ReadinessDTO",
         "description": "GET /wellness/readiness/{date} – readiness of one day (METRICS §8)."
+      },
+      "RecentChangeDTO": {
+        "properties": {
+          "recent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recent"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous"
+          },
+          "diff": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Diff"
+          },
+          "pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct",
+            "description": "diff / previous"
+          },
+          "p": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P",
+            "description": "Mann–Whitney U, two-sided"
+          },
+          "notable": {
+            "type": "boolean",
+            "title": "Notable",
+            "description": "p < 0.05"
+          },
+          "direction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Direction",
+            "description": "\"better\" | \"worse\" | null (no preferred direction)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "recent",
+          "previous",
+          "diff",
+          "pct",
+          "p",
+          "notable",
+          "direction"
+        ],
+        "title": "RecentChangeDTO",
+        "description": "Last 28 days vs the 28 before (§12.2)."
       },
       "ReferenceDTO": {
         "properties": {

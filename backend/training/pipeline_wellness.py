@@ -16,6 +16,7 @@ from training.analysis.readiness import readiness_frame
 from training.analysis.wellness import with_baselines
 from training.commute import commute_expr
 from training.db.models import Activity, ActivityMetric, DailyLoad, DailyWellness, Subjective
+from training.normalize.wellness import HEALTH_COLUMNS
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ WELLNESS_FIELDS = (
     "stress_avg",
     "steps",
     "weight_kg",
+    *HEALTH_COLUMNS,
 )
 NUMERIC_WELLNESS = tuple(f for f in WELLNESS_FIELDS if f not in ("sleep_start", "sleep_end"))
 
@@ -132,3 +134,18 @@ def correlation_activities(session: Session) -> pd.DataFrame:
         "rpe",
     ]
     return pd.DataFrame(rows, columns=columns)
+
+
+def health_frame(session: Session, end: dt.date) -> pd.DataFrame:
+    """METRICS §12.1: one column per health metric on a full daily calendar up to `end` (load from §4)."""
+    from training.analysis.health import METRICS, calendar  # local: keeps scipy out of the import graph
+
+    keys = [m.key for m in METRICS]
+    wellness = wellness_frame(session, date_to=end)
+    loads = daily_frame(session)["load_total"].rename("load")
+    frame = wellness.join(loads, how="outer") if not wellness.empty else loads.to_frame()
+    frame = frame[frame.index <= end] if not frame.empty else frame
+    for key in keys:
+        if key not in frame.columns:
+            frame[key] = float("nan")
+    return calendar(frame[keys], end)

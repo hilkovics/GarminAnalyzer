@@ -659,3 +659,54 @@ the §11.2 decision. Also shown in race mode (they do not depend on the coach).
   - Readiness and band of `D` by the §8 formula from these inputs.
   - **Best days for quality**: the outlook days that are available (§11.1 preferred days) and green
     (`≥ 70`), at most 2, highest readiness first (ties: the earlier day). None green → no best day.
+
+## 12. Health: long-term trends and relationships
+*Added 2026-10-26 (user request: overlaid sleep / resting HR / stress trends, long-term tracking, relationships
+between the values).* Descriptive only – nothing here changes readiness or the coach.
+
+### 12.1 Daily health metrics
+Wellness row `D` as §8 (the night ending on the morning of `D`, the rest of day `D`). New fields are read from
+the stored raw JSON (no new Garmin calls; `training recompute` fills the history):
+
+| Metric | Source | Unit | Better |
+|---|---|---|---|
+| `sleep_s`, `deep_s`, `rem_s`, `sleep_score` | §8 | s / score | higher |
+| `awake_s` | §8 | s | lower |
+| `sleep_stress` | sleep `dailySleepDTO.avgSleepStress` | 0–100 | lower |
+| `respiration_sleep` | sleep `dailySleepDTO.averageRespirationValue` | breaths/min | – |
+| `restless_count` | sleep `restlessMomentsCount` | count | lower |
+| `rhr` | §8 | bpm | lower |
+| `body_battery_wake` | §8 | 0–100 | higher |
+| `bb_charge` | sleep `bodyBatteryChange` (charge during the night) | points | higher |
+| `bb_high` | user summary `bodyBatteryHighestValue` | 0–100 | higher |
+| `stress_avg` | §8 | 0–100 | lower |
+| `stress_high_s` | user summary `highStressDuration` | s | lower |
+| `intensity_min` | user summary `moderateIntensityMinutes + 2 · vigorousIntensityMinutes` | min | – |
+| `steps` | §8 | count | – |
+| `load` | §4 `daily_load` of `D` (commutes included) | TSS-eq. | – |
+
+Negative Garmin values ("no data") and missing keys are null. `intensity_min` needs both values.
+
+### 12.2 Trends
+- Daily value, **7-day mean** and **28-day mean** (trailing, including `D`; need ≥ 4 resp. ≥ 14 values),
+  and the **normal band** = §8-style 28-day baseline: median ± MAD of `D−28 … D−1` (≥ 7 values).
+- **Monthly mean** per calendar month (≥ 10 values).
+- **Recent change:** mean of the last 28 days `[T−27, T]` vs the 28 days before `[T−55, T−28]` (`T` =
+  today), each needing ≥ 14 values; difference and percentage of the earlier mean. It is **notable** when the
+  Mann–Whitney U test (`scipy.stats.mannwhitneyu`, two-sided) gives `p < 0.05`; the direction is "better" or
+  "worse" by the table's column (none for "–").
+
+### 12.3 Relationships
+- Values are **deviations from the personal normal**: `value − median28` (§12.2 band centre), so slow trends of
+  both series (season, fitness) do not create correlations.
+- Pairs: every ordered pair `(x, y)` of different metrics with two lags: **same day** (`x[D]`, `y[D]`, each
+  unordered pair once) and **next day** (`x[D]`, `y[D+1]`). Same-day pairs inside one family are skipped as
+  trivially related: sleep (`sleep_s, deep_s, rem_s, sleep_score, awake_s`), body battery (`body_battery_wake,
+  bb_charge, bb_high`), stress (`stress_avg, stress_high_s`), activity (`steps, intensity_min, load`).
+- Spearman ρ over the days where both deviations exist; `n ≥ 30` else not reported. 95 % CI by the Fisher z
+  transform with the Spearman standard error `1.03 / √(n − 3)`; p from `scipy.stats.spearmanr`.
+- Multiple comparisons: Benjamini–Hochberg on all reported pairs' p (q = 0.05). A **finding** is a pair with
+  `|ρ| ≥ 0.2` that passes BH; findings are sorted by |ρ|. The UI states n, ρ, the CI, a plain sentence and the
+  caveat that correlation ≠ causation.
+- Quartile contrast for a finding: mean of `y` (raw values) when `x` deviation is in its top quartile vs the
+  bottom quartile (numpy linear quantiles, ≥ 5 days each).
