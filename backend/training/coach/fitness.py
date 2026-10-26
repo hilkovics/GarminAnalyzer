@@ -117,7 +117,7 @@ def week_load(
 def session_minutes(target_s: float, slot: str, weekend: bool) -> int:
     """§11.3 length of one session in whole 5-minute steps (halves up), clamped."""
     minutes = target_s / 60.0 * SHARE[slot]
-    rounded = 5 * math.floor(minutes / 5.0 + 0.5)
+    rounded = 5 * math.floor(minutes / 5.0 + 0.5 + 1e-9)  # 1e-9: a float tie such as 42.4999… counts as .5
     low, high = LIMITS_MIN[slot]
     if slot == "d" and not weekend:
         high = WEEKDAY_D_MAX_MIN

@@ -590,7 +590,8 @@ work as in §10.4 / §10.8.
   does not change `base` for the next week (`base_{w+1}` grows from `base_w`). Otherwise `T = base_w`.
 - A week's numbers are **final once the Monday sync has run** (§10.4 inputs complete for that Monday, so
   Sunday's load, ACWR and sleep are in); before that they are derived again on every use, and so is every later
-  week of the block. `recompute` derives all stored weeks again (block starts stay).
+  week of the block. The `training recompute` command derives all stored weeks again (block starts stay);
+  other recomputations (athlete settings, purge-demo) leave final weeks as they are.
   *Clarified 2026-10-26 (spec review B1).*
 - Split: **D 40 %, K 30 %, Ľ 30 %** of `T`, each rounded to whole 5 min (halves up) and clamped: Ľ 25–60 min,
   K 35–60 min, D 45–100 min; on a weekday D is capped at 60 min.

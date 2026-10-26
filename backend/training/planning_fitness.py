@@ -271,8 +271,8 @@ def existing_week(session: Session, monday: dt.date, today: dt.date) -> CoachWee
     """The stored §11.3 week; this week's row is created on first use, other weeks are never created here
     (a past week before the first block has none, a future week depends on brakes not known yet)."""
     row = session.get(CoachWeek, monday)
-    if row is None and monday == monday_of(today):
-        row = ensure_week(session, monday)
+    if (row is None or not row.final) and monday == monday_of(today):
+        row = ensure_week(session, monday)  # not final: derived again (§11.3)
     return row
 
 

@@ -23,7 +23,7 @@ Last updated: 2026-10-26 (coach "Kondícia" step 1)
   in the morning-run table.
 - **Tests:** existing §10 tests run in race mode (conftest fixture; mark `fitness_coach` for §11 tests).
 - **Spec review fixes:** week numbers are final only after the Monday sync (`coach_week.final`, migration 0006),
-  re-derived before that and by `recompute` (B1); known-answer tests for every commute filter, both brakes,
+  re-derived before that (also by the week view) and by the `training recompute` command only (B1); known-answer tests for every commute filter, both brakes,
   `if_pace` for rTSS and the sleep-score wait (B2); retries (Docker loop, Task Scheduler, cron) run at least
   until 13:00 (W1); a restart catches up a waiting run (W2); check-run name says "vypni auto-pauzu" (W4);
   concurrent week creation is tolerated (W6); a second run on a planned day fills Ľ; 5-min rounding halves up.

@@ -209,3 +209,17 @@
   (fitness) is only exercised by tests marked fitness_coach.
 - Spec texts meant for the device ("vypni auto-pauzu") have no carrier: Step has no description field.
 - File sizes: dto.py 480, morning.py 401, planning.py 400. STATUS updated this time.
+
+## Kondícia round 2 (2026-10-26, commit fb2a2c5)
+- Verified: coach_week.final + re-derive of non-final weeks (cascade) and `recompute` re-derive; migration 0006
+  chains 3d9a4c71e2b5 -> 9b1e6d2f4a87, server_default false; 15/19 mutants killed (all commute filters, rTSS
+  branch, both brakes, sleep-score wait, final flag, pipeline wiring, RETRY_UNTIL).
+- New pattern: a "final/fresh" flag honoured by the writer (ensure_week) but not by a READ helper that returns
+  the stored row (existing_week -> week view shows pre-sync numbers). Check every reader of a row that gains a
+  freshness flag.
+- New pattern: a hook added to pipeline.recompute also runs from every caller of it (athlete settings save,
+  `training athlete`, purge-demo), not only the `recompute` command the spec names. Grep callers.
+- Survivors again: behaviour changes with no tie test (5-min rounding halves up: no x.5 tie such as 42.5 min),
+  one-line wiring fixes (cli ran_on -> ran_ok_on), exception-path fixes (IntegrityError re-read). Keep running
+  the mutation script (scratchpad mut.py approach: list of (name, file, old, new), -x, 6 test files ~5-18 s each).
+- Stale wording after the retry fix: MAX_RETRIES comment and daily_loop docstring still say "at most".

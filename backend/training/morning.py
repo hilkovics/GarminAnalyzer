@@ -297,8 +297,8 @@ def parse_time(text: str) -> dt.time:
 # --- the Docker daily loop (review phase 8, W2) -------------------------------------------------------------
 
 RETRY_DELAY = dt.timedelta(hours=1)  # a failed run (network, Garmin hiccup) is tried again the same day …
-MAX_RETRIES = 4  # … at most this many times, never past midnight; reruns are idempotent
-RETRY_UNTIL = dt.time(13, 0)  # … and in any case until this local time (the §11.2 sleep wait ends at 12:00)
+MAX_RETRIES = 4  # … at least this many times and at least until RETRY_UNTIL, never past midnight (idempotent)
+RETRY_UNTIL = dt.time(13, 0)  # the §11.2 sleep wait ends at 12:00, so a waiting run is final by then
 CHUNK_S = 300  # re-read the wall clock at least every 5 min: DST changes, host suspend, a Pi's clock jump
 
 
@@ -356,9 +356,10 @@ def daily_loop(
     max_runs: int | None = None,
 ) -> None:
     """Run `run_once` every day at local `at`; never dies on an error. On start, a day whose `at` has
-    passed without a run is caught up (a container restart or a host that slept through it). A failed run
-    (`run_once` returns non-zero or raises) is retried every `RETRY_DELAY`, at most `MAX_RETRIES` times and
-    only on the same day (an unattended home server must not lose a day to a short network outage)."""
+    passed without a complete run is caught up (a container restart or a host that slept through it). A run
+    that failed or waits for sleep (`run_once` returns non-zero or raises) is retried every `RETRY_DELAY`:
+    `MAX_RETRIES` times and in any case until `RETRY_UNTIL`, only on the same day (an unattended home server
+    must not lose a day to a short network outage, and a waiting plan must become final)."""
     runs = 0
 
     def safe() -> bool:

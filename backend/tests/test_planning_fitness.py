@@ -133,16 +133,57 @@ def test_week_numbers_are_final_only_after_the_monday_sync(session):
     assert session.get(CoachWeek, week2).brake is None
 
 
-def test_recompute_rederives_the_weeks(session):
+def test_only_the_recompute_command_rederives_final_weeks(session, monkeypatch):
+    from typer.testing import CliRunner
+
+    from training import cli, pipeline
+    from training.config import get_settings
+
     pf.ensure_week(session, MONDAY)
     block = session.execute(select(CoachBlock)).scalar_one()
     block.base_s = 1.0
     session.add(block)
     session.commit()
-    from training import pipeline
-
-    assert pipeline.recompute(session, renormalize=False, end=TODAY).coach_weeks == 1
+    pipeline.recompute(session, renormalize=False, end=TODAY)  # e.g. an athlete settings save
+    session.expire_all()
+    assert session.execute(select(CoachBlock)).scalar_one().base_s == 1.0
+    monkeypatch.setenv("TRAINING_DB_PATH", str(session.get_bind().url.database))
+    get_settings.cache_clear()
+    try:
+        result = CliRunner().invoke(cli.app, ["recompute", "--metrics-only"])
+    finally:
+        get_settings.cache_clear()
+    assert result.exit_code == 0 and "coach weeks 1" in result.output, result.output
+    session.expire_all()
     assert session.execute(select(CoachBlock)).scalar_one().base_s == 5400
+
+
+def test_a_concurrent_writer_that_created_the_week_first_wins(session, monkeypatch):
+    first = pf.ensure_week(session, MONDAY)  # the other writer's block and week
+    real_get, seen = session.get, []
+
+    def stale_get(model, key):  # this writer read before the other one committed
+        if model is CoachWeek and not seen:
+            seen.append(key)
+            return None
+        return real_get(model, key)
+
+    monkeypatch.setattr(session, "get", stale_get)
+    monkeypatch.setattr(pf, "_open_block", lambda s, m: None)
+    row = pf.ensure_week(session, MONDAY)  # same block start → IntegrityError → rollback and re-read
+    assert seen == [MONDAY] and row.monday == first.monday and row.week_no == 1
+    assert len(session.execute(select(CoachBlock)).all()) == 1
+
+
+def test_the_week_view_rederives_a_week_that_is_not_final(session):
+    from training.services import plan as svc
+
+    week2 = MONDAY + dt.timedelta(weeks=1)
+    pf.ensure_week(session, MONDAY)
+    pf.ensure_week(session, week2)  # decided before the Monday sync
+    assert svc.get_week(session, week2, today=week2).fitness.brake is None
+    daily(session, week2 - dt.timedelta(days=1), acwr=1.4)  # a sync after the morning decision
+    assert svc.get_week(session, week2, today=week2).fitness.brake == "hold"
 
 
 # --- §11.2 inputs -------------------------------------------------------------------------------------------

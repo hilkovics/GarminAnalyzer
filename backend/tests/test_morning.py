@@ -449,3 +449,23 @@ def test_daily_loop_retries_a_waiting_run_until_13_even_after_an_early_start():
         max_runs=9,
     )
     assert calls == [6, 7, 8, 9, 10, 11, 12, 13, 6]  # > MAX_RETRIES, last retry at 13:00, then the next day
+
+
+def test_the_loop_catches_up_a_waiting_run_after_a_restart(engine, settings, monkeypatch):
+    today = dt.date.today()
+    with Session(engine) as session:
+        run = morning.MorningRun(started_at=dt.datetime.now(dt.UTC))
+        run.steps.append(morning.StepResult("plan", "waiting", "čaká sa na spánok"))
+        morning.record_run(session, run)
+    seen = {}
+    loop = lambda run_once, at, ran_today: seen.update(ok=ran_today(today))  # noqa: E731
+    monkeypatch.setattr(morning, "daily_loop", loop)
+    monkeypatch.setenv("TRAINING_DB_PATH", str(settings.db_path))
+    monkeypatch.setenv("TRAINING_LOG_DIR", str(settings.log_dir))
+    get_settings.cache_clear()
+    try:
+        result = CliRunner().invoke(cli.app, ["morning", "--loop"])
+    finally:
+        get_settings.cache_clear()
+    assert result.exit_code == 0, result.output
+    assert seen == {"ok": False}  # a waiting run is not a complete run: the restarted loop runs again

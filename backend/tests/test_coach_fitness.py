@@ -85,6 +85,7 @@ def test_session_minutes_split_round_and_clamp():
     assert f.session_minutes(4 * 3600, "d", weekend=True) == 95  # 96 → 95
     assert f.session_minutes(4 * 3600, "d", weekend=False) == 60  # weekday cap
     assert f.session_minutes(5400, "e", weekend=False) == 25  # 27 → 25
+    assert f.session_minutes(8500, "k", weekend=False) == 45  # 42.5 → 45 (halves up, not to even)
     assert f.session_minutes(3000, "k", weekend=False) == 35  # clamp up
     assert f.session_minutes(6 * 3600, "e", weekend=False) == 60  # clamp down
 
