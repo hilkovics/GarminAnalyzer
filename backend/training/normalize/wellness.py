@@ -129,7 +129,7 @@ def _health_fields(sleep_d: Mapping[str, Any], dto: Mapping[str, Any], summary: 
         "sleep_stress": sleep_stress if sleep_stress is not None and sleep_stress >= 0 else None,
         "respiration_sleep": respiration if respiration is not None and respiration > 0 else None,
         "restless_count": _non_negative_int(sleep_d.get("restlessMomentsCount")),
-        "bb_charge": _non_negative_int(sleep_d.get("bodyBatteryChange")),
+        "bb_charge": _rounded(sleep_d.get("bodyBatteryChange")),  # a change: a night may drain (negative)
         "bb_high": _non_negative_int(summary.get("bodyBatteryHighestValue")),
         "stress_high_s": _non_negative_int(summary.get("highStressDuration")),
         "intensity_min": moderate + 2 * vigorous if moderate is not None and vigorous is not None else None,
@@ -262,6 +262,11 @@ def _non_negative_int(value: Any) -> int | None:
     if number is None or number < 0:
         return None
     return round(number)
+
+
+def _rounded(value: Any) -> int | None:
+    number = _as_float(value)
+    return None if number is None else round(number)
 
 
 def _positive_int(value: Any) -> int | None:

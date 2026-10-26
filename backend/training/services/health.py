@@ -21,6 +21,7 @@ from training.services.dto import (
 from training.services.errors import InvalidInputError
 
 MAX_DAYS = 3650
+HISTORY_GAP_D = 28  # §12.1: a metric starting later than this after the first health day is "history missing"
 MAX_SERIES = 4
 MAX_OTHERS = 20
 WEAK_BELOW, MEDIUM_BELOW = 0.3, 0.5
@@ -55,6 +56,7 @@ def get_overview(session: Session, today: dt.date) -> HealthOverviewDTO:
                 better=info.better,
                 latest=_num(last.iloc[-1]) if len(last) else None,
                 latest_date=last.index[-1] if len(last) else None,
+                history_from=last.index[0] if len(last) else None,
                 mean7=_num(row["mean7"]) if row is not None else None,
                 mean28=_num(row["mean28"]) if row is not None else None,
                 median28=_num(row["median28"]) if row is not None else None,
@@ -63,7 +65,13 @@ def get_overview(session: Session, today: dt.date) -> HealthOverviewDTO:
                 monthly=[MonthValueDTO(month=m, value=float(v)) for m, v in h.monthly(series).items()],
             )
         )
-    return HealthOverviewDTO(today=today, first_date=_first_date(frame), metrics=metrics)
+    first = _first_date(frame)
+    missing = [
+        m.key
+        for m in metrics
+        if first is not None and m.history_from is not None and (m.history_from - first).days > HISTORY_GAP_D
+    ]
+    return HealthOverviewDTO(today=today, first_date=first, metrics=metrics, missing_history=missing)
 
 
 def get_series(session: Session, keys: list[str], *, days: int, today: dt.date) -> list[HealthSeriesDTO]:

@@ -688,7 +688,10 @@ the stored raw JSON (no new Garmin calls; `training recompute` fills the history
 | `steps` | §8 | count | – |
 | `load` | §4 `daily_load` of `D` (commutes included) | TSS-eq. | – |
 
-Negative Garmin values ("no data") and missing keys are null. `intensity_min` needs both values.
+Negative Garmin values ("no data") and missing keys are null, except `bb_charge`, which is a change and may be
+negative (a night that drains); a respiration of 0 is null. `intensity_min` needs both values. A metric whose
+first value is more than 28 days after the first health day is listed as "history missing", so the UI can
+suggest `training recompute` (fields added in an update are filled only for newly synced days otherwise).
 
 ### 12.2 Trends
 - Daily value, **7-day mean** and **28-day mean** (trailing, including `D`; need ≥ 4 resp. ≥ 14 values),
@@ -713,5 +716,8 @@ Negative Garmin values ("no data") and missing keys are null. `intensity_min` ne
 - Multiple comparisons: Benjamini–Hochberg on all reported pairs' p (q = 0.05). A **finding** is a pair with
   `|ρ| ≥ 0.2` that passes BH; findings are sorted by |ρ|. The UI states n, ρ, the CI, a plain sentence and the
   caveat that correlation ≠ causation.
-- Quartile contrast for a finding: mean of `y` (raw values) when `x` deviation is in its top quartile vs the
-  bottom quartile (numpy linear quantiles, ≥ 5 days each).
+- Quartile contrast for a finding: mean of `y` (raw values) over the `k = ⌊n / 4⌋` days with the highest `x`
+  deviation minus the mean over the `k` days with the lowest (ties broken by date, earlier first), so both
+  groups are exactly a quarter even when many values tie (e.g. rest days with load 0); needs `k ≥ 5`.
+- Presentation: the sentence calls a relationship slabá / stredná / silná at `|ρ| < 0.3` / `< 0.5` / `≥ 0.5`
+  ("nad" normálom for ρ > 0, else "pod"); besides the findings, the 20 strongest other pairs are listed.

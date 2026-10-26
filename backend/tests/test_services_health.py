@@ -94,3 +94,32 @@ def test_api(engine):
     assert client.get("/api/wellness/health/series", params={"metrics": "x"}).status_code == 422
     rel = client.get("/api/wellness/health/relationships").json()
     assert {"tested", "findings", "others"} <= set(rel)
+
+
+def test_frame_stops_at_today_and_days_boundary(session):
+    from training.db.models import DailyLoad
+
+    session.add(DailyLoad(date=TODAY + dt.timedelta(days=3), load_total=50.0))
+    session.commit()
+    assert health_frame(session, TODAY).index[-1] == TODAY
+    assert len(svc.get_series(session, ["rhr"], days=7, today=TODAY)[0].points) == 7
+    with pytest.raises(InvalidInputError):
+        svc.get_series(session, ["rhr"], days=6, today=TODAY)
+
+
+@pytest.mark.parametrize(
+    ("rho", "word", "side"),
+    [(0.29, "slabá", "nad"), (0.3, "stredná", "nad"), (-0.49, "stredná", "pod"), (0.5, "silná", "nad")],
+)
+def test_sentence_strength_and_side(rho, word, side):
+    r = h.Relationship("rhr", "sleep_s", 0, 40, rho, rho - 0.1, rho + 0.1, 0.01, True)
+    text = svc.sentence(r)
+    assert f"skôr {side} normálom – {word} súvislosť" in text and "v ten istý deň" in text
+
+
+def test_missing_history_is_flagged(session):
+    repo.upsert_wellness(session, {"date": TODAY, "respiration_sleep": 14.0})
+    session.commit()
+    dto = svc.get_overview(session, TODAY)
+    assert dto.missing_history == ["respiration_sleep"]
+    assert next(m for m in dto.metrics if m.key == "respiration_sleep").history_from == TODAY

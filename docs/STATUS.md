@@ -19,6 +19,12 @@ Last updated: 2026-10-26 (Health page)
   Súvislosti (sentences, ρ, CI, n, contrast, "V grafe"); Spánok a výkon (the former page). Categorical
   series colours added as tokens --cat1…4 (validated for both themes and colour-blindness). Checked in the
   browser on demo data (desktop dark, phone light).
+- **Spec review fixes:** a known-answer test at every §12 threshold and gate (mean/month/change minimums,
+  window edges, p < 0.05, better/worse, each family, ρ ≥ 0.2 vs BH, Fisher CI constant, raw-unit contrast,
+  constant columns, negative normal, frame cut at today, sentence words); the quartile contrast now takes
+  exact quarters by rank (many rest days tie at 0); a night that drains Body Battery keeps its negative
+  change; "history missing" metrics prompt `training recompute`; a tile without a 7-day mean says
+  "posledný deň"; fitness DTOs moved to `services/dto_fitness.py`.
 
 ### Coach "Kondícia" – step 3: predictions (2026-10-26, METRICS §11.5)
 - **Pure** `training/coach/forecast.py`: the personal sleep → pace effect (OLS pace at reference HR ~ last

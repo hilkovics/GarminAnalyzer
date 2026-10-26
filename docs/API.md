@@ -476,6 +476,7 @@ PUT /plan/goal body: the race the season is built towards. Replaces the active g
 | `better` | string \| null | "up" \| "down" \| null |
 | `latest` | number \| null | the newest daily value |
 | `latest_date` | date \| null |  |
+| `history_from` | date \| null | first day with a value |
 | `mean7` | number \| null | 7-day mean on today |
 | `mean28` | number \| null |  |
 | `median28` | number \| null | personal normal (median of the 28 days before today) |
@@ -492,6 +493,7 @@ GET /wellness/health – every §12.1 metric with its trend summary.
 | `today` | date |  |
 | `first_date` | date \| null | first day with any health data |
 | `metrics` | HealthMetricDTO[] |  |
+| `missing_history` | string[] | metrics starting > 28 days after first_date (run `training recompute`, §12.1) |
 
 ### HealthPointDTO
 

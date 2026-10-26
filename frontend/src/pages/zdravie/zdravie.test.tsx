@@ -24,7 +24,7 @@ describe("health format", () => {
 });
 
 const metric = (patch: object) => ({
-  key: "rhr", label: "Pokojový tep", unit: "bpm", better: "down", latest: 52, latest_date: "2026-10-25", mean7: 52.3, mean28: 51, median28: 50, mad28: 1,
+  key: "rhr", label: "Pokojový tep", unit: "bpm", better: "down", latest: 52, latest_date: "2026-10-25", history_from: "2026-03-01", mean7: 52.3, mean28: 51, median28: 50, mad28: 1,
   change: { recent: 52, previous: 50, diff: 2, pct: 0.04, p: 0.01, notable: true, direction: "worse" }, monthly: [], ...patch,
 });
 
@@ -39,6 +39,10 @@ describe("Tiles", () => {
     expect(screen.getByText(/horšie/).parentElement?.className).toContain("text-bad");
     tile.click();
     expect(onToggle).toHaveBeenCalledWith("rhr");
+  });
+  it("labels a single-day value as such when there is no 7-day mean", () => {
+    render(<Tiles metrics={[metric({ key: "steps", label: "Kroky", unit: "", mean7: null, latest: 9000 })] as never} selected={[]} onToggle={() => {}} />);
+    expect(screen.getByText(/posledný deň 25\. 10\./)).toBeTruthy();
   });
 });
 

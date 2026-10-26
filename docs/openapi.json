@@ -4228,6 +4228,19 @@
             ],
             "title": "Latest Date"
           },
+          "history_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History From",
+            "description": "first day with a value"
+          },
           "mean7": {
             "anyOf": [
               {
@@ -4294,6 +4307,7 @@
           "better",
           "latest",
           "latest_date",
+          "history_from",
           "mean7",
           "mean28",
           "median28",
@@ -4329,13 +4343,22 @@
             },
             "type": "array",
             "title": "Metrics"
+          },
+          "missing_history": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing History",
+            "description": "metrics starting > 28 days after first_date (run `training recompute`, §12.1)"
           }
         },
         "type": "object",
         "required": [
           "today",
           "first_date",
-          "metrics"
+          "metrics",
+          "missing_history"
         ],
         "title": "HealthOverviewDTO",
         "description": "GET /wellness/health – every §12.1 metric with its trend summary."

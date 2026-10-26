@@ -29,6 +29,7 @@ class HealthMetricDTO(BaseModel):
     better: str | None = Field(description='"up" | "down" | null')
     latest: float | None = Field(description="the newest daily value")
     latest_date: dt.date | None
+    history_from: dt.date | None = Field(description="first day with a value")
     mean7: float | None = Field(description="7-day mean on today")
     mean28: float | None
     median28: float | None = Field(description="personal normal (median of the 28 days before today)")
@@ -43,6 +44,9 @@ class HealthOverviewDTO(BaseModel):
     today: dt.date
     first_date: dt.date | None = Field(description="first day with any health data")
     metrics: list[HealthMetricDTO]
+    missing_history: list[str] = Field(
+        description="metrics starting > 28 days after first_date (run `training recompute`, §12.1)"
+    )
 
 
 class HealthPointDTO(BaseModel):

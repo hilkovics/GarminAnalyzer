@@ -63,12 +63,21 @@ function Trends({ overview, keys, setKeys }: { overview: Schemas["HealthOverview
   const [days, setDays] = useState(180);
   const withData = overview.metrics.filter((m) => m.latest !== null || m.monthly.length);
   const without = overview.metrics.filter((m) => m.latest === null && !m.monthly.length);
+  const partial = overview.metrics.filter((m) => overview.missing_history.includes(m.key));
   return (
     <div className="flex flex-col gap-4">
       <Card title="Prehľad" right={<span className="text-xs text-muted">posledných 28 dní oproti predošlým 28</span>}>
         <p className="mb-3 text-xs text-muted">Kliknutím na dlaždicu ju pridáš do grafov nižšie (najviac 4). Zelená / červená = výrazná zmena k lepšiemu / horšiemu; čiarka dole = mesačné priemery.</p>
         <Tiles metrics={withData} selected={keys} onToggle={(k) => setKeys(toggleKey(keys, k))} />
         {without.length > 0 && <p className="mt-3 text-xs text-muted">Bez dát: {without.map((m) => m.label).join(", ")} – doplnia sa po <code>uv run training recompute</code> alebo ďalšom syncu.</p>}
+        {partial.length > 0 && (
+          <div className="mt-3">
+            <Notice tone="yellow">
+              Bez staršej histórie: {partial.map((m) => m.label).join(", ")}. Spusti raz <code>uv run training recompute</code> – doplní ich z už stiahnutých
+              dát.
+            </Notice>
+          </div>
+        )}
       </Card>
       <Card title="Grafy" right={<Segmented label="Rozsah" value={days} onChange={setDays} options={RANGES} />}>
         <Overlay keys={keys} days={days} />

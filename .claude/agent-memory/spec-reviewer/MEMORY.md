@@ -252,3 +252,20 @@
 - Recurring: UI derives a spec-less quantity from DTO fields (Forecast.tsx secondsPerHour = s/km per hour of
   sleep) - business logic + formula outside METRICS.
 - dto.py down to 396 (forecast DTOs split into dto_forecast.py). STATUS updated.
+
+## Health page §12 (2026-10-26, commits 46b985b + ea128f3)
+- Process: caller said "last two commits" (HEAD~2..HEAD) but the backend half was HEAD~2 itself (46b985b);
+  HEAD~1 was an unrelated predictions fix. Map the described scope to commits with `git log --stat` first.
+- Verified OK: §12.2 windows (mean7/28 incl. D, median/MAD of D−28..D−1 on a full calendar), pct, monthly,
+  BH, Fisher CI 1.03/√(n−3), family skips, lag-1 shift, migration 0007 (9b1e6d2f4a87 -> 5e8c2a7d1f43, types
+  match), rebuild_all re-normalizes wellness offline, upsert writes the new columns, empty DB does not 500.
+- Recurring (6th time): mutation survivors 24/29 (every §12 threshold except mean7/MIN_N, BH and |ρ| ≥ 0.2
+  gates, 28-day window edges, "better" direction, families battery/stress/activity, contrast quartile/min,
+  raw-y contrast, ptp skip, health_frame end cut, service strength/side/days). Script: scratchpad mut.py
+  (name, file, old, new) over test_analysis_health/test_services_health/test_normalize_wellness, ~3 s each.
+- New pattern: quantile groups with `>= q3` / `<= q1` on zero-inflated series (load: 60 % rest days → bottom
+  "quartile" = 60 % of days). Check tie handling of every quantile contrast.
+- New pattern: UI fallback `mean7 ?? latest` under a "7 dní" caption - a fallback value shown with the
+  primary value's label. Grep `??` next to labelled values.
+- "No data = negative" clamps applied to a field that can be legitimately negative (sleep bodyBatteryChange).
+- dto.py 408 lines again.

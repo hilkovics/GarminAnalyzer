@@ -4,7 +4,7 @@ import { Line, LineChart, ResponsiveContainer, YAxis } from "recharts";
 
 import type { Schemas } from "@/api/client";
 import { cx } from "@/components/ui";
-import { fmtPctSigned } from "@/lib/format";
+import { fmtDayMonth, fmtPctSigned } from "@/lib/format";
 
 import { fmtMetric, fmtMetricDiff } from "./format";
 
@@ -65,7 +65,7 @@ export function Tiles({ metrics, selected, onToggle }: { metrics: Metric[]; sele
               <span className="text-[11px] font-semibold uppercase tracking-wide text-muted sm:text-xs">{m.label}</span>
               <span className="num text-lg font-semibold sm:text-xl">{fmtMetric(m.mean7 ?? m.latest, m.unit)}</span>
               <span className="num text-xs text-muted">
-                7 dní · normál {fmtMetric(m.median28, m.unit)}
+                {m.mean7 !== null && m.mean7 !== undefined ? "7 dní" : `posledný deň ${fmtDayMonth(m.latest_date)}`} · normál {fmtMetric(m.median28, m.unit)}
               </span>
               <ChangeLine m={m} />
               <Spark m={m} />

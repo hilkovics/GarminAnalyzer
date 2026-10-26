@@ -183,11 +183,12 @@ def _fisher_ci(rho: float, n: int) -> tuple[float, float]:
 
 
 def _contrast(xd: np.ndarray, y: np.ndarray) -> float | None:
-    q1, q3 = np.quantile(xd, [0.25, 0.75])
-    top, bottom = y[xd >= q3], y[xd <= q1]
-    if len(top) < CONTRAST_MIN or len(bottom) < CONTRAST_MIN or q1 == q3:
+    """§12.3: mean y of the ⌊n/4⌋ days with the highest x deviation − the ⌊n/4⌋ lowest (ties by date)."""
+    k = len(xd) // 4
+    if k < CONTRAST_MIN:
         return None
-    return float(top.mean() - bottom.mean())
+    order = np.argsort(xd, kind="stable")  # the input is in date order, so ties keep the earlier day first
+    return float(y[order[-k:]].mean() - y[order[:k]].mean())
 
 
 def benjamini_hochberg(pvalues: list[float], q: float = BH_Q) -> list[bool]:

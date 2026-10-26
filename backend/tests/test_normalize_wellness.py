@@ -278,7 +278,10 @@ def test_health_fields_from_a_recorded_day():
 
 
 def test_health_fields_reject_no_data_values():
-    sleep = {"dailySleepDTO": {"avgSleepStress": -1.0, "averageRespirationValue": 0}, "bodyBatteryChange": -2}
+    sleep = {
+        "dailySleepDTO": {"avgSleepStress": -1.0, "averageRespirationValue": 0},
+        "bodyBatteryChange": None,
+    }
     summary = {"moderateIntensityMinutes": 10, "vigorousIntensityMinutes": None, "highStressDuration": -1}
     row = normalize_wellness(DAY, sleep=sleep, user_summary=summary)
     assert all(row[k] is None for k in CONTRACT_KEYS[15:])
@@ -286,3 +289,7 @@ def test_health_fields_reject_no_data_values():
         DAY, user_summary={"moderateIntensityMinutes": 10, "vigorousIntensityMinutes": 15}
     )
     assert row["intensity_min"] == 40
+
+
+def test_a_night_that_drains_body_battery_is_kept():
+    assert normalize_wellness(DAY, sleep={"bodyBatteryChange": -7})["bb_charge"] == -7

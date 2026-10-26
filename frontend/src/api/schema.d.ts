@@ -1706,6 +1706,11 @@ export interface components {
             /** Latest Date */
             latest_date: string | null;
             /**
+             * History From
+             * @description first day with a value
+             */
+            history_from: string | null;
+            /**
              * Mean7
              * @description 7-day mean on today
              */
@@ -1743,6 +1748,11 @@ export interface components {
             first_date: string | null;
             /** Metrics */
             metrics: components["schemas"]["HealthMetricDTO"][];
+            /**
+             * Missing History
+             * @description metrics starting > 28 days after first_date (run `training recompute`, §12.1)
+             */
+            missing_history: string[];
         };
         /** HealthPointDTO */
         HealthPointDTO: {
