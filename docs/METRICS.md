@@ -632,3 +632,30 @@ work as in §10.4 / §10.8.
   (§10 rules apply) leaves its weeks out, and the block still ends after its 12th calendar week.
   Presentation: pace changes are shown in s/km and the EF change as a percentage of the baseline EF.
   *Added 2026-10-26 (step 2 of COACH_V2, approved with the proposal).*
+
+### 11.5 Predictions (step 3 of COACH_V2)
+*Added 2026-10-26 (approved with the proposal in `docs/COACH_V2.md` §7).* Orientation only: they never change
+the §11.2 decision. Also shown in race mode (they do not depend on the coach).
+- **Sleep effect on pace.** Data: the §9 run dataset, rows with `pace_at_ref_hr_day` (m/s), `sleep_s_lag0`
+  and `tsb` all present. Needs `n ≥ 30`, else status `insufficient`. Model: OLS with intercept
+  `pace = a + b · sleep_h + c · tsb` (`sleep_h = sleep_s / 3600`). 95 % CI of `b`: 1000 bootstrap resamples
+  of the rows (`default_rng(0)`, percentile interval; resamples with a singular design are dropped, CI null
+  if more than 10 % are). Status `reliable` when the CI excludes 0, else `uncertain`.
+  Typical values: `sleep_typ` = median `sleep_h`, `v_typ` = median `pace` of the rows.
+- **Morning note** for today (status `reliable` and last night's `sleep_s` present):
+  `Δv = b · (sleep_h − sleep_typ)`, `Δ = 1000 / (v_typ + Δv) − 1000 / v_typ` seconds per km (+ = slower).
+  Shown when `|Δ| ≥ 3 s/km`, rounded to whole seconds, as "Po {sleep h:mm} spánku ({±h:mm} oproti
+  zvyčajným {sleep_typ h:mm}) býva tvoje tempo pri rovnakom tepe o ~{|Δ|} s/km pomalšie – drž sa tepu, nie
+  tempa." (`rýchlejšie – tempo môže dnes ísť ľahšie.` when `Δ < 0`). It is also added to the morning
+  Telegram message, together with the outlook's best days for quality (below), when there are any.
+- **7-day outlook** for `D = today + 1 … today + 7`:
+  - Typical wellness of `D`: per field `sleep_score, sleep_s, rhr, body_battery_wake` the median of the
+    values on the same weekday as `D` in the 8 weeks `today − 56 … today − 1` (≥ 3 values, else null).
+  - Baselines: today's §8 `rhr_median28` and `sleep_s_median28` (null today → null).
+  - Load: `daily_load` of `D` = median `load_total` of the same weekday over those 8 weeks (missing days 0).
+    Today: the stored `load_total[today]` plus the estimated load (§10.6) of today's planned workout when it is
+    still planned or pushed. CTL/ATL are carried forward with the §4 recursion from `CTL[today−1]`,
+    `ATL[today−1]`, and `TSB[D] = CTL[D−1] − ATL[D−1]`.
+  - Readiness and band of `D` by the §8 formula from these inputs.
+  - **Best days for quality**: the outlook days that are available (§11.1 preferred days) and green
+    (`≥ 70`), at most 2, highest readiness first (ties: the earlier day). None green → no best day.

@@ -225,6 +225,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/plan/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Predictions (§11.5): the sleep → pace effect, today's note and the 7-day readiness outlook */
+        get: operations["get_plan_forecast"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/plan/blocks": {
         parameters: {
             query?: never;
@@ -1529,6 +1546,25 @@ export interface components {
              */
             menu: components["schemas"]["FitnessSlotDTO"][];
         };
+        /**
+         * ForecastDTO
+         * @description GET /plan/forecast – the morning note and the 7-day outlook (orientation only).
+         */
+        ForecastDTO: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            sleep_effect: components["schemas"]["SleepEffectDTO"];
+            /** @description null when the effect is not reliable or below 3 s/km */
+            note: components["schemas"]["SleepNoteDTO"] | null;
+            /**
+             * Days
+             * @description today + 1 … today + 7
+             */
+            days: components["schemas"]["OutlookDayDTO"][];
+        };
         /** GoalDTO */
         GoalDTO: {
             /** Id */
@@ -1728,6 +1764,49 @@ export interface components {
              * @description seconds
              */
             duration_s?: number | null;
+        };
+        /** OutlookDayDTO */
+        OutlookDayDTO: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /**
+             * Readiness
+             * @description expected readiness 0–100 from typical wellness and load
+             */
+            readiness: number | null;
+            /** Band */
+            band: string | null;
+            /**
+             * Load
+             * @description typical load of the weekday, TSS-equivalent points
+             */
+            load: number;
+            /** Tsb */
+            tsb: number;
+            /**
+             * Sleep S
+             * @description typical sleep of the weekday
+             */
+            sleep_s: number | null;
+            /** Sleep Score */
+            sleep_score: number | null;
+            /** Rhr */
+            rhr: number | null;
+            /** Body Battery Wake */
+            body_battery_wake: number | null;
+            /**
+             * Available
+             * @description not a rest day in the preferred days
+             */
+            available: boolean;
+            /**
+             * Best
+             * @description one of the best days for quality (§11.5)
+             */
+            best: boolean;
         };
         /**
          * PlannedWorkoutDTO
@@ -2296,6 +2375,58 @@ export interface components {
              * @description run pace zones in m/s for today's threshold
              */
             pace_zones: components["schemas"]["ZoneBoundDTO"][] | null;
+        };
+        /**
+         * SleepEffectDTO
+         * @description The personal effect of last night's sleep on the pace at the reference HR (TSB held constant).
+         */
+        SleepEffectDTO: {
+            /**
+             * Status
+             * @description "insufficient" (n < 30) | "uncertain" (CI contains 0) | "reliable"
+             */
+            status: string;
+            /**
+             * N
+             * @description run days with pace at reference HR, last night's sleep and TSB
+             */
+            n: number;
+            /** Min N */
+            min_n: number;
+            /**
+             * Slope
+             * @description m/s per hour of sleep
+             */
+            slope: number | null;
+            /** Ci Low */
+            ci_low: number | null;
+            /** Ci High */
+            ci_high: number | null;
+            /**
+             * Sleep Typ S
+             * @description median sleep of those days
+             */
+            sleep_typ_s: number | null;
+            /**
+             * Pace Typ
+             * @description median pace at reference HR of those days, m/s
+             */
+            pace_typ: number | null;
+        };
+        /** SleepNoteDTO */
+        SleepNoteDTO: {
+            /**
+             * Sleep S
+             * @description last night's sleep
+             */
+            sleep_s: number;
+            /**
+             * Delta S Per Km
+             * @description expected pace change today, + = slower
+             */
+            delta_s_per_km: number;
+            /** Text */
+            text: string;
         };
         /**
          * StatusIn
@@ -3266,6 +3397,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plan_forecast: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastDTO"];
                 };
             };
         };

@@ -147,3 +147,22 @@ describe("BlockProgressCard", () => {
     expect(screen.getByText(/\* Odhad vychádza z výkonu staršieho ako 60 dní/)).toBeTruthy(); // stale reference
   });
 });
+
+describe("Forecast", () => {
+  const effect = (patch: object) => ({ status: "reliable", n: 54, min_n: 30, slope: 0.05, ci_low: 0.02, ci_high: 0.08, sleep_typ_s: 7 * 3600, pace_typ: 3.0, ...patch });
+  it("explains the sleep effect for each status", async () => {
+    const { EffectLine } = await import("./Forecast");
+    const { rerender } = render(<EffectLine effect={effect({})} />);
+    // 1000/3.0 − 1000/3.05 = 5.46 s/km per hour
+    expect(screen.getByText(/každá hodina spánku navyše ≈ 5 s\/km rýchlejšie/)).toBeTruthy();
+    rerender(<EffectLine effect={effect({ status: "uncertain" })} />);
+    expect(screen.getByText(/zatiaľ nie je preukázateľný \(54 dní\)/)).toBeTruthy();
+    rerender(<EffectLine effect={effect({ status: "insufficient", n: 12, slope: null })} />);
+    expect(screen.getByText(/zatiaľ málo dát \(12\/30 dní/)).toBeTruthy();
+  });
+  it("shows the note in the colour of its direction", async () => {
+    const { NoteLine } = await import("./Forecast");
+    render(<NoteLine note={{ sleep_s: 18000, delta_s_per_km: 11, text: "Po 5:00 spánku … pomalšie" }} />);
+    expect(screen.getByText(/Po 5:00 spánku/)).toBeTruthy();
+  });
+});

@@ -28,6 +28,7 @@ docs at `/docs`).
 | POST | `/api/plan/today/push` | `dry_run`? | `PushResultDTO[]` | Push today's planned workout(s) to Garmin Connect; a re-push updates, never duplicates |
 | GET | `/api/plan/week` | `date`? | `WeekPlanDTO` | The ISO week containing `date` (default today): targets, planned vs done per day |
 | GET | `/api/plan/block` | `start`? | `BlockProgressDTO \| null` | Coach "Kondícia" block (§11.4): the one starting `start`, else the current one; null if none |
+| GET | `/api/plan/forecast` | – | `ForecastDTO` | Predictions (§11.5): the sleep → pace effect, today's note and the 7-day readiness outlook |
 | GET | `/api/plan/blocks` | – | `BlockRefDTO[]` | Coach "Kondícia" blocks, newest first |
 | GET | `/api/plan/season` | – | `SeasonDTO` | Season plan: this week and the projected weeks up to the race (phases, targets) |
 | GET | `/api/plan/goal` | – | `GoalDTO \| null` | The active goal, or null |
@@ -428,6 +429,17 @@ The coach "Kondícia" week (METRICS §11.3) inside its 12-week block.
 | `test` | boolean | test week: the quality session is the check run |
 | `menu` | FitnessSlotDTO[] | K, D, Ľ |
 
+### ForecastDTO
+
+GET /plan/forecast – the morning note and the 7-day outlook (orientation only).
+
+| Field | Type | Description |
+|---|---|---|
+| `date` | date |  |
+| `sleep_effect` | SleepEffectDTO |  |
+| `note` | SleepNoteDTO \| null | null when the effect is not reliable or below 3 s/km |
+| `days` | OutlookDayDTO[] | today + 1 … today + 7 |
+
 ### GoalDTO
 
 | Field | Type | Description |
@@ -507,6 +519,22 @@ One step of a `training morning` run.
 | `status` | string | "waiting": the plan waits for last night's sleep (METRICS §11.2), retried hourly |
 | `message` (optional) | string | short text, never secrets |
 | `duration_s` (optional) | number \| null | seconds |
+
+### OutlookDayDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `date` | date |  |
+| `readiness` | number \| null | expected readiness 0–100 from typical wellness and load |
+| `band` | string \| null |  |
+| `load` | number | typical load of the weekday, TSS-equivalent points |
+| `tsb` | number |  |
+| `sleep_s` | number \| null | typical sleep of the weekday |
+| `sleep_score` | number \| null |  |
+| `rhr` | number \| null |  |
+| `body_battery_wake` | number \| null |  |
+| `available` | boolean | not a rest day in the preferred days |
+| `best` | boolean | one of the best days for quality (§11.5) |
 
 ### PlannedWorkoutDTO
 
@@ -751,6 +779,29 @@ GET /progress/ef (EF / decoupling / pace_at_ref_hr_day per activity + trend).
 | `current` | map<string, ThresholdDTO \| null> | {"run": …, "bike": …} valid today |
 | `hr_zones` | map<string, ZoneBoundDTO[]> | per sport, absolute bpm bounds of today's zones |
 | `pace_zones` | ZoneBoundDTO[] \| null | run pace zones in m/s for today's threshold |
+
+### SleepEffectDTO
+
+The personal effect of last night's sleep on the pace at the reference HR (TSB held constant).
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | string | "insufficient" (n < 30) \| "uncertain" (CI contains 0) \| "reliable" |
+| `n` | integer | run days with pace at reference HR, last night's sleep and TSB |
+| `min_n` | integer |  |
+| `slope` | number \| null | m/s per hour of sleep |
+| `ci_low` | number \| null |  |
+| `ci_high` | number \| null |  |
+| `sleep_typ_s` | number \| null | median sleep of those days |
+| `pace_typ` | number \| null | median pace at reference HR of those days, m/s |
+
+### SleepNoteDTO
+
+| Field | Type | Description |
+|---|---|---|
+| `sleep_s` | number | last night's sleep |
+| `delta_s_per_km` | integer | expected pace change today, + = slower |
+| `text` | string |  |
 
 ### StatusIn
 

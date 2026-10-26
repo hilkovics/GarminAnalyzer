@@ -1,7 +1,7 @@
 # Tréner „Kondícia“
 
 Stav: **schválené 2026-10-26.** Záväzné pravidlá sú v `docs/METRICS.md` §11 (tento dokument je zdôvodnenie).
-Kroky 1 a 2 implementované 2026-10-26; krok 3 nasleduje. Čísla sú počiatočné – dajú sa zmeniť (najprv v METRICS).
+Kroky 1–3 implementované 2026-10-26. Čísla sú počiatočné – dajú sa zmeniť (najprv v METRICS).
 
 ## Rozhodnutia používateľa (2026-10-26)
 
@@ -107,7 +107,7 @@ Dochádzka ostáva len únava.
 1. ✓ (2026-10-26) Pravidlá do METRICS §11 → denné rozhodnutie, týždenný čas, čakanie na spánok do 12:00, odoslanie do Garminu,
    stránka Plán (menu týždňa K/D/Ľ, farba dňa, dôvod).
 2. ✓ (2026-10-26) Blok a pokrok (východisko, kontrolné behy, súhrn) – Plán a Progres.
-3. Predpovede (ranná poznámka, 7-dňový výhľad) – Dashboard a Plán.
+3. ✓ (2026-10-26) Predpovede (ranná poznámka, 7-dňový výhľad) – Dashboard a Plán.
 
 ## Otvorené body (navrhujem takto, ak nepovieš inak)
 

@@ -765,6 +765,27 @@
         }
       }
     },
+    "/api/plan/forecast": {
+      "get": {
+        "tags": [
+          "plan"
+        ],
+        "summary": "Predictions (§11.5): the sleep → pace effect, today's note and the 7-day readiness outlook",
+        "operationId": "get_plan_forecast",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/plan/blocks": {
       "get": {
         "tags": [
@@ -3893,6 +3914,46 @@
         "title": "FitnessWeekDTO",
         "description": "The coach \"Kondícia\" week (METRICS §11.3) inside its 12-week block."
       },
+      "ForecastDTO": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "sleep_effect": {
+            "$ref": "#/components/schemas/SleepEffectDTO"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SleepNoteDTO"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null when the effect is not reliable or below 3 s/km"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/OutlookDayDTO"
+            },
+            "type": "array",
+            "title": "Days",
+            "description": "today + 1 … today + 7"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "sleep_effect",
+          "note",
+          "days"
+        ],
+        "title": "ForecastDTO",
+        "description": "GET /plan/forecast – the morning note and the 7-day outlook (orientation only)."
+      },
       "GoalDTO": {
         "properties": {
           "id": {
@@ -4290,6 +4351,117 @@
         ],
         "title": "MorningStepDTO",
         "description": "One step of a `training morning` run."
+      },
+      "OutlookDayDTO": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "readiness": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Readiness",
+            "description": "expected readiness 0–100 from typical wellness and load"
+          },
+          "band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Band"
+          },
+          "load": {
+            "type": "number",
+            "title": "Load",
+            "description": "typical load of the weekday, TSS-equivalent points"
+          },
+          "tsb": {
+            "type": "number",
+            "title": "Tsb"
+          },
+          "sleep_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep S",
+            "description": "typical sleep of the weekday"
+          },
+          "sleep_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep Score"
+          },
+          "rhr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rhr"
+          },
+          "body_battery_wake": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Battery Wake"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "not a rest day in the preferred days"
+          },
+          "best": {
+            "type": "boolean",
+            "title": "Best",
+            "description": "one of the best days for quality (§11.5)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "readiness",
+          "band",
+          "load",
+          "tsb",
+          "sleep_s",
+          "sleep_score",
+          "rhr",
+          "body_battery_wake",
+          "available",
+          "best"
+        ],
+        "title": "OutlookDayDTO"
       },
       "PlannedWorkoutDTO": {
         "properties": {
@@ -5465,6 +5637,120 @@
           "pace_zones"
         ],
         "title": "SettingsDTO"
+      },
+      "SleepEffectDTO": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "\"insufficient\" (n < 30) | \"uncertain\" (CI contains 0) | \"reliable\""
+          },
+          "n": {
+            "type": "integer",
+            "title": "N",
+            "description": "run days with pace at reference HR, last night's sleep and TSB"
+          },
+          "min_n": {
+            "type": "integer",
+            "title": "Min N"
+          },
+          "slope": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Slope",
+            "description": "m/s per hour of sleep"
+          },
+          "ci_low": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci Low"
+          },
+          "ci_high": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ci High"
+          },
+          "sleep_typ_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sleep Typ S",
+            "description": "median sleep of those days"
+          },
+          "pace_typ": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pace Typ",
+            "description": "median pace at reference HR of those days, m/s"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "n",
+          "min_n",
+          "slope",
+          "ci_low",
+          "ci_high",
+          "sleep_typ_s",
+          "pace_typ"
+        ],
+        "title": "SleepEffectDTO",
+        "description": "The personal effect of last night's sleep on the pace at the reference HR (TSB held constant)."
+      },
+      "SleepNoteDTO": {
+        "properties": {
+          "sleep_s": {
+            "type": "number",
+            "title": "Sleep S",
+            "description": "last night's sleep"
+          },
+          "delta_s_per_km": {
+            "type": "integer",
+            "title": "Delta S Per Km",
+            "description": "expected pace change today, + = slower"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sleep_s",
+          "delta_s_per_km",
+          "text"
+        ],
+        "title": "SleepNoteDTO"
       },
       "StatusIn": {
         "properties": {

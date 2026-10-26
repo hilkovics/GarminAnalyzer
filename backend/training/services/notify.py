@@ -14,7 +14,7 @@ import requests
 from sqlmodel import Session
 
 from training.config import Settings
-from training.services import fitness, plan, sleep
+from training.services import fitness, forecast, plan, sleep
 from training.services.dto import MorningMessageDTO, WorkoutStepDTO
 
 log = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ COMPONENT_WORDS = {
     "form": "forma",
 }
 SPORT_WORDS = {"run": "beh", "bike": "bicykel"}
+WEEKDAY_WORDS = ("po", "ut", "st", "št", "pi", "so", "ne")
 STEP_WORDS = {
     "warmup": "Rozcvička",
     "work": "Záťaž",
@@ -76,8 +77,19 @@ def _readiness_line(session: Session, today: dt.date) -> tuple[str, float | None
     return line + f". {result.message}", result.score, result.band
 
 
+def _forecast_lines(session: Session, today: dt.date) -> list[str]:
+    """§11.5: the sleep note and the best days for quality (none when there is nothing reliable to say)."""
+    result = forecast.get_forecast(session, today)
+    lines = [result.note.text] if result.note else []
+    best = [d.date for d in result.days if d.best]
+    if best:
+        names = ", ".join(f"{WEEKDAY_WORDS[d.weekday()]} {d.day}. {d.month}." for d in best)
+        lines.append(f"Výhľad: najlepšie dni na kvalitný tréning – {names}")
+    return lines
+
+
 def morning_message(session: Session, today: dt.date) -> MorningMessageDTO:
-    """The morning text of `today` (METRICS §8 readiness, §10 plan, §4 load); at most 8 lines."""
+    """The morning text of `today` (METRICS §8 readiness, §10/§11 plan, §11.5 note, §4 load); ≤ 10 lines."""
     readiness_line, score, band = _readiness_line(session, today)
     decision = plan.get_today(session, today)
     workout = decision.workout
@@ -94,6 +106,7 @@ def morning_message(session: Session, today: dt.date) -> MorningMessageDTO:
         lines.append(f"Prečo: {decision.reason}")
     if workout.steps:
         lines.append(f"Kroky: {step_summary(workout.steps)}")
+    lines.extend(_forecast_lines(session, today))
     yesterday = today - dt.timedelta(days=1)
     point = fitness.get_pmc(session, date_from=yesterday, date_to=yesterday).latest
     if point is None:

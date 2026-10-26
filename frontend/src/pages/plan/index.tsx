@@ -8,6 +8,7 @@ import { Button, Loading, PageHeader, QueryState, Segmented } from "@/components
 import { fmtLongDate, isoWeekLabel } from "@/lib/format";
 
 import { BlockSection } from "./BlockProgress";
+import { ForecastCard } from "./Forecast";
 import { GoalForm } from "./GoalForm";
 import { PreferredDays } from "./PreferredDays";
 import { SeasonBlock } from "./SeasonBlock";
@@ -68,6 +69,7 @@ export default function PlanPage() {
         <QueryState query={week}>
           {(w) => <WeekBlock week={w} today={todayIso ?? ""} onNavigate={setWeekDate} pending={week.isPlaceholderData} />}
         </QueryState>
+        <ForecastCard />
         {today.data?.mode === "fitness" && <BlockSection />}
         {today.data?.mode === "fitness" ? (
           <p className="text-sm text-muted">

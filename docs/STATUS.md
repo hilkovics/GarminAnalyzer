@@ -1,8 +1,21 @@
 # STATUS
 
-Last updated: 2026-10-26 (coach "Kondícia" step 2)
+Last updated: 2026-10-26 (coach "Kondícia" step 3)
 
 ## Done
+
+### Coach "Kondícia" – step 3: predictions (2026-10-26, METRICS §11.5)
+- **Pure** `training/coach/forecast.py`: the personal sleep → pace effect (OLS pace at reference HR ~ last
+  night's sleep + TSB on the §9 run dataset, n ≥ 30, bootstrap CI; "reliable" only when the CI excludes 0),
+  the morning note (shown at ≥ 3 s/km), the 7-day outlook (typical wellness and load of the same weekday
+  over 8 weeks, CTL/ATL carried forward, §8 readiness) and the best days for quality (≤ 2 available green
+  days). 8 known-answer tests.
+- **Glue/API:** `planning_forecast.py`, `GET /api/plan/forecast` (`ForecastDTO`); the morning Telegram
+  message adds the note and the best days.
+- **UI:** card "Výhľad na 7 dní" on Plán (coloured days, ★ best days, rest days dimmed, the sleep-effect
+  line), the note and best days on the Dashboard. Checked in the browser on demo data (desktop, phone).
+- **Next:** the Health page (user request: overlaid sleep / RHR / stress / Body Battery trends and
+  relationships).
 
 ### Coach "Kondícia" – step 2: block progress (2026-10-26, METRICS §11.4)
 - **Pure** `training/coach/block_progress.py`: fitness snapshot on a day (28-day median pace at the reference

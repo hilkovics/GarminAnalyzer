@@ -20,6 +20,14 @@ from training.services.dto_coach import (
     FitnessSnapshotDTO as FitnessSnapshotDTO,
 )
 
+# prediction DTOs live in dto_forecast.py
+from training.services.dto_forecast import (
+    ForecastDTO as ForecastDTO,
+    OutlookDayDTO as OutlookDayDTO,
+    SleepEffectDTO as SleepEffectDTO,
+    SleepNoteDTO as SleepNoteDTO,
+)
+
 # phase-8 DTOs live in dto_health.py
 from training.services.dto_health import (
     MorningRunDTO as MorningRunDTO,

@@ -222,6 +222,7 @@ EXPECTED_ROUTES = {
     ("get", "/api/plan/week"),
     ("get", "/api/plan/block"),
     ("get", "/api/plan/blocks"),
+    ("get", "/api/plan/forecast"),
     ("get", "/api/plan/season"),
     ("get", "/api/plan/goal"),
     ("put", "/api/plan/goal"),

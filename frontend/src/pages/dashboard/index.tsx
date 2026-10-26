@@ -9,6 +9,8 @@ import { Badge, Card, Notice, PageHeader, QueryState, Stat } from "@/components/
 import { fmtDate, fmtDateTime, fmtLongDate, fmtNum, fmtSigned, isoWeekLabel } from "@/lib/format";
 import { acwrBadge } from "@/lib/labels";
 
+import { NoteLine } from "@/pages/plan/Forecast";
+
 import { ReadinessCard, TodayCard } from "./TodayCards";
 import { WeekCompare } from "./WeekCompare";
 
@@ -99,6 +101,8 @@ export default function DashboardPage() {
   const dash = useApi<Schemas["DashboardDTO"]>("/fitness/dashboard");
   const readiness = useApi<Schemas["ReadinessDTO"]>("/wellness/readiness/today");
   const today = useApi<Schemas["DailyDecisionDTO"]>("/plan/today");
+  const forecast = useApi<Schemas["ForecastDTO"]>("/plan/forecast");
+  const best = forecast.data?.days.filter((d) => d.best) ?? [];
   return (
     <>
       <PageHeader
@@ -122,6 +126,12 @@ export default function DashboardPage() {
               <ReadinessCard query={readiness} />
               <TodayCard query={today} />
             </div>
+            <NoteLine note={forecast.data?.note ?? null} />
+            {best.length > 0 && (
+              <p className="text-sm text-muted">
+                Výhľad: najlepšie dni na kvalitný tréning – {best.map((b) => fmtDate(b.date)).join(", ")} (podrobnosti v Pláne).
+              </p>
+            )}
             {d.latest ? (
               <>
                 <FormTiles latest={d.latest} />
